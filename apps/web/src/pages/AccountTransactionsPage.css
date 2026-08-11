@@ -1,0 +1,184 @@
+.tx-back {
+  display: inline-block;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.tx-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.tx-header h1 {
+  font-size: 1.3rem;
+  margin: 0 0 0.25rem;
+}
+
+.tx-balance {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.tx-balance.negative {
+  color: var(--badge-error-fg);
+}
+
+.tx-type-toggle {
+  display: flex;
+  gap: 0.5rem;
+  grid-column: 1 / -1;
+}
+
+.tx-type-toggle button {
+  flex: 1;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.tx-type-toggle button.active-expense {
+  background: var(--badge-error-bg);
+  color: var(--badge-error-fg);
+  border-color: var(--badge-error-fg);
+}
+
+.tx-type-toggle button.active-income {
+  background: var(--badge-ok-bg);
+  color: var(--badge-ok-fg);
+  border-color: var(--badge-ok-fg);
+}
+
+.tx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tx-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+
+.tx-row-emoji {
+  font-size: 1.3rem;
+}
+
+.tx-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.tx-row-category {
+  font-weight: 600;
+}
+
+.tx-row-note {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.tx-row-date {
+  font-size: 0.75rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.tx-row-amount {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tx-row-amount.income {
+  color: var(--badge-ok-fg);
+}
+
+.tx-row-amount.expense {
+  color: var(--badge-error-fg);
+}
+
+.tx-empty {
+  color: var(--text);
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.members-section {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.members-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.members-section-header h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.9rem;
+}
+
+.member-row-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.member-row-email {
+  font-size: 0.75rem;
+  color: var(--text);
+}
+
+.invite-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.invite-form input {
+  flex: 1;
+}
+
+.pending-invites {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.pending-invite-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text);
+}

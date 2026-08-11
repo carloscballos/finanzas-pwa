@@ -1,0 +1,77 @@
+.categories-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.categories-toolbar h1 {
+  font-size: 1.3rem;
+  margin: 0;
+}
+
+.categories-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .categories-columns {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.categories-column h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+  color: var(--text);
+}
+
+.category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.category-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 0.6rem 0.85rem;
+}
+
+.category-emoji {
+  font-size: 1.2rem;
+}
+
+.category-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.category-row-actions {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.category-row-actions button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+}
+
+.category-row-actions .link-danger {
+  color: var(--badge-error-fg);
+}
+
+.category-empty {
+  color: var(--text);
+  font-size: 0.9rem;
+}

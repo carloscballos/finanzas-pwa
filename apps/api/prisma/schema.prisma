@@ -1,0 +1,277 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType {
+  SAVINGS
+  CHECKING
+  CASH
+  CREDIT_CARD
+  INVESTMENT
+  OTHER
+}
+
+enum AccountMemberRole {
+  OWNER
+  MEMBER
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum BudgetPeriod {
+  WEEKLY
+  MONTHLY
+}
+
+// PENDING: recién creada.
+// PAID_PENDING_CONFIRMATION: alguna de las dos partes la marcó como pagada;
+//   espera que la OTRA parte confirme o rechace.
+// SETTLED: confirmada por la contraparte, ya no aparece como pendiente.
+enum DebtStatus {
+  PENDING
+  PAID_PENDING_CONFIRMATION
+  SETTLED
+}
+
+enum AccountInvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELED
+}
+
+// SEMIMONTHLY ("quincenal"): dos veces al mes, los días 15 y último del mes
+// — es el ciclo de nómina típico en Colombia. No es "cada 14 días": ver
+// recurrence.util.ts para la lógica exacta de la siguiente fecha.
+enum RecurrenceFrequency {
+  WEEKLY
+  SEMIMONTHLY
+  MONTHLY
+  YEARLY
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accountMemberships    AccountMember[]
+  categories            Category[]
+  createdTransactions   Transaction[]
+  budgets               Budget[]
+  savingsGoals          SavingsGoal[]
+  debtsAsCreditor       Debt[]                 @relation("CreditorDebts")
+  debtsAsDebtor         Debt[]                 @relation("DebtorDebts")
+  createdDebts          Debt[]                 @relation("CreatedDebts")
+  receivedInvitations   AccountInvitation[]    @relation("ReceivedInvitations")
+  sentInvitations       AccountInvitation[]    @relation("SentInvitations")
+  recurringTransactions RecurringTransaction[]
+
+  @@map("users")
+}
+
+// Toda cuenta tiene al menos un miembro (el owner). Una cuenta "personal"
+// es simplemente una cuenta con un único AccountMember en rol OWNER — el
+// mismo modelo soporta cuentas compartidas sin necesitar otra migración.
+model Account {
+  id             String      @id @default(uuid())
+  name           String
+  type           AccountType
+  currency       String      @default("COP")
+  initialBalance Decimal     @default(0) @db.Decimal(14, 2)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  members               AccountMember[]
+  transactions          Transaction[]
+  savingsGoals          SavingsGoal[]
+  invitations           AccountInvitation[]
+  recurringTransactions RecurringTransaction[]
+
+  @@map("accounts")
+}
+
+model AccountMember {
+  id        String            @id @default(uuid())
+  accountId String
+  userId    String
+  role      AccountMemberRole @default(OWNER)
+  createdAt DateTime          @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, userId])
+  @@map("account_members")
+}
+
+// Las categorías las crea cada usuario manualmente (no hay catálogo
+// predefinido). Restrict en las relaciones de abajo evita borrar una
+// categoría en uso; el service da un error más claro antes de llegar ahí.
+model Category {
+  id        String          @id @default(uuid())
+  userId    String
+  name      String
+  type      TransactionType
+  emoji     String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions          Transaction[]
+  budgets               Budget[]
+  recurringTransactions RecurringTransaction[]
+
+  @@unique([userId, name, type])
+  @@map("categories")
+}
+
+model Transaction {
+  id                     String          @id @default(uuid())
+  accountId              String
+  categoryId             String
+  createdByUserId        String
+  type                   TransactionType
+  amount                 Decimal         @db.Decimal(14, 2)
+  note                   String?
+  occurredAt             DateTime        @default(now())
+  recurringTransactionId String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  account              Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  category             Category              @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdBy            User                  @relation(fields: [createdByUserId], references: [id])
+  recurringTransaction RecurringTransaction? @relation(fields: [recurringTransactionId], references: [id], onDelete: SetNull)
+
+  @@map("transactions")
+}
+
+// Plantilla que un cron genera automáticamente como Transaction real cada
+// periodo (ver RecurringTransactionsScheduler). nextRunDate avanza después
+// de cada generación; si el servidor estuvo apagado, el scheduler "pone al
+// día" generando todas las ocurrencias vencidas de una vez.
+model RecurringTransaction {
+  id              String              @id @default(uuid())
+  accountId       String
+  categoryId      String
+  createdByUserId String
+  type            TransactionType
+  amount          Decimal             @db.Decimal(14, 2)
+  note            String?
+  frequency       RecurrenceFrequency @default(MONTHLY)
+  startDate       DateTime
+  nextRunDate     DateTime
+  endDate         DateTime?
+  active          Boolean             @default(true)
+  lastRunAt       DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  account      Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  category     Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdBy    User          @relation(fields: [createdByUserId], references: [id])
+  transactions Transaction[]
+
+  @@map("recurring_transactions")
+}
+
+// currency filtra qué movimientos cuentan como "gastado": solo los de
+// cuentas cuya moneda coincide (evita sumar COP y USD en un mismo total).
+model Budget {
+  id          String       @id @default(uuid())
+  userId      String
+  categoryId  String
+  limitAmount Decimal      @db.Decimal(14, 2)
+  currency    String       @default("COP")
+  period      BudgetPeriod @default(MONTHLY)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, categoryId, period, currency])
+  @@map("budgets")
+}
+
+// currency se fija al crear: si la meta está ligada a una cuenta, hereda la
+// moneda de esa cuenta; si no, la elige el usuario (default COP).
+model SavingsGoal {
+  id            String    @id @default(uuid())
+  userId        String
+  name          String
+  targetAmount  Decimal   @db.Decimal(14, 2)
+  currentAmount Decimal   @default(0) @db.Decimal(14, 2)
+  currency      String    @default("COP")
+  targetDate    DateTime?
+  accountId     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@map("savings_goals")
+}
+
+// Deuda entre dos usuarios reales (no ligada a una cuenta). "Compartirla" es
+// simplemente que creditorId/debtorId son ambos usuarios reales, así que
+// aparece en el listado de los dos sin necesidad de un flujo de invitación.
+model Debt {
+  id                 String     @id @default(uuid())
+  creditorId         String
+  debtorId           String
+  createdByUserId    String
+  amount             Decimal    @db.Decimal(14, 2)
+  currency           String     @default("COP")
+  description        String?
+  status             DebtStatus @default(PENDING)
+  markedPaidByUserId String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  settledAt          DateTime?
+
+  creditor  User @relation("CreditorDebts", fields: [creditorId], references: [id], onDelete: Cascade)
+  debtor    User @relation("DebtorDebts", fields: [debtorId], references: [id], onDelete: Cascade)
+  createdBy User @relation("CreatedDebts", fields: [createdByUserId], references: [id])
+
+  @@map("debts")
+}
+
+// Invitación a unirse a una cuenta compartida. El email solo se usa para
+// resolver al usuario real al crear la invitación (igual que en Debt) — no
+// se envía ningún correo; la invitación aparece dentro de la app para
+// invitedUser. No hay unique constraint en BD: la misma pareja
+// (accountId, invitedUserId) puede repetirse legítimamente con el tiempo
+// (invitar → aceptar → salir → invitar de nuevo generaría dos filas
+// ACCEPTED). Evitar duplicados PENDING es responsabilidad del service.
+model AccountInvitation {
+  id              String                  @id @default(uuid())
+  accountId       String
+  invitedUserId   String
+  invitedByUserId String
+  status          AccountInvitationStatus @default(PENDING)
+  createdAt       DateTime                @default(now())
+  respondedAt     DateTime?
+
+  account     Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  invitedUser User    @relation("ReceivedInvitations", fields: [invitedUserId], references: [id], onDelete: Cascade)
+  invitedBy   User    @relation("SentInvitations", fields: [invitedByUserId], references: [id])
+
+  @@map("account_invitations")
+}
