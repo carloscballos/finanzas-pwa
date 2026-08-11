@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
 import { envValidationSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
@@ -15,6 +14,9 @@ import { DebtsModule } from './debts/debts.module';
 import { AccountInvitationsModule } from './account-invitations/account-invitations.module';
 import { RecurringTransactionsModule } from './recurring-transactions/recurring-transactions.module';
 import { ForecastModule } from './forecast/forecast.module';
+import { FriendsModule } from './friends/friends.module';
+import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
+import { TransfersModule } from './transfers/transfers.module';
 
 @Module({
   imports: [
@@ -23,7 +25,6 @@ import { ForecastModule } from './forecast/forecast.module';
       validationSchema: envValidationSchema,
       validationOptions: { abortEarly: false },
     }),
-    ScheduleModule.forRoot(),
     LoggerModule.forRootAsync({
       useFactory: () => ({
         pinoHttp: {
@@ -47,6 +48,9 @@ import { ForecastModule } from './forecast/forecast.module';
     AccountInvitationsModule,
     RecurringTransactionsModule,
     ForecastModule,
+    FriendsModule,
+    ExchangeRatesModule,
+    TransfersModule,
   ],
 })
 export class AppModule {}

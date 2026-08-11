@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Layout } from '../components/Layout'
+import { UserAutocomplete } from '../components/UserAutocomplete'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Debt, type DebtDirection } from '../lib/api'
@@ -189,12 +190,10 @@ export function DebtsPage() {
           </div>
           <div className="field field-full">
             <label htmlFor="debt-email">Email de la otra persona</label>
-            <input
+            <UserAutocomplete
               id="debt-email"
-              type="email"
               value={counterpartyEmail}
-              onChange={(e) => setCounterpartyEmail(e.target.value)}
-              required
+              onChange={setCounterpartyEmail}
               placeholder="alguien@example.com"
             />
           </div>

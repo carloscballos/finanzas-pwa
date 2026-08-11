@@ -26,6 +26,22 @@ class TransactionCategorySummaryDto {
   type: TransactionType;
 }
 
+class TransactionCreatedBySummaryDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'Carla' })
+  name: string;
+}
+
+class TransactionTransferCounterpartyDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'Cuenta USD' })
+  name: string;
+}
+
 export class TransactionResponseDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
@@ -45,11 +61,29 @@ export class TransactionResponseDto {
   @ApiProperty({ type: TransactionAccountSummaryDto })
   account: TransactionAccountSummaryDto;
 
-  @ApiProperty({ type: TransactionCategorySummaryDto })
-  category: TransactionCategorySummaryDto;
+  @ApiPropertyOptional({
+    type: TransactionCategorySummaryDto,
+    description: 'Null si el movimiento es una pata de una transferencia (ver transferId)',
+  })
+  category: TransactionCategorySummaryDto | null;
 
   @ApiProperty({ format: 'uuid' })
   createdByUserId: string;
+
+  @ApiProperty({
+    type: TransactionCreatedBySummaryDto,
+    description: 'Quién registró el movimiento — relevante en cuentas compartidas',
+  })
+  createdBy: TransactionCreatedBySummaryDto;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Si este movimiento es parte de una transferencia' })
+  transferId: string | null;
+
+  @ApiPropertyOptional({
+    type: TransactionTransferCounterpartyDto,
+    description: 'La otra cuenta involucrada, solo si transferId no es null',
+  })
+  transferCounterpartyAccount: TransactionTransferCounterpartyDto | null;
 
   @ApiProperty({ example: '2026-08-10T18:00:00.000Z' })
   createdAt: Date;

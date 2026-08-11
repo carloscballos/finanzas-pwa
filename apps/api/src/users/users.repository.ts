@@ -17,4 +17,17 @@ export class UsersRepository {
   create(data: { email: string; name: string; passwordHash: string }): Promise<User> {
     return this.prisma.user.create({ data });
   }
+
+  search(query: string, excludeUserId: string, limit: number): Promise<User[]> {
+    return this.prisma.user.findMany({
+      where: {
+        id: { not: excludeUserId },
+        OR: [
+          { email: { contains: query, mode: 'insensitive' } },
+          { name: { contains: query, mode: 'insensitive' } },
+        ],
+      },
+      take: limit,
+    });
+  }
 }

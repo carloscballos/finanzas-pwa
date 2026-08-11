@@ -1,10 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsISO8601, IsOptional, IsString, MaxLength, IsNumber, Min } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MaxLength, IsNumber, Min } from 'class-validator';
 
-// Cuenta, categoría, tipo, frecuencia y fecha de inicio no se pueden cambiar
-// después de creado (igual que en Budgets/Categories): borrar y crear de
-// nuevo si cambia el plan de fondo. Sí se puede ajustar el monto, la nota,
-// pausar/reactivar (active) y mover la fecha de fin.
+// Cuenta, categoría, tipo y frecuencia no se pueden cambiar después de
+// creada (igual que en Budgets/Categories): borrar y crear de nuevo si
+// cambia el plan de fondo. Sí se puede ajustar el monto, la nota, y si
+// cuenta o no en la proyección mensual de /forecast (active).
 export class UpdateRecurringTransactionDto {
   @ApiPropertyOptional({ example: 1300 })
   @IsOptional()
@@ -18,13 +18,8 @@ export class UpdateRecurringTransactionDto {
   @MaxLength(280)
   note?: string;
 
-  @ApiPropertyOptional({ description: 'Pausar (false) o reactivar (true) la generación automática' })
+  @ApiPropertyOptional({ description: 'Si esta plantilla cuenta en la proyección mensual' })
   @IsOptional()
   @IsBoolean()
   active?: boolean;
-
-  @ApiPropertyOptional({ example: '2027-09-01T00:00:00.000Z' })
-  @IsOptional()
-  @IsISO8601()
-  endDate?: string;
 }

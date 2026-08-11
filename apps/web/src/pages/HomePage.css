@@ -1,0 +1,134 @@
+.home-section {
+  margin: 1.75rem 0;
+}
+
+.home-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.home-section h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.75rem;
+}
+
+.home-section-header h2 {
+  margin: 0;
+}
+
+.home-balance-group {
+  margin-bottom: 1.25rem;
+}
+
+.home-balance-group:last-child {
+  margin-bottom: 0;
+}
+
+.home-balance-group-label {
+  font-size: 0.8rem;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+
+.home-stat-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .home-stat-cards {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+}
+
+.home-stat-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+}
+
+.home-stat-currency {
+  font-size: 0.8rem;
+  color: var(--text);
+  margin-bottom: 0.35rem;
+}
+
+.home-stat-amount {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.home-stat-amount.negative {
+  color: var(--badge-error-fg);
+}
+
+.home-stat-amount.income {
+  color: var(--badge-ok-fg);
+}
+
+.home-stat-sub {
+  font-size: 0.75rem;
+  color: var(--text);
+  margin-top: 0.25rem;
+}
+
+.home-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.home-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
+}
+
+.home-list-row .income {
+  color: var(--badge-ok-fg);
+  font-weight: 600;
+}
+
+.home-list-row .expense {
+  color: var(--badge-error-fg);
+  font-weight: 600;
+}
+
+.home-list-date {
+  font-size: 0.75rem;
+  color: var(--text);
+}
+
+.home-requests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.home-request-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
+  color: var(--text-h);
+  text-decoration: none;
+}
+
+.home-request-row:hover {
+  border-color: var(--accent);
+}

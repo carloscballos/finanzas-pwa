@@ -44,10 +44,16 @@ export function ForecastPage() {
   const [categoryId, setCategoryId] = useState('')
   const [amount, setAmount] = useState('')
   const [frequency, setFrequency] = useState<RecurrenceFrequency>('MONTHLY')
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [note, setNote] = useState('')
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+
+  const [applyingId, setApplyingId] = useState<string | null>(null)
+  const [applyAmount, setApplyAmount] = useState('')
+  const [applyNote, setApplyNote] = useState('')
+  const [applyDate, setApplyDate] = useState('')
+  const [applying, setApplying] = useState(false)
+  const [applyError, setApplyError] = useState<string | null>(null)
 
   function loadAll() {
     if (!token) return
@@ -89,7 +95,6 @@ export function ForecastPage() {
         type,
         amount: Number(amount),
         frequency,
-        startDate: new Date(startDate).toISOString(),
         note: note || undefined,
       })
       setRecurring((prev) => [item, ...prev])
@@ -119,7 +124,7 @@ export function ForecastPage() {
 
   async function handleDelete(item: RecurringTransaction) {
     if (!token) return
-    if (!confirm(`¿Eliminar el movimiento recurrente "${item.category.name}"? No borra los movimientos ya generados.`))
+    if (!confirm(`¿Eliminar la plantilla "${item.category.name}"? No borra los movimientos ya creados a partir de ella.`))
       return
     try {
       await api.deleteRecurringTransaction(token, item.id)
@@ -127,6 +132,38 @@ export function ForecastPage() {
       setSummary(await api.getForecastSummary(token))
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'No se pudo eliminar')
+    }
+  }
+
+  function openApply(item: RecurringTransaction) {
+    setApplyingId(item.id)
+    setApplyAmount(String(item.amount))
+    setApplyNote(item.note ?? '')
+    setApplyDate(new Date().toISOString().slice(0, 10))
+    setApplyError(null)
+  }
+
+  function closeApply() {
+    setApplyingId(null)
+  }
+
+  async function submitApply(event: FormEvent, item: RecurringTransaction) {
+    event.preventDefault()
+    if (!token) return
+    setApplying(true)
+    setApplyError(null)
+    try {
+      await api.applyRecurringTransaction(token, item.id, {
+        amount: Number(applyAmount),
+        note: applyNote || undefined,
+        occurredAt: new Date(applyDate).toISOString(),
+      })
+      setRecurring(await api.getRecurringTransactions(token))
+      setApplyingId(null)
+    } catch (err) {
+      setApplyError(err instanceof ApiError ? err.message : 'No se pudo guardar el movimiento')
+    } finally {
+      setApplying(false)
     }
   }
 
@@ -254,22 +291,12 @@ export function ForecastPage() {
               <option value="YEARLY">Anual</option>
             </select>
           </div>
-          <div className="field">
-            <label htmlFor="rt-start">Primera fecha</label>
-            <input
-              id="rt-start"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              required
-            />
-          </div>
           <div className="field field-full">
             <label htmlFor="rt-note">Nota (opcional)</label>
             <input id="rt-note" value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
           <button className="btn" type="submit" disabled={creating}>
-            {creating ? 'Creando…' : 'Crear recurrente'}
+            {creating ? 'Creando…' : 'Crear plantilla'}
           </button>
         </form>
       )}
@@ -307,33 +334,91 @@ export function ForecastPage() {
 
           <section className="forecast-section">
             <h2>Movimientos recurrentes</h2>
+            <p className="recurring-row-meta" style={{ marginBottom: '0.75rem' }}>
+              Son plantillas: no se generan solas. Ábrelas cuando quieras registrar el movimiento.
+            </p>
             {recurring.length === 0 ? (
-              <p className="accounts-empty">No tienes movimientos recurrentes.</p>
+              <p className="accounts-empty">No tienes plantillas de movimientos recurrentes.</p>
             ) : (
               <div className="recurring-list">
                 {recurring.map((item) => (
-                  <div className={`recurring-row ${item.active ? '' : 'paused'}`} key={item.id}>
-                    {item.category.emoji && <span>{item.category.emoji}</span>}
-                    <div className="recurring-row-main">
-                      <div className="recurring-row-category">{item.category.name}</div>
-                      <div className="recurring-row-meta">
-                        {item.account.name} · {FREQUENCY_LABELS[item.frequency]} · Próxima:{' '}
-                        {formatDate(item.nextRunDate)}
-                        {!item.active && ' · Pausado'}
+                  <div className={`recurring-row-wrapper ${item.active ? '' : 'paused'}`} key={item.id}>
+                    <div className="recurring-row">
+                      {item.category.emoji && <span>{item.category.emoji}</span>}
+                      <div className="recurring-row-main">
+                        <div className="recurring-row-category">{item.category.name}</div>
+                        <div className="recurring-row-meta">
+                          {item.account.name} · {FREQUENCY_LABELS[item.frequency]}
+                          {' · '}
+                          {item.lastAppliedAt
+                            ? `Última vez: ${formatDate(item.lastAppliedAt)}`
+                            : 'Nunca aplicada'}
+                          {!item.active && ' · Fuera de la proyección'}
+                        </div>
+                      </div>
+                      <span className={`recurring-row-amount ${item.type === 'INCOME' ? 'income' : 'expense'}`}>
+                        {item.type === 'INCOME' ? '+' : '-'}
+                        {formatMoney(item.amount, item.account.currency)}
+                      </span>
+                      <div className="recurring-row-actions">
+                        <button className="btn" onClick={() => openApply(item)}>
+                          Aplicar
+                        </button>
+                        <button className="btn btn-secondary" onClick={() => toggleActive(item)}>
+                          {item.active ? 'Quitar de proyección' : 'Incluir en proyección'}
+                        </button>
+                        <button className="link-danger" onClick={() => handleDelete(item)}>
+                          Eliminar
+                        </button>
                       </div>
                     </div>
-                    <span className={`recurring-row-amount ${item.type === 'INCOME' ? 'income' : 'expense'}`}>
-                      {item.type === 'INCOME' ? '+' : '-'}
-                      {formatMoney(item.amount, item.account.currency)}
-                    </span>
-                    <div className="recurring-row-actions">
-                      <button className="btn btn-secondary" onClick={() => toggleActive(item)}>
-                        {item.active ? 'Pausar' : 'Reactivar'}
-                      </button>
-                      <button className="link-danger" onClick={() => handleDelete(item)}>
-                        Eliminar
-                      </button>
-                    </div>
+                    {applyingId === item.id && (
+                      <form className="apply-form" onSubmit={(e) => submitApply(e, item)}>
+                        {applyError && (
+                          <div className="auth-error field-full" style={{ margin: 0 }}>
+                            {applyError}
+                          </div>
+                        )}
+                        <div className="field">
+                          <label htmlFor={`apply-amount-${item.id}`}>Monto</label>
+                          <input
+                            id={`apply-amount-${item.id}`}
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={applyAmount}
+                            onChange={(e) => setApplyAmount(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="field">
+                          <label htmlFor={`apply-date-${item.id}`}>Fecha</label>
+                          <input
+                            id={`apply-date-${item.id}`}
+                            type="date"
+                            value={applyDate}
+                            onChange={(e) => setApplyDate(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="field field-full">
+                          <label htmlFor={`apply-note-${item.id}`}>Nota (opcional)</label>
+                          <input
+                            id={`apply-note-${item.id}`}
+                            value={applyNote}
+                            onChange={(e) => setApplyNote(e.target.value)}
+                          />
+                        </div>
+                        <div className="recurring-row-actions">
+                          <button className="btn" type="submit" disabled={applying}>
+                            {applying ? 'Guardando…' : 'Guardar movimiento'}
+                          </button>
+                          <button className="btn btn-secondary" type="button" onClick={closeApply}>
+                            Cancelar
+                          </button>
+                        </div>
+                      </form>
+                    )}
                   </div>
                 ))}
               </div>

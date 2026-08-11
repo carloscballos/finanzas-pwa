@@ -51,6 +51,16 @@ enum AccountInvitationStatus {
   CANCELED
 }
 
+// Mismo ciclo que AccountInvitationStatus. ACCEPTED es lo que hace que dos
+// usuarios cuenten como "amigos" (ver FriendRequest) — no hay una tabla de
+// amistad separada, se deriva de esta.
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELED
+}
+
 // SEMIMONTHLY ("quincenal"): dos veces al mes, los días 15 y último del mes
 // — es el ciclo de nómina típico en Colombia. No es "cada 14 días": ver
 // recurrence.util.ts para la lógica exacta de la siguiente fecha.
@@ -80,6 +90,9 @@ model User {
   receivedInvitations   AccountInvitation[]    @relation("ReceivedInvitations")
   sentInvitations       AccountInvitation[]    @relation("SentInvitations")
   recurringTransactions RecurringTransaction[]
+  sentFriendRequests    FriendRequest[]        @relation("SentFriendRequests")
+  receivedFriendRequests FriendRequest[]       @relation("ReceivedFriendRequests")
+  createdTransfers      Transfer[]
 
   @@map("users")
 }
@@ -101,6 +114,8 @@ model Account {
   savingsGoals          SavingsGoal[]
   invitations           AccountInvitation[]
   recurringTransactions RecurringTransaction[]
+  transfersFrom         Transfer[]             @relation("TransferFrom")
+  transfersTo           Transfer[]             @relation("TransferTo")
 
   @@map("accounts")
 }
@@ -143,28 +158,33 @@ model Category {
 model Transaction {
   id                     String          @id @default(uuid())
   accountId              String
-  categoryId             String
+  // Null solo cuando la transacción es una pata de una Transfer (ver abajo)
+  // — una transferencia entre cuentas no tiene categoría de ingreso/gasto.
+  categoryId              String?
   createdByUserId        String
   type                   TransactionType
   amount                 Decimal         @db.Decimal(14, 2)
   note                   String?
   occurredAt             DateTime        @default(now())
   recurringTransactionId String?
+  transferId              String?
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
 
   account              Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  category             Category              @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  category             Category?             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   createdBy            User                  @relation(fields: [createdByUserId], references: [id])
   recurringTransaction RecurringTransaction? @relation(fields: [recurringTransactionId], references: [id], onDelete: SetNull)
+  transfer             Transfer?             @relation(fields: [transferId], references: [id], onDelete: Cascade)
 
   @@map("transactions")
 }
 
-// Plantilla que un cron genera automáticamente como Transaction real cada
-// periodo (ver RecurringTransactionsScheduler). nextRunDate avanza después
-// de cada generación; si el servidor estuvo apagado, el scheduler "pone al
-// día" generando todas las ocurrencias vencidas de una vez.
+// Plantilla que el usuario aplica manualmente cuando quiere (no hay cron ni
+// generación automática): abre la plantilla, ajusta lo que haga falta y
+// "aplica" para crear un Transaction real ligado por recurringTransactionId.
+// frequency es solo informativa, usada por /forecast para la proyección
+// mensual; active indica si esta plantilla cuenta en esa proyección.
 model RecurringTransaction {
   id              String              @id @default(uuid())
   accountId       String
@@ -174,11 +194,8 @@ model RecurringTransaction {
   amount          Decimal             @db.Decimal(14, 2)
   note            String?
   frequency       RecurrenceFrequency @default(MONTHLY)
-  startDate       DateTime
-  nextRunDate     DateTime
-  endDate         DateTime?
   active          Boolean             @default(true)
-  lastRunAt       DateTime?
+  lastAppliedAt   DateTime?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
@@ -274,4 +291,50 @@ model AccountInvitation {
   invitedBy   User    @relation("SentInvitations", fields: [invitedByUserId], references: [id])
 
   @@map("account_invitations")
+}
+
+// Solicitud de amistad mutua entre dos usuarios: se usa solo para sugerir
+// contactos en los buscadores de deudas/invitaciones a cuenta (ver
+// /users/search) — no da ningún permiso ni acceso. "Ser amigos" se deriva de
+// que exista una fila ACCEPTED entre los dos, en cualquier dirección.
+model FriendRequest {
+  id                String              @id @default(uuid())
+  requestedByUserId String
+  requestedToUserId String
+  status            FriendRequestStatus @default(PENDING)
+  createdAt         DateTime            @default(now())
+  respondedAt       DateTime?
+
+  requestedBy User @relation("SentFriendRequests", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  requestedTo User @relation("ReceivedFriendRequests", fields: [requestedToUserId], references: [id], onDelete: Cascade)
+
+  @@map("friend_requests")
+}
+
+// Mueve dinero entre dos cuentas donde el usuario es miembro (pueden ser
+// compartidas). Se materializa como dos Transaction (EXPENSE en la cuenta
+// origen, INCOME en la destino, sin categoría — ver Transaction.categoryId)
+// ligadas por transferId, para que el balance de cada cuenta (que ya suma
+// Transaction por type) las contabilice sin lógica adicional. exchangeRate
+// solo se guarda cuando origen y destino tienen monedas distintas: toAmount
+// = fromAmount * exchangeRate. Borrar el Transfer borra sus dos patas
+// (ver Transaction.transfer onDelete: Cascade).
+model Transfer {
+  id              String   @id @default(uuid())
+  fromAccountId   String
+  toAccountId     String
+  fromAmount      Decimal  @db.Decimal(14, 2)
+  toAmount        Decimal  @db.Decimal(14, 2)
+  exchangeRate    Decimal? @db.Decimal(14, 6)
+  note            String?
+  occurredAt      DateTime @default(now())
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  fromAccount Account       @relation("TransferFrom", fields: [fromAccountId], references: [id], onDelete: Cascade)
+  toAccount   Account       @relation("TransferTo", fields: [toAccountId], references: [id], onDelete: Cascade)
+  createdBy   User          @relation(fields: [createdByUserId], references: [id])
+  legs        Transaction[]
+
+  @@map("transfers")
 }

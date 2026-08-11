@@ -48,6 +48,7 @@ export class TransactionsService {
     dto: UpdateTransactionDto,
   ): Promise<TransactionResponseDto> {
     const existing = await this.getAccessibleTransaction(userId, id);
+    this.assertNotTransferLeg(existing);
 
     if (dto.accountId) {
       await this.accountsService.getAccessibleAccount(userId, dto.accountId);
@@ -56,8 +57,10 @@ export class TransactionsService {
     const type = dto.type ?? existing.type;
     const category =
       dto.categoryId || dto.type
-        ? await this.categoriesService.getOwnedCategory(userId, dto.categoryId ?? existing.categoryId)
-        : existing.category;
+        // existing.categoryId solo es null en patas de transferencia, ya
+        // descartadas arriba por assertNotTransferLeg.
+        ? await this.categoriesService.getOwnedCategory(userId, dto.categoryId ?? existing.categoryId!)
+        : existing.category!;
     this.assertTypeMatches(type, category.type);
 
     const updated = await this.transactionsRepository.update(id, dto);
@@ -65,7 +68,8 @@ export class TransactionsService {
   }
 
   async remove(userId: string, id: string): Promise<void> {
-    await this.getAccessibleTransaction(userId, id);
+    const existing = await this.getAccessibleTransaction(userId, id);
+    this.assertNotTransferLeg(existing);
     await this.transactionsRepository.delete(id);
   }
 
@@ -85,6 +89,17 @@ export class TransactionsService {
     if (transactionType !== categoryType) {
       throw new BadRequestException(
         'El tipo del movimiento no coincide con el tipo de la categoría',
+      );
+    }
+  }
+
+  // Las patas de una transferencia (transferId no nulo) solo se editan o
+  // eliminan como parte de la transferencia completa (ver TransfersService),
+  // nunca sueltas — si no, quedaría una transferencia con una sola pata.
+  private assertNotTransferLeg(transaction: TransactionWithRelations): void {
+    if (transaction.transferId) {
+      throw new BadRequestException(
+        'Este movimiento es parte de una transferencia — edítala o elimínala desde ahí',
       );
     }
   }

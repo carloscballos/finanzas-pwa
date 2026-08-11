@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Account, type Invitation } from '../lib/api'
+import { UserAutocomplete } from './UserAutocomplete'
 
 export function AccountMembers({
   account,
@@ -108,12 +109,10 @@ export function AccountMembers({
           {isOwner && (
             <>
               <form className="invite-form" onSubmit={handleInvite}>
-                <input
-                  type="email"
-                  placeholder="Email de la persona a invitar"
+                <UserAutocomplete
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
+                  onChange={setEmail}
+                  placeholder="Email de la persona a invitar"
                 />
                 <button className="btn" type="submit" disabled={inviting}>
                   Invitar

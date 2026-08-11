@@ -3,7 +3,12 @@ import { TransactionResponseDto } from '../dto/transaction-response.dto';
 
 export type TransactionWithRelations = Transaction & {
   account: { id: string; name: string; currency: string };
-  category: { id: string; name: string; emoji: string | null; type: TransactionType };
+  category: { id: string; name: string; emoji: string | null; type: TransactionType } | null;
+  createdBy: { id: string; name: string };
+  transfer: {
+    fromAccount: { id: string; name: string };
+    toAccount: { id: string; name: string };
+  } | null;
 };
 
 export class TransactionMapper {
@@ -17,6 +22,16 @@ export class TransactionMapper {
       account: transaction.account,
       category: transaction.category,
       createdByUserId: transaction.createdByUserId,
+      createdBy: transaction.createdBy,
+      transferId: transaction.transferId,
+      // La "contraparte" de una pata de transferencia es la otra cuenta: si
+      // esta pata es el EXPENSE (salida), la contraparte es toAccount; si es
+      // el INCOME (entrada), la contraparte es fromAccount.
+      transferCounterpartyAccount: transaction.transfer
+        ? transaction.type === 'EXPENSE'
+          ? transaction.transfer.toAccount
+          : transaction.transfer.fromAccount
+        : null,
       createdAt: transaction.createdAt,
       updatedAt: transaction.updatedAt,
     };

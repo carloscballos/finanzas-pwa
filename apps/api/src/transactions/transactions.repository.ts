@@ -8,6 +8,13 @@ import { TransactionWithRelations } from './mappers/transaction.mapper';
 const WITH_RELATIONS = {
   account: { select: { id: true, name: true, currency: true } },
   category: { select: { id: true, name: true, emoji: true, type: true } },
+  createdBy: { select: { id: true, name: true } },
+  transfer: {
+    select: {
+      fromAccount: { select: { id: true, name: true } },
+      toAccount: { select: { id: true, name: true } },
+    },
+  },
 } as const;
 
 export interface TransactionFilters {
@@ -39,7 +46,15 @@ export class TransactionsRepository {
     });
   }
 
-  create(userId: string, dto: CreateTransactionDto): Promise<TransactionWithRelations> {
+  // recurringTransactionId no es parte de CreateTransactionDto (no lo debe
+  // poder fijar el cliente vía la API pública) — solo lo usa internamente
+  // RecurringTransactionsService.apply() para ligar el movimiento a la
+  // plantilla de la que salió.
+  create(
+    userId: string,
+    dto: CreateTransactionDto,
+    recurringTransactionId?: string,
+  ): Promise<TransactionWithRelations> {
     return this.prisma.transaction.create({
       data: {
         accountId: dto.accountId,
@@ -49,6 +64,7 @@ export class TransactionsRepository {
         note: dto.note,
         occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : undefined,
         createdByUserId: userId,
+        recurringTransactionId,
       },
       include: WITH_RELATIONS,
     });

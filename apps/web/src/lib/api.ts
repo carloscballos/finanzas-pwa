@@ -79,8 +79,11 @@ export interface Transaction {
   note: string | null
   occurredAt: string
   account: { id: string; name: string; currency: string }
-  category: { id: string; name: string; emoji: string | null; type: TransactionType }
+  category: { id: string; name: string; emoji: string | null; type: TransactionType } | null
   createdByUserId: string
+  createdBy: { id: string; name: string }
+  transferId: string | null
+  transferCounterpartyAccount: { id: string; name: string } | null
   createdAt: string
   updatedAt: string
 }
@@ -187,11 +190,8 @@ export interface RecurringTransaction {
   amount: number
   note: string | null
   frequency: RecurrenceFrequency
-  startDate: string
-  nextRunDate: string
-  endDate: string | null
   active: boolean
-  lastRunAt: string | null
+  lastAppliedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -203,15 +203,70 @@ export interface CreateRecurringTransactionInput {
   amount: number
   note?: string
   frequency?: RecurrenceFrequency
-  startDate: string
-  endDate?: string
 }
 
 export interface UpdateRecurringTransactionInput {
   amount?: number
   note?: string
   active?: boolean
-  endDate?: string
+}
+
+export interface ApplyRecurringTransactionInput {
+  amount?: number
+  note?: string
+  occurredAt?: string
+}
+
+export interface UserSearchResult {
+  id: string
+  name: string
+  email: string
+  isFriend: boolean
+}
+
+export interface Friend {
+  id: string
+  name: string
+  email: string
+}
+
+export type FriendRequestStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELED'
+
+export interface FriendRequest {
+  id: string
+  requestedBy: { id: string; name: string; email: string }
+  requestedTo: { id: string; name: string; email: string }
+  status: FriendRequestStatus
+  createdAt: string
+  respondedAt: string | null
+}
+
+export interface ExchangeRate {
+  rate: number
+  date: string
+  source: string
+}
+
+export interface Transfer {
+  id: string
+  fromAccount: { id: string; name: string; currency: string }
+  toAccount: { id: string; name: string; currency: string }
+  fromAmount: number
+  toAmount: number
+  exchangeRate: number | null
+  note: string | null
+  occurredAt: string
+  createdBy: { id: string; name: string }
+  createdAt: string
+}
+
+export interface CreateTransferInput {
+  fromAccountId: string
+  toAccountId: string
+  fromAmount: number
+  exchangeRate?: number
+  note?: string
+  occurredAt?: string
 }
 
 export interface ForecastSummary {
@@ -440,6 +495,70 @@ export function updateRecurringTransaction(
 
 export function deleteRecurringTransaction(token: string, id: string) {
   return request<void>(`/api/v1/recurring-transactions/${id}`, { method: 'DELETE', token })
+}
+
+export function applyRecurringTransaction(
+  token: string,
+  id: string,
+  input: ApplyRecurringTransactionInput,
+) {
+  return request<Transaction>(`/api/v1/recurring-transactions/${id}/apply`, {
+    method: 'POST',
+    body: input,
+    token,
+  })
+}
+
+export function searchUsers(token: string, q: string) {
+  return request<UserSearchResult[]>(`/api/v1/users/search?q=${encodeURIComponent(q)}`, { token })
+}
+
+export function getFriends(token: string) {
+  return request<Friend[]>('/api/v1/friends', { token })
+}
+
+export function removeFriend(token: string, userId: string) {
+  return request<void>(`/api/v1/friends/${userId}`, { method: 'DELETE', token })
+}
+
+export function getReceivedFriendRequests(token: string) {
+  return request<FriendRequest[]>('/api/v1/friends/requests/received', { token })
+}
+
+export function getSentFriendRequests(token: string) {
+  return request<FriendRequest[]>('/api/v1/friends/requests/sent', { token })
+}
+
+export function sendFriendRequest(token: string, email: string) {
+  return request<FriendRequest>('/api/v1/friends/requests', { method: 'POST', body: { email }, token })
+}
+
+export function acceptFriendRequest(token: string, id: string) {
+  return request<FriendRequest>(`/api/v1/friends/requests/${id}/accept`, { method: 'POST', token })
+}
+
+export function declineFriendRequest(token: string, id: string) {
+  return request<FriendRequest>(`/api/v1/friends/requests/${id}/decline`, { method: 'POST', token })
+}
+
+export function cancelFriendRequest(token: string, id: string) {
+  return request<FriendRequest>(`/api/v1/friends/requests/${id}/cancel`, { method: 'POST', token })
+}
+
+export function getExchangeRateUsdCop(token: string) {
+  return request<ExchangeRate>('/api/v1/exchange-rates/usd-cop', { token })
+}
+
+export function getTransfers(token: string, accountId: string) {
+  return request<Transfer[]>(`/api/v1/transfers?accountId=${accountId}`, { token })
+}
+
+export function createTransfer(token: string, input: CreateTransferInput) {
+  return request<Transfer>('/api/v1/transfers', { method: 'POST', body: input, token })
+}
+
+export function deleteTransfer(token: string, id: string) {
+  return request<void>(`/api/v1/transfers/${id}`, { method: 'DELETE', token })
 }
 
 export function getForecastSummary(token: string) {

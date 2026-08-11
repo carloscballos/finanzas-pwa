@@ -27,6 +27,24 @@
   color: var(--badge-error-fg);
 }
 
+.tx-header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.transfer-preview {
+  font-size: 0.85rem;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+}
+
+.tx-row-meta {
+  font-size: 0.75rem;
+  color: var(--text);
+}
+
 .tx-type-toggle {
   display: flex;
   gap: 0.5rem;
@@ -71,6 +89,27 @@
   padding: 0.75rem 1rem;
 }
 
+/* En pantallas angostas, el texto de .tx-row-main puede envolver a varias
+   líneas; con align-items: center los elementos fijos (fecha/monto/borrar)
+   quedan centrados verticalmente y se traslapan con esas líneas. */
+@media (max-width: 480px) {
+  .tx-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .tx-row-date {
+    order: 1;
+    flex-basis: 100%;
+    margin-top: 0.25rem;
+  }
+
+  .tx-row-amount {
+    order: 2;
+    margin-left: auto;
+  }
+}
+
 .tx-row-emoji {
   font-size: 1.3rem;
 }
@@ -87,6 +126,27 @@
 .tx-row-note {
   font-size: 0.8rem;
   color: var(--text);
+}
+
+.tx-template-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.tx-template-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 400;
+}
+
+.tx-row-creator {
+  font-size: 0.75rem;
+  color: var(--text);
+  opacity: 0.7;
+  margin-top: 0.15rem;
 }
 
 .tx-row-date {

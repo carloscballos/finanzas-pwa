@@ -18,10 +18,14 @@ export class ForecastRepository {
     start: Date,
     end: Date,
   ): Promise<ExpenseTransactionForSuggestion[]> {
+    // categoryId: { not: null } excluye patas de transferencia (que no
+    // tienen categoría) — category: { userId } ya las excluía en la
+    // práctica, esto solo lo hace explícito para el tipo de retorno.
     return this.prisma.transaction.findMany({
       where: {
         type: 'EXPENSE',
         occurredAt: { gte: start, lt: end },
+        categoryId: { not: null },
         category: { userId },
       },
       select: {
@@ -30,7 +34,7 @@ export class ForecastRepository {
         category: { select: { id: true, name: true, emoji: true } },
         account: { select: { currency: true } },
       },
-    });
+    }) as Promise<ExpenseTransactionForSuggestion[]>;
   }
 
   findBudgetsForUser(userId: string): Promise<Budget[]> {

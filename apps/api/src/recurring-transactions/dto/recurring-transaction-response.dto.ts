@@ -45,23 +45,21 @@ export class RecurringTransactionResponseDto {
   @ApiPropertyOptional({ example: 'Renta del depa' })
   note: string | null;
 
-  @ApiProperty({ enum: RecurrenceFrequency, example: RecurrenceFrequency.MONTHLY })
+  @ApiProperty({
+    enum: RecurrenceFrequency,
+    example: RecurrenceFrequency.MONTHLY,
+    description: 'Informativa: solo se usa para la proyección mensual en /forecast',
+  })
   frequency: RecurrenceFrequency;
 
-  @ApiProperty({ example: '2026-09-01T00:00:00.000Z' })
-  startDate: Date;
-
-  @ApiProperty({ example: '2026-10-01T00:00:00.000Z', description: 'Próxima fecha en que se generará' })
-  nextRunDate: Date;
-
-  @ApiPropertyOptional({ example: '2027-09-01T00:00:00.000Z' })
-  endDate: Date | null;
-
-  @ApiProperty({ example: true })
+  @ApiProperty({ example: true, description: 'Si esta plantilla cuenta en la proyección mensual' })
   active: boolean;
 
-  @ApiPropertyOptional({ example: '2026-09-01T01:00:00.000Z' })
-  lastRunAt: Date | null;
+  @ApiPropertyOptional({
+    example: '2026-09-01T01:00:00.000Z',
+    description: 'Última vez que el usuario la aplicó (creó un movimiento a partir de ella)',
+  })
+  lastAppliedAt: Date | null;
 
   @ApiProperty({ example: '2026-08-10T16:00:00.000Z' })
   createdAt: Date;

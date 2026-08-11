@@ -16,11 +16,8 @@ export class RecurringTransactionMapper {
       amount: Number(rt.amount),
       note: rt.note,
       frequency: rt.frequency,
-      startDate: rt.startDate,
-      nextRunDate: rt.nextRunDate,
-      endDate: rt.endDate,
       active: rt.active,
-      lastRunAt: rt.lastRunAt,
+      lastAppliedAt: rt.lastAppliedAt,
       createdAt: rt.createdAt,
       updatedAt: rt.updatedAt,
     };

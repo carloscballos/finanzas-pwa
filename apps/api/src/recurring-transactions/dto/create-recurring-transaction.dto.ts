@@ -1,18 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { RecurrenceFrequency, TransactionType } from '@prisma/client';
-import {
-  IsEnum,
-  IsISO8601,
-  IsNumber,
-  IsOptional,
-  IsString,
-  IsUUID,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class CreateRecurringTransactionDto {
-  @ApiProperty({ format: 'uuid', description: 'Cuenta donde se generará el movimiento' })
+  @ApiProperty({ format: 'uuid', description: 'Cuenta donde se creará el movimiento al aplicar' })
   @IsUUID()
   accountId: string;
 
@@ -35,23 +26,12 @@ export class CreateRecurringTransactionDto {
   @MaxLength(280)
   note?: string;
 
-  @ApiPropertyOptional({ enum: RecurrenceFrequency, default: RecurrenceFrequency.MONTHLY })
+  @ApiPropertyOptional({
+    enum: RecurrenceFrequency,
+    default: RecurrenceFrequency.MONTHLY,
+    description: 'Informativa: solo se usa para la proyección mensual en /forecast',
+  })
   @IsOptional()
   @IsEnum(RecurrenceFrequency)
   frequency?: RecurrenceFrequency;
-
-  @ApiProperty({
-    description: 'Fecha de la primera generación',
-    example: '2026-09-01T00:00:00.000Z',
-  })
-  @IsISO8601()
-  startDate: string;
-
-  @ApiPropertyOptional({
-    description: 'Fecha en la que deja de generarse (opcional, indefinido si se omite)',
-    example: '2027-09-01T00:00:00.000Z',
-  })
-  @IsOptional()
-  @IsISO8601()
-  endDate?: string;
 }

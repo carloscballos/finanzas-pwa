@@ -1,15 +1,15 @@
 import { Module } from '@nestjs/common';
 import { AccountsModule } from '../accounts/accounts.module';
 import { CategoriesModule } from '../categories/categories.module';
+import { TransactionsModule } from '../transactions/transactions.module';
 import { RecurringTransactionsController } from './recurring-transactions.controller';
 import { RecurringTransactionsService } from './recurring-transactions.service';
 import { RecurringTransactionsRepository } from './recurring-transactions.repository';
-import { RecurringTransactionsScheduler } from './recurring-transactions.scheduler';
 
 @Module({
-  imports: [AccountsModule, CategoriesModule],
+  imports: [AccountsModule, CategoriesModule, TransactionsModule],
   controllers: [RecurringTransactionsController],
-  providers: [RecurringTransactionsService, RecurringTransactionsRepository, RecurringTransactionsScheduler],
+  providers: [RecurringTransactionsService, RecurringTransactionsRepository],
   exports: [RecurringTransactionsRepository],
 })
 export class RecurringTransactionsModule {}

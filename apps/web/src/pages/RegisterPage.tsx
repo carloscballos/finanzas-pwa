@@ -19,7 +19,7 @@ export function RegisterPage() {
     setSubmitting(true)
     try {
       await register(email, name, password)
-      navigate('/accounts')
+      navigate('/')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo crear la cuenta')
     } finally {

@@ -67,6 +67,16 @@
   font-size: 0.9rem;
 }
 
+.layout-usd-rate {
+  font-size: 0.75rem;
+  color: var(--text);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  white-space: nowrap;
+}
+
 .layout-content {
   flex: 1;
   padding: 1rem;
