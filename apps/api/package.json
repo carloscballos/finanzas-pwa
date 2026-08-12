@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "postinstall": "prisma generate",
+    "postinstall": "test -z \"$DATABASE_URL\" && echo 'Skipping prisma generate: DATABASE_URL not set (expected when a non-API workspace triggers this install, e.g. Vercel building apps/web)' || prisma generate",
     "build": "nest build",
     "dev": "nest start --watch",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
