@@ -1,0 +1,117 @@
+.more-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 6, 13, 0.35);
+  z-index: 40;
+  animation: more-menu-fade-in 0.15s ease;
+}
+
+.more-menu-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  background: var(--card-bg-raised);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-2) var(--space-3) calc(var(--space-4) + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  animation: more-menu-slide-up 0.18s ease;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.more-menu-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--border-color);
+  margin: 0.35rem auto 0.75rem;
+  flex-shrink: 0;
+}
+
+.more-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0.85rem var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-h);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.more-menu-item svg {
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.more-menu-item:hover,
+.more-menu-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.more-menu-item.active svg {
+  color: var(--accent);
+}
+
+@keyframes more-menu-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes more-menu-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (min-width: 768px) {
+  .more-menu-backdrop {
+    background: transparent;
+  }
+
+  .more-menu-panel {
+    position: fixed;
+    top: 4.25rem;
+    right: var(--space-4);
+    left: auto;
+    bottom: auto;
+    width: 230px;
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+    max-height: none;
+    animation: more-menu-dropdown-in 0.12s ease;
+  }
+
+  .more-menu-handle {
+    display: none;
+  }
+
+  .more-menu-item {
+    padding: 0.6rem var(--space-3);
+  }
+}
+
+@keyframes more-menu-dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

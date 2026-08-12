@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { HandCoins } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { UserAutocomplete } from '../components/UserAutocomplete'
 import { useAuth } from '../context/AuthContext'
@@ -157,10 +158,13 @@ export function DebtsPage() {
   }
 
   return (
-    <Layout>
+    <Layout fabActions={[{ label: 'Nueva deuda', icon: HandCoins, onClick: () => setShowForm(true) }]}>
       <div className="debts-toolbar">
         <h1>Deudas</h1>
-        <button className="btn" onClick={() => setShowForm((v) => !v)}>
+        <button
+          className={`btn ${showForm ? '' : 'toolbar-create-btn'}`}
+          onClick={() => setShowForm((v) => !v)}
+        >
           {showForm ? 'Cancelar' : '+ Nueva deuda'}
         </button>
       </div>

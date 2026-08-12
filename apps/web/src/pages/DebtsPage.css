@@ -19,7 +19,7 @@
 .debts-direction-toggle button {
   flex: 1;
   padding: 0.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
   background: var(--bg);
   cursor: pointer;
@@ -47,7 +47,8 @@
 .debt-card {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
   padding: 1rem 1.25rem;
   display: flex;
   flex-direction: column;

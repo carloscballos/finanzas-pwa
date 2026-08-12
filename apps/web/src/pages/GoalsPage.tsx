@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Target } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
@@ -144,10 +145,13 @@ export function GoalsPage() {
   }
 
   return (
-    <Layout>
+    <Layout fabActions={[{ label: 'Nueva meta', icon: Target, onClick: () => setShowForm(true) }]}>
       <div className="goals-toolbar">
         <h1>Metas de ahorro</h1>
-        <button className="btn" onClick={() => setShowForm((v) => !v)}>
+        <button
+          className={`btn ${showForm ? '' : 'toolbar-create-btn'}`}
+          onClick={() => setShowForm((v) => !v)}
+        >
           {showForm ? 'Cancelar' : '+ Nueva meta'}
         </button>
       </div>

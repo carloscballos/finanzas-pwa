@@ -4,14 +4,16 @@
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
+  background: var(--bg-subtle);
 }
 
 .auth-card {
   width: 100%;
   max-width: 380px;
-  background: var(--card-bg);
+  background: var(--card-bg-raised);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   padding: 2rem;
 }
 
@@ -36,7 +38,7 @@
 .auth-error {
   background: var(--badge-error-bg);
   color: var(--badge-error-fg);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 0.6rem 0.75rem;
   font-size: 0.85rem;
   margin-bottom: 1rem;

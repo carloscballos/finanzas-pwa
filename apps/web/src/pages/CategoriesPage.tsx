@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Tags } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
@@ -131,10 +132,15 @@ export function CategoriesPage() {
   }
 
   return (
-    <Layout>
+    <Layout
+      fabActions={[{ label: 'Nueva categoría', icon: Tags, onClick: () => setShowForm(true) }]}
+    >
       <div className="categories-toolbar">
         <h1>Categorías</h1>
-        <button className="btn" onClick={() => setShowForm((v) => !v)}>
+        <button
+          className={`btn ${showForm ? '' : 'toolbar-create-btn'}`}
+          onClick={() => setShowForm((v) => !v)}
+        >
           {showForm ? 'Cancelar' : '+ Nueva categoría'}
         </button>
       </div>

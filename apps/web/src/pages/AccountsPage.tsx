@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { Wallet } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
@@ -71,10 +72,15 @@ export function AccountsPage() {
   }
 
   return (
-    <Layout>
+    <Layout
+      fabActions={[{ label: 'Nueva cuenta', icon: Wallet, onClick: () => setShowForm(true) }]}
+    >
       <div className="accounts-toolbar">
         <h1>Mis cuentas</h1>
-        <button className="btn" onClick={() => setShowForm((v) => !v)}>
+        <button
+          className={`btn ${showForm ? '' : 'toolbar-create-btn'}`}
+          onClick={() => setShowForm((v) => !v)}
+        >
           {showForm ? 'Cancelar' : '+ Nueva cuenta'}
         </button>
       </div>

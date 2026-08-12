@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { ArrowLeftRight, Receipt } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { AccountMembers } from '../components/AccountMembers'
 import { useAuth } from '../context/AuthContext'
@@ -212,7 +213,16 @@ export function AccountTransactionsPage() {
   }
 
   return (
-    <Layout>
+    <Layout
+      fabActions={
+        account
+          ? [
+              { label: 'Nuevo movimiento', icon: Receipt, onClick: () => setShowForm(true) },
+              { label: 'Transferir', icon: ArrowLeftRight, onClick: () => setShowTransferForm(true) },
+            ]
+          : []
+      }
+    >
       <Link className="tx-back" to="/accounts">
         ← Volver a cuentas
       </Link>
@@ -230,10 +240,16 @@ export function AccountTransactionsPage() {
               </span>
             </div>
             <div className="tx-header-actions">
-              <button className="btn btn-secondary" onClick={() => setShowTransferForm((v) => !v)}>
+              <button
+                className={`btn btn-secondary ${showTransferForm ? '' : 'toolbar-create-btn'}`}
+                onClick={() => setShowTransferForm((v) => !v)}
+              >
                 {showTransferForm ? 'Cancelar' : 'Transferir'}
               </button>
-              <button className="btn" onClick={() => setShowForm((v) => !v)}>
+              <button
+                className={`btn ${showForm ? '' : 'toolbar-create-btn'}`}
+                onClick={() => setShowForm((v) => !v)}
+              >
                 {showForm ? 'Cancelar' : '+ Nuevo movimiento'}
               </button>
             </div>

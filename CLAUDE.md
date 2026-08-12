@@ -4,7 +4,7 @@ Contexto para retomar el desarrollo en otra sesión. Para stack, estructura, set
 
 ## ⚠️ Estado del repo
 
-Hay un commit inicial (`Initial commit`) con todo lo que existía hasta ahí. Las 5 mejoras de la sección siguiente (quién hizo el movimiento, recurrentes simplificados, amigos, transferencias, home) están implementadas y verificadas end-to-end pero **sin commitear** — quedaron así a propósito (solo se commitea cuando el usuario lo pide explícitamente). Antes de seguir tocando código, vale la pena confirmar con el usuario si ya quiere ese commit.
+Con commits y **desplegado en producción** (ver "Despliegue" abajo). Repo en GitHub: `carloscballos/finanzas-pwa` (el usuario comitea y pushea él mismo cuando quiere — normalmente no hace falta pedírselo, ya lo hace por su cuenta apenas ve el cambio funcionando). No asumas que `git log`/`git status` local está sincronizado con lo que ya subió — revisa `git fetch origin` antes de dar por hecho que algo no está pusheado.
 
 ## Cómo retomar
 
@@ -46,6 +46,24 @@ El backend tiene ~17 módulos, todos siguiendo el mismo patrón (viene de la ski
 1. **`nest start --watch` cachea tipos viejos de TypeScript después de una migración de Prisma.** Si aparece un error tipo "Property 'x' does not exist" sobre un campo que SÍ está en el schema recién migrado: `rm apps/api/tsconfig.build.tsbuildinfo` y reiniciar el proceso (`npm run start:dev`). Pasó varias veces esta sesión, siempre se resuelve así.
 2. **`prisma migrate dev` no funciona en este entorno** cuando la migración dispara un warning de posible pérdida de datos (ej. agregar una columna a un unique constraint) — pide confirmación interactiva y el entorno no tiene TTY, así que falla con "non-interactive environment". Solución: escribir a mano `prisma/migrations/<timestamp>_nombre/migration.sql` con el SQL, luego `npx prisma migrate deploy` (no pide confirmación) y `npx prisma generate`.
 3. **npm 11 (viene con Node 24) bloquea scripts de instalación por default** (`allow-scripts`, feature nueva de npm). Cuando salga el warning tras un `npm install`: `npm approve-scripts <paquete>` para los legítimos (ya aprobados en `package.json` → `allowScripts`: prisma, @prisma/client, @prisma/engines, fsevents, unrs-resolver, bcrypt). `@scarf/scarf` se deja bloqueado a propósito — es solo telemetría de terceros, no hace falta para que nada funcione.
+4. **`nest build` sin `rootDir` explícito produce `dist/src/main.js` en vez de `dist/main.js`**, rompiendo `start:prod` (`node dist/main`). Pasa porque TypeScript infiere el rootDir como el path común de TODOS los archivos compilados, y `prisma.config.ts` vive fuera de `src/` — al incluirse en la compilación, el rootDir inferido sube un nivel y `dist/` termina espejando la carpeta `src/` completa. Ya resuelto: `apps/api/tsconfig.build.json` tiene `compilerOptions.rootDir: "./src"` y excluye `prisma.config.ts`. Nunca se detectó en local porque el flujo de dev normal (`nest start --watch`) no pasa por `dist/` — solo se manifiesta corriendo `build` + `start:prod` de verdad, que es exactamente lo que hacen Railway/cualquier plataforma en producción. Si se vuelve a tocar el tsconfig, verificar con `npm run build --workspace=api && ls apps/api/dist/main.js`.
+5. **`prisma generate` tiene que correr solo con `npm install`, sin depender del Build Command exacto de la plataforma de turno.** `apps/api/package.json` tiene `"postinstall": "prisma generate"` — sin esto, cualquier entorno limpio (CI, Railway, Docker) falla al compilar con decenas de `TS2305: Module "@prisma/client" has no exported member` (el cliente nunca se generó). Verificado localmente simulando un contenedor limpio: `rm -rf node_modules/.prisma && npm install && npm run build --workspace=api`.
+6. **`apps/api/tsconfig.build.tsbuildinfo` nunca se debe commitear ni copiar a una imagen/contenedor limpio.** Es la caché incremental de TypeScript — si se cuela en un build fresco (ej. vía Docker `COPY` sin `.dockerignore`), TypeScript la lee, cree que nada cambió, y no emite nada a `dist/`. Ya está en `apps/api/.gitignore` (`dist` y `*.tsbuildinfo`).
+
+## Despliegue
+
+App en producción en **https://www.koyride.com** (dominio propio del usuario, reciclado — antes tenía un Cloudflare Tunnel de otro proyecto suyo ahí, ya lo reemplazamos). Stack:
+
+- **Frontend** → Vercel, conectado al repo de GitHub, Root Directory `apps/web`, detecta Vite solo. Variable `VITE_API_URL=https://api.koyride.com` (ojo: Vite la "hornea" en el build — si cambia, hay que forzar un redeploy, no basta con guardar la variable).
+- **Backend + Postgres** → Railway, mismo repo, Root Directory `apps/api`. **Builder: Nixpacks/Railpack** (probamos Dockerfile por los errores de build, pero el problema real era el gotcha #4 de tsconfig — con eso arreglado, Nixpacks funciona bien y es más simple; no vale la pena volver a Docker a menos que Nixpacks vuelva a fallar por otra razón).
+  - Build Command: `npm install && npx prisma generate && npm run build`
+  - Start Command: `npx prisma migrate deploy && npm run start:prod`
+  - Variables: `NODE_ENV=production`, `DATABASE_URL=${{Postgres.DATABASE_URL}}` (referencia al servicio Postgres del mismo proyecto Railway, no un valor a mano), `JWT_SECRET` (generado fresco para prod, **no** el mismo que en `.env` local), `JWT_EXPIRES_IN=7d`, `LOG_LEVEL=info`, `CORS_ORIGIN=https://www.koyride.com` (con `www` — la raíz `koyride.com` solo redirige 308 a `www`, nunca sirve contenido, así que no hace falta incluirla en CORS).
+  - `app.enableCors({ origin: config.get('CORS_ORIGIN') })` en `main.ts` solo soporta **un** origen — si algún día hace falta más de uno (ej. si se quita el redirect a www), hay que cambiar el código para aceptar un array, no basta con poner varios separados por coma en la variable.
+- **DNS**: dominio registrado en Hostinger, DNS administrado en **Cloudflare** (nameservers apuntan ahí). Registros: CNAME `@` y `www` → el target que muestra Vercel en Settings → Domains (es específico del proyecto, no un valor fijo — hay que sacarlo de ahí cada vez); CNAME `api` → el target que muestra Railway. Los tres con proxy **"Solo DNS"** (nube gris, no naranja) — Vercel lo pide así explícitamente, y para `api` evita complicaciones de doble-TLS con Railway. SSL/TLS mode en Cloudflare: **Full** o **Full (strict)**, nunca "Flexible" (si no, loop de redirección con Vercel/Railway que ya fuerzan HTTPS).
+- **Costo**: Railway no tiene tier gratis real (el "Free" es un trial de 30 días con $5 de crédito, luego cobra aunque sea poco) — el usuario decidió pagarlo (~$5+/mes Hobby plan) para tener API+DB en un solo panel sin cold-starts. Vercel sí es gratis de verdad para este uso. Se evaluó Neon (Postgres gratis permanente, sin tarjeta) como alternativa pero el usuario prefirió quedarse en Railway por simplicidad.
+- **Base de datos de producción arranca vacía** — Carla/Beto y toda la data de prueba solo existen en el Postgres local. Hay que registrarse de cero en `/register` para probar en prod.
+- **Instalación como PWA**: en macOS/Windows (Chrome/Edge) desde el ícono de instalar en la barra de direcciones; en iOS/iPadOS (Safari, no Chrome) vía Compartir → "Agregar a pantalla de inicio"; en Android (Chrome) vía menú → "Instalar app".
 
 ## Próximos pasos sugeridos
 
@@ -55,9 +73,9 @@ De lo que el usuario ha pedido hasta ahora, queda pendiente un solo punto:
 
 Fuera de eso, no hay trabajo a medias ni features rotas — todo lo construido está verificado end-to-end (backend con curl + frontend en navegador con dos usuarios reales cuando aplica).
 
-## Mejoras recién implementadas (sin commitear)
+## Mejoras agregadas después del MVP inicial
 
-Sesión que agregó 5 mejoras sobre lo ya construido — plan completo en el historial de conversación, resumen aquí:
+5 mejoras sobre lo ya construido (commiteadas y desplegadas) — plan completo en el historial de conversación, resumen aquí:
 
 1. **Quién hizo el movimiento**: `TransactionResponseDto.createdBy` (ya existía `createdByUserId`, solo faltaba el nombre). Frontend lo muestra en `AccountTransactionsPage` solo si `account.memberCount > 1`.
 2. **Recurrentes simplificados**: se eliminó el cron (`RecurringTransactionsScheduler`, `@nestjs/schedule`) y los campos `startDate/nextRunDate/endDate/lastRunAt`. Ahora es una plantilla pura: `POST /recurring-transactions/:id/apply` crea el movimiento cuando el usuario decide, con los valores editables. `active` cambió de significado: ya no es "sigue generando", es "cuenta en la proyección mensual de /forecast". Al crear un movimiento normal se puede marcar "guardar como plantilla" — son dos llamadas independientes del frontend (`createTransaction` + `createRecurringTransaction`), no una transacción de BD, porque si falla la segunda no debe deshacerse el movimiento ya registrado.

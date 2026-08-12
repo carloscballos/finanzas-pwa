@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { PiggyBank } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
@@ -82,10 +83,15 @@ export function BudgetsPage() {
   }
 
   return (
-    <Layout>
+    <Layout
+      fabActions={[{ label: 'Nuevo presupuesto', icon: PiggyBank, onClick: () => setShowForm(true) }]}
+    >
       <div className="budgets-toolbar">
         <h1>Presupuestos</h1>
-        <button className="btn" onClick={() => setShowForm((v) => !v)}>
+        <button
+          className={`btn ${showForm ? '' : 'toolbar-create-btn'}`}
+          onClick={() => setShowForm((v) => !v)}
+        >
           {showForm ? 'Cancelar' : '+ Nuevo presupuesto'}
         </button>
       </div>
