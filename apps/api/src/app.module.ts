@@ -17,6 +17,7 @@ import { ForecastModule } from './forecast/forecast.module';
 import { FriendsModule } from './friends/friends.module';
 import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
 import { TransfersModule } from './transfers/transfers.module';
+import { LoansModule } from './loans/loans.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { TransfersModule } from './transfers/transfers.module';
     FriendsModule,
     ExchangeRatesModule,
     TransfersModule,
+    LoansModule,
   ],
 })
 export class AppModule {}

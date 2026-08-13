@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PiggyBank } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { useAuth } from '../context/AuthContext'
@@ -16,12 +17,13 @@ function barClass(percentUsed: number) {
 
 export function BudgetsPage() {
   const { token } = useAuth()
+  const [searchParams] = useSearchParams()
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [showForm, setShowForm] = useState(false)
+  const [showForm, setShowForm] = useState(searchParams.get('new') === '1')
   const [categoryId, setCategoryId] = useState('')
   const [limitAmount, setLimitAmount] = useState('')
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY)

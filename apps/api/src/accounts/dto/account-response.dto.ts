@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AccountMemberRole, AccountType } from '@prisma/client';
 
 export class AccountMemberSummaryDto {
@@ -36,6 +36,12 @@ export class AccountResponseDto {
     description: 'initialBalance + ingresos − gastos registrados en la cuenta',
   })
   currentBalance: number;
+
+  @ApiPropertyOptional({ example: 5000000, description: 'Cupo de crédito (solo CREDIT_CARD)' })
+  creditLimit: number | null;
+
+  @ApiPropertyOptional({ example: 15, description: 'Día del mes de pago (solo CREDIT_CARD)' })
+  paymentDueDay: number | null;
 
   @ApiProperty({
     enum: AccountMemberRole,

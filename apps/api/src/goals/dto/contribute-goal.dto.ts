@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, NotEquals } from 'class-validator';
+import { IsNumber, IsUUID, NotEquals } from 'class-validator';
 
 export class ContributeGoalDto {
   @ApiProperty({
@@ -9,4 +9,12 @@ export class ContributeGoalDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @NotEquals(0)
   amount: number;
+
+  @ApiProperty({
+    format: 'uuid',
+    description:
+      'Cuenta de la que sale el aporte (o a la que vuelve un retiro) — debe estar en la misma moneda que la meta. Se crea un movimiento real en esa cuenta.',
+  })
+  @IsUUID()
+  accountId: string;
 }

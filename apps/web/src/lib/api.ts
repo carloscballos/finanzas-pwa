@@ -36,6 +36,8 @@ export interface Account {
   currency: string
   initialBalance: number
   currentBalance: number
+  creditLimit: number | null
+  paymentDueDay: number | null
   role: AccountRole
   memberCount: number
   members: AccountMemberSummary[]
@@ -48,6 +50,8 @@ export interface CreateAccountInput {
   type: AccountType
   currency?: string
   initialBalance?: number
+  creditLimit?: number
+  paymentDueDay?: number
 }
 
 export type TransactionType = 'INCOME' | 'EXPENSE'
@@ -84,6 +88,10 @@ export interface Transaction {
   createdBy: { id: string; name: string }
   transferId: string | null
   transferCounterpartyAccount: { id: string; name: string } | null
+  goalId: string | null
+  goal: { id: string; name: string } | null
+  loanId: string | null
+  loan: { id: string; name: string } | null
   createdAt: string
   updatedAt: string
 }
@@ -140,6 +148,49 @@ export interface CreateGoalInput {
   targetDate?: string
   accountId?: string
   currency?: string
+}
+
+export type LoanStatus = 'ACTIVE' | 'PAID_OFF'
+
+export interface Loan {
+  id: string
+  name: string
+  principal: number
+  remainingBalance: number
+  currency: string
+  interestRate: number | null
+  installmentsTotal: number
+  installmentsPaid: number
+  installmentAmount: number
+  dueDay: number | null
+  account: { id: string; name: string } | null
+  status: LoanStatus
+  percentPaid: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateLoanInput {
+  name: string
+  principal: number
+  currency?: string
+  interestRate?: number
+  installmentsTotal: number
+  installmentAmount: number
+  dueDay?: number
+  accountId?: string
+}
+
+export interface UpdateLoanInput {
+  name?: string
+  interestRate?: number
+  dueDay?: number
+}
+
+export interface PayLoanInput {
+  accountId: string
+  amount?: number
+  occurredAt?: string
 }
 
 export type DebtDirection = 'THEY_OWE_ME' | 'I_OWE_THEM'
@@ -363,9 +414,14 @@ export function deleteCategory(token: string, id: string) {
   return request<void>(`/api/v1/categories/${id}`, { method: 'DELETE', token })
 }
 
-export function getTransactions(token: string, filters: { accountId?: string } = {}) {
+export function getTransactions(
+  token: string,
+  filters: { accountId?: string; startDate?: string; endDate?: string } = {},
+) {
   const params = new URLSearchParams()
   if (filters.accountId) params.set('accountId', filters.accountId)
+  if (filters.startDate) params.set('startDate', filters.startDate)
+  if (filters.endDate) params.set('endDate', filters.endDate)
   const qs = params.toString()
   return request<Transaction[]>(`/api/v1/transactions${qs ? `?${qs}` : ''}`, { token })
 }
@@ -398,10 +454,14 @@ export function createGoal(token: string, input: CreateGoalInput) {
   return request<Goal>('/api/v1/goals', { method: 'POST', body: input, token })
 }
 
-export function contributeToGoal(token: string, id: string, amount: number) {
+export function contributeToGoal(
+  token: string,
+  id: string,
+  input: { amount: number; accountId: string },
+) {
   return request<Goal>(`/api/v1/goals/${id}/contributions`, {
     method: 'POST',
-    body: { amount },
+    body: input,
     token,
   })
 }
@@ -559,6 +619,26 @@ export function createTransfer(token: string, input: CreateTransferInput) {
 
 export function deleteTransfer(token: string, id: string) {
   return request<void>(`/api/v1/transfers/${id}`, { method: 'DELETE', token })
+}
+
+export function getLoans(token: string) {
+  return request<Loan[]>('/api/v1/loans', { token })
+}
+
+export function createLoan(token: string, input: CreateLoanInput) {
+  return request<Loan>('/api/v1/loans', { method: 'POST', body: input, token })
+}
+
+export function updateLoan(token: string, id: string, input: UpdateLoanInput) {
+  return request<Loan>(`/api/v1/loans/${id}`, { method: 'PATCH', body: input, token })
+}
+
+export function payLoanInstallment(token: string, id: string, input: PayLoanInput) {
+  return request<Loan>(`/api/v1/loans/${id}/payments`, { method: 'POST', body: input, token })
+}
+
+export function deleteLoan(token: string, id: string) {
+  return request<void>(`/api/v1/loans/${id}`, { method: 'DELETE', token })
 }
 
 export function getForecastSummary(token: string) {

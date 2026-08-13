@@ -7,6 +7,7 @@ import {
   Target,
   Tags,
   HandCoins,
+  Landmark,
   Users,
   Mail,
   TrendingUp,
@@ -38,6 +39,7 @@ const PRIMARY_ITEMS: NavItem[] = [
 const SECONDARY_ITEMS: MoreMenuItem[] = [
   { to: '/categories', label: 'Categorías', icon: Tags },
   { to: '/debts', label: 'Deudas', icon: HandCoins },
+  { to: '/loans', label: 'Préstamos', icon: Landmark },
   { to: '/friends', label: 'Amigos', icon: Users },
   { to: '/invitations', label: 'Invitaciones', icon: Mail },
   { to: '/forecast', label: 'Proyección', icon: TrendingUp },

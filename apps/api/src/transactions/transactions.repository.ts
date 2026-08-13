@@ -15,6 +15,8 @@ const WITH_RELATIONS = {
       toAccount: { select: { id: true, name: true } },
     },
   },
+  goal: { select: { id: true, name: true } },
+  loan: { select: { id: true, name: true } },
 } as const;
 
 export interface TransactionFilters {
@@ -22,6 +24,8 @@ export interface TransactionFilters {
   accountId?: string;
   categoryId?: string;
   type?: TransactionType;
+  startDate?: Date;
+  endDate?: Date;
 }
 
 @Injectable()
@@ -37,6 +41,10 @@ export class TransactionsRepository {
       where: {
         categoryId: filters.categoryId,
         type: filters.type,
+        occurredAt:
+          filters.startDate || filters.endDate
+            ? { gte: filters.startDate, lt: filters.endDate }
+            : undefined,
         account: filters.accountId
           ? { id: filters.accountId }
           : { members: { some: { userId: filters.userId } } },

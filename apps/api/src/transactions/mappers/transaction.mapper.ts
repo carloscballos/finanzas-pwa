@@ -9,6 +9,8 @@ export type TransactionWithRelations = Transaction & {
     fromAccount: { id: string; name: string };
     toAccount: { id: string; name: string };
   } | null;
+  goal: { id: string; name: string } | null;
+  loan: { id: string; name: string } | null;
 };
 
 export class TransactionMapper {
@@ -32,6 +34,10 @@ export class TransactionMapper {
           ? transaction.transfer.toAccount
           : transaction.transfer.fromAccount
         : null,
+      goalId: transaction.goalId,
+      goal: transaction.goal,
+      loanId: transaction.loanId,
+      loan: transaction.loan,
       createdAt: transaction.createdAt,
       updatedAt: transaction.updatedAt,
     };

@@ -69,11 +69,17 @@ export class GoalsController {
   }
 
   @Post(':id/contributions')
-  @ApiOperation({ summary: 'Aportar o retirar del ahorro acumulado de la meta' })
+  @ApiOperation({
+    summary:
+      'Aportar o retirar del ahorro acumulado de la meta — crea un movimiento real en la cuenta elegida',
+  })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 201, type: GoalResponseDto })
-  @ApiResponse({ status: 400, description: 'El retiro dejaría el ahorro en negativo' })
-  @ApiResponse({ status: 404, description: 'Meta no encontrada' })
+  @ApiResponse({
+    status: 400,
+    description: 'El retiro dejaría el ahorro en negativo, o la cuenta no coincide con la moneda de la meta',
+  })
+  @ApiResponse({ status: 404, description: 'Meta o cuenta no encontrada' })
   contribute(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,

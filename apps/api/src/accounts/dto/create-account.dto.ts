@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AccountType } from '@prisma/client';
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { CurrencyCode } from '../../common/currency';
 
 export class CreateAccountDto {
@@ -29,4 +29,23 @@ export class CreateAccountDto {
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   initialBalance?: number;
+
+  @ApiPropertyOptional({
+    description: 'Cupo de crédito — solo aplica a cuentas type CREDIT_CARD',
+    example: 5000000,
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  creditLimit?: number;
+
+  @ApiPropertyOptional({
+    description: 'Día del mes en que vence el pago (1-31) — solo aplica a cuentas type CREDIT_CARD',
+    example: 15,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  paymentDueDay?: number;
 }

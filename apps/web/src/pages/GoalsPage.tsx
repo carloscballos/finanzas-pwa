@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Target } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { useAuth } from '../context/AuthContext'
@@ -8,17 +9,29 @@ import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
 import { formatMoney } from '../lib/money'
 import './GoalsPage.css'
 
-function GoalCard({ goal, onChange, onDeleted }: { goal: Goal; onChange: (g: Goal) => void; onDeleted: (id: string) => void }) {
+function GoalCard({
+  goal,
+  accounts,
+  onChange,
+  onDeleted,
+}: {
+  goal: Goal
+  accounts: Account[]
+  onChange: (g: Goal) => void
+  onDeleted: (id: string) => void
+}) {
   const { token } = useAuth()
   const [amount, setAmount] = useState('')
+  const matchingAccounts = accounts.filter((a) => a.currency === goal.currency)
+  const [accountId, setAccountId] = useState('')
   const [busy, setBusy] = useState(false)
 
   async function handleContribute(event: FormEvent) {
     event.preventDefault()
-    if (!token || !amount) return
+    if (!token || !amount || !accountId) return
     setBusy(true)
     try {
-      const updated = await api.contributeToGoal(token, goal.id, Number(amount))
+      const updated = await api.contributeToGoal(token, goal.id, { amount: Number(amount), accountId })
       onChange(updated)
       setAmount('')
     } catch (err) {
@@ -66,30 +79,52 @@ function GoalCard({ goal, onChange, onDeleted }: { goal: Goal; onChange: (g: Goa
       <div className="goal-amounts">
         <span>Meta {formatMoney(goal.targetAmount, goal.currency)}</span>
       </div>
-      <form className="goal-contribute" onSubmit={handleContribute}>
-        <input
-          type="number"
-          step="0.01"
-          placeholder="Monto a aportar"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
-        <button className="btn" type="submit" disabled={busy || !amount}>
-          Aportar
-        </button>
-      </form>
+      {matchingAccounts.length === 0 ? (
+        <p className="goal-no-account">
+          No tienes cuentas en {goal.currency} — crea una para poder aportar o retirar.
+        </p>
+      ) : (
+        <form className="goal-contribute" onSubmit={handleContribute}>
+          <select
+            aria-label="Cuenta"
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+            required
+          >
+            <option value="" disabled>
+              Cuenta
+            </option>
+            {matchingAccounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            step="0.01"
+            placeholder="Monto (+ aportar, - retirar)"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+          <button className="btn" type="submit" disabled={busy || !amount || !accountId}>
+            Registrar
+          </button>
+        </form>
+      )}
     </div>
   )
 }
 
 export function GoalsPage() {
   const { token } = useAuth()
+  const [searchParams] = useSearchParams()
   const [goals, setGoals] = useState<Goal[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [showForm, setShowForm] = useState(false)
+  const [showForm, setShowForm] = useState(searchParams.get('new') === '1')
   const [name, setName] = useState('')
   const [targetAmount, setTargetAmount] = useState('')
   const [targetDate, setTargetDate] = useState('')
@@ -242,7 +277,7 @@ export function GoalsPage() {
 
       <div className="goals-grid">
         {goals.map((goal) => (
-          <GoalCard key={goal.id} goal={goal} onChange={updateOne} onDeleted={removeOne} />
+          <GoalCard key={goal.id} goal={goal} accounts={accounts} onChange={updateOne} onDeleted={removeOne} />
         ))}
       </div>
     </Layout>

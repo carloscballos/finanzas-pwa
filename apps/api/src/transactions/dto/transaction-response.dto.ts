@@ -42,6 +42,22 @@ class TransactionTransferCounterpartyDto {
   name: string;
 }
 
+class TransactionGoalSummaryDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'Enganche del carro' })
+  name: string;
+}
+
+class TransactionLoanSummaryDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'Préstamo carro' })
+  name: string;
+}
+
 export class TransactionResponseDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
@@ -84,6 +100,18 @@ export class TransactionResponseDto {
     description: 'La otra cuenta involucrada, solo si transferId no es null',
   })
   transferCounterpartyAccount: TransactionTransferCounterpartyDto | null;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Si es un aporte/retiro de una meta de ahorro' })
+  goalId: string | null;
+
+  @ApiPropertyOptional({ type: TransactionGoalSummaryDto })
+  goal: TransactionGoalSummaryDto | null;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Si es el pago de la cuota de un préstamo' })
+  loanId: string | null;
+
+  @ApiPropertyOptional({ type: TransactionLoanSummaryDto })
+  loan: TransactionLoanSummaryDto | null;
 
   @ApiProperty({ example: '2026-08-10T18:00:00.000Z' })
   createdAt: Date;

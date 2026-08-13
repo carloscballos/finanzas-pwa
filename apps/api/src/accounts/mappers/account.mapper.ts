@@ -20,6 +20,8 @@ export class AccountMapper {
       currency: account.currency,
       initialBalance: Number(account.initialBalance),
       currentBalance,
+      creditLimit: account.creditLimit === null ? null : Number(account.creditLimit),
+      paymentDueDay: account.paymentDueDay,
       role: membership!.role,
       memberCount: account.members.length,
       members: account.members.map((m) => ({

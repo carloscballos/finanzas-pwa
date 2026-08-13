@@ -71,6 +71,11 @@ enum RecurrenceFrequency {
   YEARLY
 }
 
+enum LoanStatus {
+  ACTIVE
+  PAID_OFF
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -93,6 +98,7 @@ model User {
   sentFriendRequests    FriendRequest[]        @relation("SentFriendRequests")
   receivedFriendRequests FriendRequest[]       @relation("ReceivedFriendRequests")
   createdTransfers      Transfer[]
+  loans                 Loan[]
 
   @@map("users")
 }
@@ -106,6 +112,10 @@ model Account {
   type           AccountType
   currency       String      @default("COP")
   initialBalance Decimal     @default(0) @db.Decimal(14, 2)
+  // Solo tienen sentido para type CREDIT_CARD, pero no se restringen a nivel
+  // de BD — el frontend las muestra/edita únicamente para ese tipo.
+  creditLimit    Decimal?    @db.Decimal(14, 2)
+  paymentDueDay  Int?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
@@ -116,6 +126,7 @@ model Account {
   recurringTransactions RecurringTransaction[]
   transfersFrom         Transfer[]             @relation("TransferFrom")
   transfersTo           Transfer[]             @relation("TransferTo")
+  loans                 Loan[]
 
   @@map("accounts")
 }
@@ -158,8 +169,9 @@ model Category {
 model Transaction {
   id                     String          @id @default(uuid())
   accountId              String
-  // Null solo cuando la transacción es una pata de una Transfer (ver abajo)
-  // — una transferencia entre cuentas no tiene categoría de ingreso/gasto.
+  // Null cuando la transacción es una pata de una Transfer, un aporte/retiro
+  // de SavingsGoal, o el pago de un Loan (ver relaciones abajo) — ninguno de
+  // esos movimientos tiene categoría de ingreso/gasto propia.
   categoryId              String?
   createdByUserId        String
   type                   TransactionType
@@ -168,6 +180,10 @@ model Transaction {
   occurredAt             DateTime        @default(now())
   recurringTransactionId String?
   transferId              String?
+  // Ver SavingsGoal: aportar/retirar mueve dinero real de/hacia esta cuenta.
+  goalId                  String?
+  // Ver Loan: pagar una cuota mueve dinero real desde esta cuenta.
+  loanId                  String?
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
 
@@ -176,6 +192,8 @@ model Transaction {
   createdBy            User                  @relation(fields: [createdByUserId], references: [id])
   recurringTransaction RecurringTransaction? @relation(fields: [recurringTransactionId], references: [id], onDelete: SetNull)
   transfer             Transfer?             @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  goal                 SavingsGoal?          @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  loan                 Loan?                 @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@map("transactions")
 }
@@ -228,6 +246,11 @@ model Budget {
 
 // currency se fija al crear: si la meta está ligada a una cuenta, hereda la
 // moneda de esa cuenta; si no, la elige el usuario (default COP).
+// currentAmount es un contador que solo cambia vía contributions — cada
+// aporte/retiro crea además un Transaction real (ver goalId en Transaction)
+// en la cuenta que el usuario elige en ese momento, para que el dinero
+// "guardado" reste del balance de esa cuenta en vez de ser un número
+// desconectado. accountId aquí es independiente de eso: solo fija la moneda.
 model SavingsGoal {
   id            String    @id @default(uuid())
   userId        String
@@ -240,10 +263,42 @@ model SavingsGoal {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account      Account?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  contributions Transaction[]
 
   @@map("savings_goals")
+}
+
+// Préstamo (banco u otra entidad, no una persona — para eso está Debt).
+// remainingBalance empieza igual a principal y baja con cada pago; accountId
+// es opcional y solo sirve para preseleccionar la cuenta de pago (igual que
+// SavingsGoal.accountId con la moneda) — cada pago vuelve a elegir la cuenta
+// explícitamente. currency/principal/installmentsTotal/accountId son
+// inmutables tras crear (mismo criterio que Budget/Goal): cambiarlos dejaría
+// remainingBalance inconsistente con la moneda o el plan original.
+model Loan {
+  id                String     @id @default(uuid())
+  userId            String
+  name              String
+  principal         Decimal    @db.Decimal(14, 2)
+  remainingBalance  Decimal    @db.Decimal(14, 2)
+  currency          String     @default("COP")
+  interestRate      Decimal?   @db.Decimal(5, 2)
+  installmentsTotal Int
+  installmentsPaid  Int        @default(0)
+  installmentAmount Decimal    @db.Decimal(14, 2)
+  dueDay            Int?
+  accountId         String?
+  status            LoanStatus @default(ACTIVE)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account  Account?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  payments Transaction[]
+
+  @@map("loans")
 }
 
 // Deuda entre dos usuarios reales (no ligada a una cuenta). "Compartirla" es

@@ -66,7 +66,21 @@ export class GoalsService {
     if (newAmount < 0) {
       throw new BadRequestException('El retiro no puede dejar el ahorro acumulado en negativo');
     }
-    const updated = await this.goalsRepository.addContribution(id, dto.amount);
+
+    const account = await this.accountsService.getAccessibleAccount(userId, dto.accountId);
+    if (account.currency !== goal.currency) {
+      throw new BadRequestException(
+        `La cuenta debe estar en ${goal.currency} — la meta está en esa moneda`,
+      );
+    }
+
+    const updated = await this.goalsRepository.addContribution({
+      goalId: id,
+      accountId: dto.accountId,
+      userId,
+      amount: dto.amount,
+      occurredAt: new Date(),
+    });
     return GoalMapper.toResponse(updated);
   }
 

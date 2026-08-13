@@ -20,6 +20,8 @@ export class AccountsRepository {
         type: dto.type,
         currency: dto.currency,
         initialBalance: dto.initialBalance,
+        creditLimit: dto.creditLimit,
+        paymentDueDay: dto.paymentDueDay,
         members: { create: { userId: ownerId, role: 'OWNER' } },
       },
       include: WITH_MEMBERS,
@@ -52,6 +54,8 @@ export class AccountsRepository {
         type: dto.type,
         currency: dto.currency,
         initialBalance: dto.initialBalance,
+        creditLimit: dto.creditLimit,
+        paymentDueDay: dto.paymentDueDay,
       },
       include: WITH_MEMBERS,
     });

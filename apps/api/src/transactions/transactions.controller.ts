@@ -26,7 +26,9 @@ export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Listar movimientos (opcionalmente filtrados por cuenta/categoría/tipo)' })
+  @ApiOperation({
+    summary: 'Listar movimientos (opcionalmente filtrados por cuenta/categoría/tipo/rango de fechas)',
+  })
   @ApiResponse({ status: 200, type: [TransactionResponseDto] })
   @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
   findAll(

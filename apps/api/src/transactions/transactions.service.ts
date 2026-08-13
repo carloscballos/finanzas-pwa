@@ -24,7 +24,14 @@ export class TransactionsService {
     if (query.accountId) {
       await this.accountsService.getAccessibleAccount(userId, query.accountId);
     }
-    const transactions = await this.transactionsRepository.findMany({ userId, ...query });
+    const transactions = await this.transactionsRepository.findMany({
+      userId,
+      accountId: query.accountId,
+      categoryId: query.categoryId,
+      type: query.type,
+      startDate: query.startDate ? new Date(query.startDate) : undefined,
+      endDate: query.endDate ? new Date(query.endDate) : undefined,
+    });
     return TransactionMapper.toResponseList(transactions);
   }
 
@@ -48,7 +55,7 @@ export class TransactionsService {
     dto: UpdateTransactionDto,
   ): Promise<TransactionResponseDto> {
     const existing = await this.getAccessibleTransaction(userId, id);
-    this.assertNotTransferLeg(existing);
+    this.assertEditable(existing);
 
     if (dto.accountId) {
       await this.accountsService.getAccessibleAccount(userId, dto.accountId);
@@ -69,7 +76,7 @@ export class TransactionsService {
 
   async remove(userId: string, id: string): Promise<void> {
     const existing = await this.getAccessibleTransaction(userId, id);
-    this.assertNotTransferLeg(existing);
+    this.assertEditable(existing);
     await this.transactionsRepository.delete(id);
   }
 
@@ -93,13 +100,24 @@ export class TransactionsService {
     }
   }
 
-  // Las patas de una transferencia (transferId no nulo) solo se editan o
-  // eliminan como parte de la transferencia completa (ver TransfersService),
-  // nunca sueltas — si no, quedaría una transferencia con una sola pata.
-  private assertNotTransferLeg(transaction: TransactionWithRelations): void {
+  // Las patas de una transferencia, un aporte/retiro de meta o el pago de un
+  // préstamo no se editan ni eliminan sueltas — solo como parte del registro
+  // que las generó (TransfersService / GoalsService / LoansService), para no
+  // dejar el balance de la cuenta desincronizado con esos registros.
+  private assertEditable(transaction: TransactionWithRelations): void {
     if (transaction.transferId) {
       throw new BadRequestException(
         'Este movimiento es parte de una transferencia — edítala o elimínala desde ahí',
+      );
+    }
+    if (transaction.goalId) {
+      throw new BadRequestException(
+        'Este movimiento es un aporte/retiro de una meta — regístralo desde la meta',
+      );
+    }
+    if (transaction.loanId) {
+      throw new BadRequestException(
+        'Este movimiento es el pago de un préstamo — regístralo desde el préstamo',
       );
     }
   }

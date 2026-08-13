@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeftRight, Receipt } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { AccountMembers } from '../components/AccountMembers'
@@ -35,6 +35,7 @@ function previewMultiplier(fromCurrency: string, toCurrency: string, usdToCop: n
 export function AccountTransactionsPage() {
   const { accountId } = useParams<{ accountId: string }>()
   const { token } = useAuth()
+  const [searchParams] = useSearchParams()
 
   const [account, setAccount] = useState<Account | null>(null)
   const [allAccounts, setAllAccounts] = useState<Account[]>([])
@@ -43,7 +44,7 @@ export function AccountTransactionsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [showForm, setShowForm] = useState(false)
+  const [showForm, setShowForm] = useState(searchParams.get('new') === '1')
   const [type, setType] = useState<TransactionType>('EXPENSE')
   const [categoryId, setCategoryId] = useState('')
   const [amount, setAmount] = useState('')
@@ -451,10 +452,15 @@ export function AccountTransactionsPage() {
           <div className="tx-list">
             {transactions.map((tx) => {
               const isTransfer = !!tx.transferId
+              const isLinked = isTransfer || !!tx.goal || !!tx.loan
               return (
                 <div className="tx-row" key={tx.id}>
                   {isTransfer ? (
                     <span className="tx-row-emoji">⇄</span>
+                  ) : tx.goal ? (
+                    <span className="tx-row-emoji">🎯</span>
+                  ) : tx.loan ? (
+                    <span className="tx-row-emoji">🏦</span>
                   ) : (
                     tx.category?.emoji && <span className="tx-row-emoji">{tx.category.emoji}</span>
                   )}
@@ -462,7 +468,11 @@ export function AccountTransactionsPage() {
                     <div className="tx-row-category">
                       {isTransfer
                         ? `Transferencia ${tx.type === 'EXPENSE' ? 'hacia' : 'desde'} ${tx.transferCounterpartyAccount?.name ?? ''}`
-                        : tx.category?.name}
+                        : tx.goal
+                          ? `Meta: ${tx.goal.name}`
+                          : tx.loan
+                            ? `Préstamo: ${tx.loan.name}`
+                            : tx.category?.name}
                     </div>
                     {tx.note && <div className="tx-row-note">{tx.note}</div>}
                     {account.memberCount > 1 && (
@@ -474,9 +484,15 @@ export function AccountTransactionsPage() {
                     {tx.type === 'INCOME' ? '+' : '-'}
                     {formatMoney(tx.amount, tx.account.currency)}
                   </span>
-                  <button className="link-danger" onClick={() => handleDelete(tx)}>
-                    ✕
-                  </button>
+                  {isLinked ? (
+                    <span className="tx-row-locked" title="Edítalo desde donde se originó">
+                      🔒
+                    </span>
+                  ) : (
+                    <button className="link-danger" onClick={() => handleDelete(tx)}>
+                      ✕
+                    </button>
+                  )}
                 </div>
               )
             })}

@@ -169,6 +169,11 @@
   color: var(--badge-error-fg);
 }
 
+.tx-row-locked {
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
 .tx-empty {
   color: var(--text);
   text-align: center;

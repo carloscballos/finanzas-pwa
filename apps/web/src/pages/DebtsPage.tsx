@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { HandCoins } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { UserAutocomplete } from '../components/UserAutocomplete'
@@ -101,11 +102,12 @@ function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Deb
 
 export function DebtsPage() {
   const { token } = useAuth()
+  const [searchParams] = useSearchParams()
   const [debts, setDebts] = useState<Debt[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [showForm, setShowForm] = useState(false)
+  const [showForm, setShowForm] = useState(searchParams.get('new') === '1')
   const [counterpartyEmail, setCounterpartyEmail] = useState('')
   const [direction, setDirection] = useState<DebtDirection>('THEY_OWE_ME')
   const [amount, setAmount] = useState('')

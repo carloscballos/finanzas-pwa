@@ -1,34 +1,34 @@
-.goals-toolbar {
+.loans-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1.25rem;
 }
 
-.goals-toolbar h1 {
+.loans-toolbar h1 {
   font-size: 1.3rem;
   margin: 0;
 }
 
-.goals-grid {
+.loans-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
 }
 
 @media (min-width: 640px) {
-  .goals-grid {
+  .loans-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
 @media (min-width: 1024px) {
-  .goals-grid {
+  .loans-grid {
     grid-template-columns: repeat(3, 1fr);
   }
 }
 
-.goal-card {
+.loan-card {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -39,59 +39,60 @@
   gap: 0.6rem;
 }
 
-.goal-card-header {
+.loan-card-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
 }
 
-.goal-card h3 {
+.loan-card h3 {
   margin: 0;
   font-size: 1.05rem;
 }
 
-.goal-meta {
+.loan-meta {
   font-size: 0.75rem;
   color: var(--text);
 }
 
-.goal-bar-track {
+.loan-bar-track {
   height: 10px;
   border-radius: var(--radius-pill);
   background: var(--badge-neutral-bg);
   overflow: hidden;
 }
 
-.goal-bar-fill {
+.loan-bar-fill {
   height: 100%;
   border-radius: var(--radius-pill);
   background: var(--accent);
 }
 
-.goal-amounts {
+.loan-amounts {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 0.85rem;
 }
 
-.goal-contribute {
+.loan-pay {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.25rem;
 }
 
-.goal-contribute select {
+.loan-pay select {
   flex: 1 1 auto;
   min-width: 8rem;
 }
 
-.goal-contribute input {
+.loan-pay input {
   flex: 1 1 auto;
-  min-width: 8rem;
+  min-width: 10rem;
 }
 
-.goal-no-account {
+.loan-no-account {
   font-size: 0.8rem;
   color: var(--text);
   margin: 0.25rem 0 0;

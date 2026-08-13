@@ -6,6 +6,14 @@ import { GoalWithAccount } from './mappers/goal.mapper';
 
 const WITH_ACCOUNT = { account: { select: { id: true, name: true } } } as const;
 
+export interface AddContributionInput {
+  goalId: string;
+  accountId: string;
+  userId: string;
+  amount: number;
+  occurredAt: Date;
+}
+
 @Injectable()
 export class GoalsRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -50,12 +58,32 @@ export class GoalsRepository {
     });
   }
 
-  addContribution(id: string, amount: number): Promise<GoalWithAccount> {
-    return this.prisma.savingsGoal.update({
-      where: { id },
-      data: { currentAmount: { increment: amount } },
-      include: WITH_ACCOUNT,
+  // Transacción interactiva (no el array form) porque hay que crear el
+  // Transaction real y actualizar currentAmount de forma atómica — mismo
+  // principio que TransfersRepository.create. amount positivo (aportar) crea
+  // un EXPENSE en accountId; negativo (retirar) crea un INCOME por el valor
+  // absoluto — en ambos casos sin categoría (categoryId null), igual que las
+  // patas de una transferencia.
+  async addContribution(input: AddContributionInput): Promise<GoalWithAccount> {
+    const goalId = await this.prisma.$transaction(async (tx) => {
+      await tx.transaction.create({
+        data: {
+          accountId: input.accountId,
+          type: input.amount > 0 ? 'EXPENSE' : 'INCOME',
+          amount: Math.abs(input.amount),
+          occurredAt: input.occurredAt,
+          createdByUserId: input.userId,
+          goalId: input.goalId,
+        },
+      });
+      const goal = await tx.savingsGoal.update({
+        where: { id: input.goalId },
+        data: { currentAmount: { increment: input.amount } },
+      });
+      return goal.id;
     });
+
+    return (await this.findById(goalId))!;
   }
 
   async delete(id: string): Promise<void> {

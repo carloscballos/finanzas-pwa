@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Wallet } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { useAuth } from '../context/AuthContext'
@@ -14,15 +14,18 @@ const ACCOUNT_TYPES = Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]
 
 export function AccountsPage() {
   const { token } = useAuth()
+  const [searchParams] = useSearchParams()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [showForm, setShowForm] = useState(false)
+  const [showForm, setShowForm] = useState(searchParams.get('new') === '1')
   const [name, setName] = useState('')
   const [type, setType] = useState<AccountType>('SAVINGS')
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY)
   const [initialBalance, setInitialBalance] = useState('0')
+  const [creditLimit, setCreditLimit] = useState('')
+  const [paymentDueDay, setPaymentDueDay] = useState('')
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -46,12 +49,16 @@ export function AccountsPage() {
         type,
         currency,
         initialBalance: Number(initialBalance) || 0,
+        creditLimit: type === 'CREDIT_CARD' && creditLimit ? Number(creditLimit) : undefined,
+        paymentDueDay: type === 'CREDIT_CARD' && paymentDueDay ? Number(paymentDueDay) : undefined,
       })
       setAccounts((prev) => [...prev, account])
       setName('')
       setType('SAVINGS')
       setCurrency(DEFAULT_CURRENCY)
       setInitialBalance('0')
+      setCreditLimit('')
+      setPaymentDueDay('')
       setShowForm(false)
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'No se pudo crear la cuenta')
@@ -136,6 +143,33 @@ export function AccountsPage() {
               onChange={(e) => setInitialBalance(e.target.value)}
             />
           </div>
+          {type === 'CREDIT_CARD' && (
+            <>
+              <div className="field">
+                <label htmlFor="acc-credit-limit">Cupo de crédito</label>
+                <input
+                  id="acc-credit-limit"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={creditLimit}
+                  onChange={(e) => setCreditLimit(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="acc-due-day">Día de pago</label>
+                <input
+                  id="acc-due-day"
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={paymentDueDay}
+                  onChange={(e) => setPaymentDueDay(e.target.value)}
+                  placeholder="1-31"
+                />
+              </div>
+            </>
+          )}
           <button className="btn" type="submit" disabled={creating}>
             {creating ? 'Creando…' : 'Crear cuenta'}
           </button>
@@ -161,6 +195,13 @@ export function AccountsPage() {
             <span className={`account-balance ${account.currentBalance < 0 ? 'negative' : ''}`}>
               {formatMoney(account.currentBalance, account.currency)}
             </span>
+            {account.type === 'CREDIT_CARD' && account.creditLimit !== null && (
+              <div className="account-credit-info">
+                Disponible: {formatMoney(account.creditLimit + account.currentBalance, account.currency)} de{' '}
+                {formatMoney(account.creditLimit, account.currency)}
+                {account.paymentDueDay && ` · Paga el día ${account.paymentDueDay}`}
+              </div>
+            )}
             <div className="account-meta">
               <span className={`badge ${account.role === 'OWNER' ? 'badge-ok' : 'badge-neutral'}`}>
                 {account.role === 'OWNER' ? 'Propietario' : 'Miembro'}
