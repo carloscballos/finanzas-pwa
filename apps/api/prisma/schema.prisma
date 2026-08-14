@@ -76,6 +76,11 @@ enum LoanStatus {
   PAID_OFF
 }
 
+enum CardPurchaseStatus {
+  ACTIVE
+  PAID_OFF
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -99,6 +104,7 @@ model User {
   receivedFriendRequests FriendRequest[]       @relation("ReceivedFriendRequests")
   createdTransfers      Transfer[]
   loans                 Loan[]
+  cardPurchases         CardPurchase[]
 
   @@map("users")
 }
@@ -127,6 +133,7 @@ model Account {
   transfersFrom         Transfer[]             @relation("TransferFrom")
   transfersTo           Transfer[]             @relation("TransferTo")
   loans                 Loan[]
+  cardPurchases         CardPurchase[]
 
   @@map("accounts")
 }
@@ -170,8 +177,9 @@ model Transaction {
   id                     String          @id @default(uuid())
   accountId              String
   // Null cuando la transacción es una pata de una Transfer, un aporte/retiro
-  // de SavingsGoal, o el pago de un Loan (ver relaciones abajo) — ninguno de
-  // esos movimientos tiene categoría de ingreso/gasto propia.
+  // de SavingsGoal, el pago de un Loan, o una pata de CardPurchase (ver
+  // relaciones abajo) — ninguno de esos movimientos tiene categoría de
+  // ingreso/gasto propia.
   categoryId              String?
   createdByUserId        String
   type                   TransactionType
@@ -184,6 +192,9 @@ model Transaction {
   goalId                  String?
   // Ver Loan: pagar una cuota mueve dinero real desde esta cuenta.
   loanId                  String?
+  // Ver CardPurchase: al comprar (EXPENSE en la tarjeta) y al pagar una
+  // cuota (EXPENSE en la cuenta pagadora + INCOME en la tarjeta).
+  cardPurchaseId          String?
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
 
@@ -194,6 +205,7 @@ model Transaction {
   transfer             Transfer?             @relation(fields: [transferId], references: [id], onDelete: Cascade)
   goal                 SavingsGoal?          @relation(fields: [goalId], references: [id], onDelete: Cascade)
   loan                 Loan?                 @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  cardPurchase         CardPurchase?         @relation(fields: [cardPurchaseId], references: [id], onDelete: Cascade)
 
   @@map("transactions")
 }
@@ -299,6 +311,46 @@ model Loan {
   payments Transaction[]
 
   @@map("loans")
+}
+
+// Compra a cuotas con una tarjeta de crédito (accountId siempre una Account
+// type CREDIT_CARD, a diferencia de Loan donde es opcional). remainingBalance
+// es lo que todavía resta pagar y es lo único que "descuenta" del cupo
+// disponible de la tarjeta (creditLimit + currentBalance de la cuenta ya lo
+// refleja automáticamente, ver abajo — no hace falta un cálculo aparte).
+//
+// Contabilización (evita que el cupo disponible pueda superar el límite real,
+// que era el bug reportado con el cálculo genérico anterior):
+// - Al crear: se registra un EXPENSE en la tarjeta por remainingBalance (no
+//   por el monto total de la compra) — así, si se está importando una compra
+//   que ya traía cuotas pagadas antes de usar la app, solo se contabiliza lo
+//   que realmente sigue pendiente hoy.
+// - Al pagar una cuota: se registran DOS Transaction (como un Transfer) —
+//   EXPENSE en la cuenta que paga (sale dinero real) e INCOME en la tarjeta
+//   (esa parte de la deuda queda saldada, lo que libera cupo). remainingBalance
+//   baja en la misma proporción.
+// amount/installmentsTotal/installmentAmount/accountId son inmutables tras
+// crear (mismo criterio que Loan).
+model CardPurchase {
+  id                String             @id @default(uuid())
+  userId            String
+  accountId         String
+  merchant          String
+  amount            Decimal            @db.Decimal(14, 2)
+  remainingBalance  Decimal            @db.Decimal(14, 2)
+  installmentsTotal Int
+  installmentsPaid  Int                @default(0)
+  installmentAmount Decimal            @db.Decimal(14, 2)
+  purchasedAt       DateTime           @default(now())
+  status            CardPurchaseStatus @default(ACTIVE)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account      Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@map("card_purchases")
 }
 
 // Deuda entre dos usuarios reales (no ligada a una cuenta). "Compartirla" es

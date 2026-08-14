@@ -10,6 +10,7 @@ export class AccountsService {
   constructor(private readonly accountsRepository: AccountsRepository) {}
 
   async create(userId: string, dto: CreateAccountDto): Promise<AccountResponseDto> {
+    this.assertValidCreditCardBalance(dto.type, dto.initialBalance);
     const account = await this.accountsRepository.create(dto, userId);
     return AccountMapper.toResponse(account, userId, Number(account.initialBalance));
   }
@@ -31,7 +32,10 @@ export class AccountsService {
     accountId: string,
     dto: UpdateAccountDto,
   ): Promise<AccountResponseDto> {
-    await this.assertOwner(userId, accountId);
+    const existing = await this.assertOwner(userId, accountId);
+    if (dto.initialBalance !== undefined) {
+      this.assertValidCreditCardBalance(dto.type ?? existing.type, dto.initialBalance);
+    }
     const updated = await this.accountsRepository.update(accountId, dto);
     const balances = await this.computeCurrentBalances([updated]);
     return AccountMapper.toResponse(updated, userId, balances.get(updated.id) ?? 0);
@@ -96,11 +100,29 @@ export class AccountsService {
     return account;
   }
 
-  private async assertOwner(userId: string, accountId: string): Promise<void> {
+  private async assertOwner(userId: string, accountId: string): Promise<AccountWithMembers> {
     const account = await this.getAccountForMember(userId, accountId);
     const membership = account.members.find((member) => member.userId === userId);
     if (membership?.role !== 'OWNER') {
       throw new ForbiddenException('Solo el propietario puede modificar esta cuenta');
+    }
+    return account;
+  }
+
+  // En una tarjeta de crédito, initialBalance representa deuda (0 o
+  // negativo) — nunca "cupo disponible". Un valor positivo aquí infla
+  // creditLimit + currentBalance por encima del límite real (ver
+  // AccountMapper/CLAUDE.md gotcha de tarjetas), así que se rechaza en vez
+  // de dejar que el usuario arme sin querer una tarjeta con más cupo del
+  // que existe.
+  private assertValidCreditCardBalance(
+    type: string | undefined,
+    initialBalance: number | undefined,
+  ): void {
+    if (type === 'CREDIT_CARD' && initialBalance !== undefined && initialBalance > 0) {
+      throw new BadRequestException(
+        'El saldo inicial de una tarjeta de crédito representa deuda: debe ser 0 o negativo (usa "Cupo de crédito" para el límite)',
+      );
     }
   }
 }

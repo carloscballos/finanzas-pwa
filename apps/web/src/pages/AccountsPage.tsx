@@ -7,7 +7,7 @@ import * as api from '../lib/api'
 import { ApiError, type Account, type AccountType } from '../lib/api'
 import { ACCOUNT_TYPE_LABELS } from '../lib/accountTypeLabels'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
-import { formatMoney } from '../lib/money'
+import { computeAvailableCredit, formatMoney } from '../lib/money'
 import './AccountsPage.css'
 
 const ACCOUNT_TYPES = Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]
@@ -134,14 +134,22 @@ export function AccountsPage() {
             </select>
           </div>
           <div className="field">
-            <label htmlFor="acc-balance">Saldo inicial</label>
+            <label htmlFor="acc-balance">
+              {type === 'CREDIT_CARD' ? 'Deuda actual (0 si no debes nada)' : 'Saldo inicial'}
+            </label>
             <input
               id="acc-balance"
               type="number"
               step="0.01"
+              max={type === 'CREDIT_CARD' ? 0 : undefined}
               value={initialBalance}
               onChange={(e) => setInitialBalance(e.target.value)}
             />
+            {type === 'CREDIT_CARD' && (
+              <span style={{ fontSize: '0.8rem' }}>
+                Va en 0 o negativo — ej. -700000 si ya debes $700.000 en esta tarjeta. No es el cupo disponible.
+              </span>
+            )}
           </div>
           {type === 'CREDIT_CARD' && (
             <>
@@ -197,7 +205,7 @@ export function AccountsPage() {
             </span>
             {account.type === 'CREDIT_CARD' && account.creditLimit !== null && (
               <div className="account-credit-info">
-                Disponible: {formatMoney(account.creditLimit + account.currentBalance, account.currency)} de{' '}
+                Disponible: {formatMoney(computeAvailableCredit(account.creditLimit, account.currentBalance), account.currency)} de{' '}
                 {formatMoney(account.creditLimit, account.currency)}
                 {account.paymentDueDay && ` · Paga el día ${account.paymentDueDay}`}
               </div>

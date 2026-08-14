@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeftRight, Receipt } from 'lucide-react'
+import { ArrowLeftRight, Receipt, ShoppingBag } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { AccountMembers } from '../components/AccountMembers'
 import { useAuth } from '../context/AuthContext'
@@ -8,17 +8,133 @@ import * as api from '../lib/api'
 import {
   ApiError,
   type Account,
+  type CardPurchase,
   type Category,
   type RecurrenceFrequency,
   type Transaction,
   type TransactionType,
 } from '../lib/api'
-import { formatMoney } from '../lib/money'
+import { computeAvailableCredit, formatMoney } from '../lib/money'
 import './AccountTransactionsPage.css'
+import './LoansPage.css'
 
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
     new Date(iso),
+  )
+}
+
+function formatShortDate(iso: string) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(iso))
+}
+
+function CardPurchaseCard({
+  purchase,
+  payingAccounts,
+  onChange,
+  onDeleted,
+}: {
+  purchase: CardPurchase
+  payingAccounts: Account[]
+  onChange: (p: CardPurchase) => void
+  onDeleted: (id: string) => void
+}) {
+  const { token } = useAuth()
+  const matchingAccounts = payingAccounts.filter((a) => a.currency === purchase.account.currency)
+  const [accountId, setAccountId] = useState('')
+  const [amount, setAmount] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function handlePay(event: FormEvent) {
+    event.preventDefault()
+    if (!token || !accountId) return
+    setBusy(true)
+    try {
+      const updated = await api.payCardPurchaseInstallment(token, purchase.id, {
+        accountId,
+        amount: amount ? Number(amount) : undefined,
+      })
+      onChange(updated)
+      setAmount('')
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'No se pudo registrar el pago')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!token) return
+    if (!confirm(`¿Eliminar la compra "${purchase.merchant}"? También se eliminan sus movimientos registrados.`)) return
+    try {
+      await api.deleteCardPurchase(token, purchase.id)
+      onDeleted(purchase.id)
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'No se pudo eliminar la compra')
+    }
+  }
+
+  return (
+    <div className="loan-card">
+      <div className="loan-card-header">
+        <div>
+          <h3>{purchase.merchant}</h3>
+          <span className="loan-meta">
+            Cuota {purchase.installmentsPaid}/{purchase.installmentsTotal} · {formatShortDate(purchase.purchasedAt)}
+          </span>
+        </div>
+        <button className="link-danger" onClick={handleDelete}>
+          Eliminar
+        </button>
+      </div>
+      <div className="loan-bar-track">
+        <div className="loan-bar-fill" style={{ width: `${Math.min(purchase.percentPaid, 100)}%` }} />
+      </div>
+      <div className="loan-amounts">
+        <span>{formatMoney(purchase.remainingBalance, purchase.account.currency)} pendiente</span>
+        <span>{purchase.percentPaid}% pagado</span>
+      </div>
+      <div className="loan-amounts">
+        <span>Original {formatMoney(purchase.amount, purchase.account.currency)}</span>
+        <span className={`badge ${purchase.status === 'PAID_OFF' ? 'badge-ok' : 'badge-neutral'}`}>
+          {purchase.status === 'PAID_OFF' ? 'Pagada' : 'Activa'}
+        </span>
+      </div>
+
+      {purchase.status !== 'PAID_OFF' &&
+        (matchingAccounts.length === 0 ? (
+          <p className="loan-no-account">No tienes otra cuenta en {purchase.account.currency} para pagar cuotas.</p>
+        ) : (
+          <form className="loan-pay" onSubmit={handlePay}>
+            <select
+              aria-label="Cuenta de pago"
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+              required
+            >
+              <option value="" disabled>
+                Cuenta
+              </option>
+              {matchingAccounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              placeholder={`Monto (cuota ${formatMoney(purchase.installmentAmount, purchase.account.currency)})`}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+            <button className="btn" type="submit" disabled={busy || !accountId}>
+              Pagar cuota
+            </button>
+          </form>
+        ))}
+    </div>
   )
 }
 
@@ -41,8 +157,19 @@ export function AccountTransactionsPage() {
   const [allAccounts, setAllAccounts] = useState<Account[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [cardPurchases, setCardPurchases] = useState<CardPurchase[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const [showPurchaseForm, setShowPurchaseForm] = useState(false)
+  const [purchaseMerchant, setPurchaseMerchant] = useState('')
+  const [purchaseAmount, setPurchaseAmount] = useState('')
+  const [purchaseInstallmentsTotal, setPurchaseInstallmentsTotal] = useState('')
+  const [purchaseInstallmentAmount, setPurchaseInstallmentAmount] = useState('')
+  const [purchaseInstallmentsPaid, setPurchaseInstallmentsPaid] = useState('')
+  const [purchaseDate, setPurchaseDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [creatingPurchase, setCreatingPurchase] = useState(false)
+  const [purchaseFormError, setPurchaseFormError] = useState<string | null>(null)
 
   const [showForm, setShowForm] = useState(searchParams.get('new') === '1')
   const [type, setType] = useState<TransactionType>('EXPENSE')
@@ -77,10 +204,82 @@ export function AccountTransactionsPage() {
         setAllAccounts(accs)
         setCategories(cats)
         setTransactions(txs)
+        if (acc.type === 'CREDIT_CARD') {
+          api
+            .getCardPurchases(token, { accountId })
+            .then(setCardPurchases)
+            .catch(() => setCardPurchases([]))
+        }
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Error al cargar la cuenta'))
       .finally(() => setLoading(false))
   }, [token, accountId])
+
+  async function refreshAccountAndPurchases() {
+    if (!token || !accountId) return
+    const [updatedAccount, updatedPurchases] = await Promise.all([
+      api.getAccount(token, accountId),
+      api.getCardPurchases(token, { accountId }),
+    ])
+    setAccount(updatedAccount)
+    setCardPurchases(updatedPurchases)
+  }
+
+  async function handleCreatePurchase(event: FormEvent) {
+    event.preventDefault()
+    if (!token || !accountId) return
+    setPurchaseFormError(null)
+    setCreatingPurchase(true)
+    try {
+      await api.createCardPurchase(token, {
+        accountId,
+        merchant: purchaseMerchant,
+        amount: Number(purchaseAmount),
+        installmentsTotal: Number(purchaseInstallmentsTotal),
+        installmentAmount: Number(purchaseInstallmentAmount),
+        installmentsPaid: purchaseInstallmentsPaid ? Number(purchaseInstallmentsPaid) : undefined,
+        purchasedAt: new Date(purchaseDate).toISOString(),
+      })
+      const updatedTxs = await api.getTransactions(token, { accountId })
+      setTransactions(updatedTxs)
+      await refreshAccountAndPurchases()
+      setPurchaseMerchant('')
+      setPurchaseAmount('')
+      setPurchaseInstallmentsTotal('')
+      setPurchaseInstallmentAmount('')
+      setPurchaseInstallmentsPaid('')
+      setPurchaseDate(new Date().toISOString().slice(0, 10))
+      setShowPurchaseForm(false)
+    } catch (err) {
+      setPurchaseFormError(err instanceof ApiError ? err.message : 'No se pudo registrar la compra')
+    } finally {
+      setCreatingPurchase(false)
+    }
+  }
+
+  function updatePurchase(updated: CardPurchase) {
+    setCardPurchases((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+    if (accountId && token) {
+      Promise.all([api.getAccount(token, accountId), api.getTransactions(token, { accountId })]).then(
+        ([acc, txs]) => {
+          setAccount(acc)
+          setTransactions(txs)
+        },
+      )
+    }
+  }
+
+  function removePurchase(id: string) {
+    setCardPurchases((prev) => prev.filter((p) => p.id !== id))
+    if (accountId && token) {
+      Promise.all([api.getAccount(token, accountId), api.getTransactions(token, { accountId })]).then(
+        ([acc, txs]) => {
+          setAccount(acc)
+          setTransactions(txs)
+        },
+      )
+    }
+  }
 
   const toAccount = allAccounts.find((a) => a.id === toAccountId) ?? null
   const needsRate = !!(account && toAccount && account.currency !== toAccount.currency)
@@ -220,6 +419,9 @@ export function AccountTransactionsPage() {
           ? [
               { label: 'Nuevo movimiento', icon: Receipt, onClick: () => setShowForm(true) },
               { label: 'Transferir', icon: ArrowLeftRight, onClick: () => setShowTransferForm(true) },
+              ...(account.type === 'CREDIT_CARD'
+                ? [{ label: 'Nueva compra', icon: ShoppingBag, onClick: () => setShowPurchaseForm(true) }]
+                : []),
             ]
           : []
       }
@@ -239,6 +441,13 @@ export function AccountTransactionsPage() {
               <span className={`tx-balance ${account.currentBalance < 0 ? 'negative' : ''}`}>
                 {formatMoney(account.currentBalance, account.currency)}
               </span>
+              {account.type === 'CREDIT_CARD' && account.creditLimit !== null && (
+                <div className="account-credit-info">
+                  Disponible: {formatMoney(computeAvailableCredit(account.creditLimit, account.currentBalance), account.currency)} de{' '}
+                  {formatMoney(account.creditLimit, account.currency)}
+                  {account.paymentDueDay && ` · Paga el día ${account.paymentDueDay}`}
+                </div>
+              )}
             </div>
             <div className="tx-header-actions">
               <button
@@ -257,6 +466,118 @@ export function AccountTransactionsPage() {
           </div>
 
           <AccountMembers account={account} onAccountChange={setAccount} />
+
+          {account.type === 'CREDIT_CARD' && (
+            <section className="purchases-section">
+              <div className="tx-header-actions" style={{ justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                <h2>Compras a cuotas</h2>
+                <button
+                  className={`btn btn-secondary ${showPurchaseForm ? '' : 'toolbar-create-btn'}`}
+                  onClick={() => setShowPurchaseForm((v) => !v)}
+                >
+                  {showPurchaseForm ? 'Cancelar' : '+ Nueva compra'}
+                </button>
+              </div>
+
+              {showPurchaseForm && (
+                <form className="create-form" onSubmit={handleCreatePurchase}>
+                  {purchaseFormError && (
+                    <div className="auth-error field-full" style={{ margin: 0 }}>
+                      {purchaseFormError}
+                    </div>
+                  )}
+                  <div className="field field-full">
+                    <label htmlFor="purchase-merchant">Comercio</label>
+                    <input
+                      id="purchase-merchant"
+                      value={purchaseMerchant}
+                      onChange={(e) => setPurchaseMerchant(e.target.value)}
+                      required
+                      placeholder="Falabella"
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="purchase-amount">Monto total</label>
+                    <input
+                      id="purchase-amount"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={purchaseAmount}
+                      onChange={(e) => setPurchaseAmount(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="purchase-date">Fecha de compra</label>
+                    <input
+                      id="purchase-date"
+                      type="date"
+                      value={purchaseDate}
+                      onChange={(e) => setPurchaseDate(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="purchase-installments">Número de cuotas</label>
+                    <input
+                      id="purchase-installments"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={purchaseInstallmentsTotal}
+                      onChange={(e) => setPurchaseInstallmentsTotal(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="purchase-installment-amount">Monto de cada cuota</label>
+                    <input
+                      id="purchase-installment-amount"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={purchaseInstallmentAmount}
+                      onChange={(e) => setPurchaseInstallmentAmount(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="purchase-installments-paid">Cuotas ya pagadas (opcional)</label>
+                    <input
+                      id="purchase-installments-paid"
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="0"
+                      value={purchaseInstallmentsPaid}
+                      onChange={(e) => setPurchaseInstallmentsPaid(e.target.value)}
+                    />
+                    <span style={{ fontSize: '0.8rem' }}>Úsalo para traer una compra que ya venía en curso.</span>
+                  </div>
+                  <button className="btn" type="submit" disabled={creatingPurchase}>
+                    {creatingPurchase ? 'Guardando…' : 'Registrar compra'}
+                  </button>
+                </form>
+              )}
+
+              {cardPurchases.length === 0 ? (
+                <p className="tx-empty">Todavía no hay compras a cuotas registradas.</p>
+              ) : (
+                <div className="purchases-grid">
+                  {cardPurchases.map((purchase) => (
+                    <CardPurchaseCard
+                      key={purchase.id}
+                      purchase={purchase}
+                      payingAccounts={allAccounts.filter((a) => a.id !== accountId)}
+                      onChange={updatePurchase}
+                      onDeleted={removePurchase}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
           {showTransferForm && (
             <form className="create-form" onSubmit={handleTransfer}>
@@ -452,7 +773,7 @@ export function AccountTransactionsPage() {
           <div className="tx-list">
             {transactions.map((tx) => {
               const isTransfer = !!tx.transferId
-              const isLinked = isTransfer || !!tx.goal || !!tx.loan
+              const isLinked = isTransfer || !!tx.goal || !!tx.loan || !!tx.cardPurchase
               return (
                 <div className="tx-row" key={tx.id}>
                   {isTransfer ? (
@@ -461,6 +782,8 @@ export function AccountTransactionsPage() {
                     <span className="tx-row-emoji">🎯</span>
                   ) : tx.loan ? (
                     <span className="tx-row-emoji">🏦</span>
+                  ) : tx.cardPurchase ? (
+                    <span className="tx-row-emoji">🛍️</span>
                   ) : (
                     tx.category?.emoji && <span className="tx-row-emoji">{tx.category.emoji}</span>
                   )}
@@ -472,7 +795,9 @@ export function AccountTransactionsPage() {
                           ? `Meta: ${tx.goal.name}`
                           : tx.loan
                             ? `Préstamo: ${tx.loan.name}`
-                            : tx.category?.name}
+                            : tx.cardPurchase
+                              ? `Compra: ${tx.cardPurchase.merchant}`
+                              : tx.category?.name}
                     </div>
                     {tx.note && <div className="tx-row-note">{tx.note}</div>}
                     {account.memberCount > 1 && (

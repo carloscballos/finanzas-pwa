@@ -92,6 +92,8 @@ export interface Transaction {
   goal: { id: string; name: string } | null
   loanId: string | null
   loan: { id: string; name: string } | null
+  cardPurchaseId: string | null
+  cardPurchase: { id: string; merchant: string } | null
   createdAt: string
   updatedAt: string
 }
@@ -179,6 +181,7 @@ export interface CreateLoanInput {
   installmentAmount: number
   dueDay?: number
   accountId?: string
+  installmentsPaid?: number
 }
 
 export interface UpdateLoanInput {
@@ -188,6 +191,40 @@ export interface UpdateLoanInput {
 }
 
 export interface PayLoanInput {
+  accountId: string
+  amount?: number
+  occurredAt?: string
+}
+
+export type CardPurchaseStatus = 'ACTIVE' | 'PAID_OFF'
+
+export interface CardPurchase {
+  id: string
+  merchant: string
+  amount: number
+  remainingBalance: number
+  installmentsTotal: number
+  installmentsPaid: number
+  installmentAmount: number
+  purchasedAt: string
+  account: { id: string; name: string; currency: string }
+  status: CardPurchaseStatus
+  percentPaid: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateCardPurchaseInput {
+  accountId: string
+  merchant: string
+  amount: number
+  installmentsTotal: number
+  installmentAmount: number
+  purchasedAt?: string
+  installmentsPaid?: number
+}
+
+export interface PayCardPurchaseInstallmentInput {
   accountId: string
   amount?: number
   occurredAt?: string
@@ -639,6 +676,33 @@ export function payLoanInstallment(token: string, id: string, input: PayLoanInpu
 
 export function deleteLoan(token: string, id: string) {
   return request<void>(`/api/v1/loans/${id}`, { method: 'DELETE', token })
+}
+
+export function getCardPurchases(token: string, filters: { accountId?: string } = {}) {
+  const params = new URLSearchParams()
+  if (filters.accountId) params.set('accountId', filters.accountId)
+  const qs = params.toString()
+  return request<CardPurchase[]>(`/api/v1/card-purchases${qs ? `?${qs}` : ''}`, { token })
+}
+
+export function createCardPurchase(token: string, input: CreateCardPurchaseInput) {
+  return request<CardPurchase>('/api/v1/card-purchases', { method: 'POST', body: input, token })
+}
+
+export function payCardPurchaseInstallment(
+  token: string,
+  id: string,
+  input: PayCardPurchaseInstallmentInput,
+) {
+  return request<CardPurchase>(`/api/v1/card-purchases/${id}/payments`, {
+    method: 'POST',
+    body: input,
+    token,
+  })
+}
+
+export function deleteCardPurchase(token: string, id: string) {
+  return request<void>(`/api/v1/card-purchases/${id}`, { method: 'DELETE', token })
 }
 
 export function getForecastSummary(token: string) {

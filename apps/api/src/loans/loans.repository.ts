@@ -10,12 +10,15 @@ export interface CreateLoanRecord {
   userId: string;
   name: string;
   principal: number;
+  remainingBalance: number;
   currency: string;
   interestRate?: number;
   installmentsTotal: number;
+  installmentsPaid: number;
   installmentAmount: number;
   dueDay?: number;
   accountId?: string;
+  status: LoanStatus;
 }
 
 export interface RegisterPaymentInput {
@@ -50,13 +53,15 @@ export class LoansRepository {
         userId: data.userId,
         name: data.name,
         principal: data.principal,
-        remainingBalance: data.principal,
+        remainingBalance: data.remainingBalance,
         currency: data.currency,
         interestRate: data.interestRate,
         installmentsTotal: data.installmentsTotal,
+        installmentsPaid: data.installmentsPaid,
         installmentAmount: data.installmentAmount,
         dueDay: data.dueDay,
         accountId: data.accountId,
+        status: data.status,
       },
       include: WITH_ACCOUNT,
     });

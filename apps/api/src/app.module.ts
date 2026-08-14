@@ -18,6 +18,7 @@ import { FriendsModule } from './friends/friends.module';
 import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
 import { TransfersModule } from './transfers/transfers.module';
 import { LoansModule } from './loans/loans.module';
+import { CardPurchasesModule } from './card-purchases/card-purchases.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { LoansModule } from './loans/loans.module';
     ExchangeRatesModule,
     TransfersModule,
     LoansModule,
+    CardPurchasesModule,
   ],
 })
 export class AppModule {}

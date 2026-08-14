@@ -123,8 +123,19 @@ export function HomePage() {
     pendingDebts.filter((d) => d.direction === 'I_OWE_THEM').map((d) => ({ amount: d.amount, currency: d.currency })),
   )
   // transferId se excluye de estos totales: mover dinero entre tus propias
-  // cuentas no es ingreso ni gasto real, solo reubicación.
-  const monthFlows = transactions.filter((tx) => !tx.transferId)
+  // cuentas no es ingreso ni gasto real, solo reubicación. Lo mismo aplica al
+  // pagar la cuota de una compra de tarjeta (EXPENSE en la cuenta que paga +
+  // INCOME en la tarjeta, como un transfer) — solo cuenta como gasto real la
+  // pata de la compra en sí (el EXPENSE inicial en la tarjeta), no cada pago
+  // de cuota, o se contaría la misma compra varias veces.
+  const creditCardAccountIds = new Set(
+    accounts.filter((a) => a.type === 'CREDIT_CARD').map((a) => a.id),
+  )
+  const monthFlows = transactions.filter((tx) => {
+    if (tx.transferId) return false
+    if (tx.cardPurchase) return tx.type === 'EXPENSE' && creditCardAccountIds.has(tx.account.id)
+    return true
+  })
   const monthIncomeByCurrency = sumByCurrency(
     monthFlows.filter((tx) => tx.type === 'INCOME').map((tx) => ({ amount: tx.amount, currency: tx.account.currency })),
   )
@@ -378,7 +389,9 @@ export function HomePage() {
                             ? `🎯 ${tx.goal.name} (${tx.account.name})`
                             : tx.loan
                               ? `🏦 ${tx.loan.name} (${tx.account.name})`
-                              : `${tx.category?.emoji ? `${tx.category.emoji} ` : ''}${tx.category?.name} · ${tx.account.name}`}
+                              : tx.cardPurchase
+                                ? `🛍️ ${tx.cardPurchase.merchant} (${tx.account.name})`
+                                : `${tx.category?.emoji ? `${tx.category.emoji} ` : ''}${tx.category?.name} · ${tx.account.name}`}
                         <span className="home-list-date"> · {formatDate(tx.occurredAt)}</span>
                       </span>
                       <span className={tx.type === 'INCOME' ? 'income' : 'expense'}>

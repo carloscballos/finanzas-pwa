@@ -63,4 +63,13 @@ export class CreateLoanDto {
   @IsOptional()
   @IsUUID()
   accountId?: string;
+
+  @ApiPropertyOptional({
+    example: 5,
+    description: 'Cuotas que ya se pagaron antes de registrar el préstamo (para importar uno en curso) — default 0',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  installmentsPaid?: number;
 }

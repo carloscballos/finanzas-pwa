@@ -27,6 +27,33 @@
   color: var(--badge-error-fg);
 }
 
+.account-credit-info {
+  font-size: 0.8rem;
+  color: var(--text);
+  margin-top: 0.25rem;
+}
+
+.purchases-section {
+  margin: 1.5rem 0;
+}
+
+.purchases-section h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.75rem;
+}
+
+.purchases-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .purchases-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .tx-header-actions {
   display: flex;
   gap: 0.5rem;

@@ -140,6 +140,7 @@ export function LoansPage() {
   const [installmentAmount, setInstallmentAmount] = useState('')
   const [dueDay, setDueDay] = useState('')
   const [accountId, setAccountId] = useState('')
+  const [installmentsPaid, setInstallmentsPaid] = useState('')
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -169,6 +170,7 @@ export function LoansPage() {
         installmentAmount: Number(installmentAmount),
         dueDay: dueDay ? Number(dueDay) : undefined,
         accountId: accountId || undefined,
+        installmentsPaid: installmentsPaid ? Number(installmentsPaid) : undefined,
       })
       setLoans((prev) => [loan, ...prev])
       setName('')
@@ -179,6 +181,7 @@ export function LoansPage() {
       setInstallmentAmount('')
       setDueDay('')
       setAccountId('')
+      setInstallmentsPaid('')
       setShowForm(false)
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'No se pudo crear el préstamo')
@@ -281,6 +284,19 @@ export function LoansPage() {
               onChange={(e) => setInstallmentAmount(e.target.value)}
               required
             />
+          </div>
+          <div className="field">
+            <label htmlFor="loan-installments-paid">Cuotas ya pagadas (opcional)</label>
+            <input
+              id="loan-installments-paid"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="0"
+              value={installmentsPaid}
+              onChange={(e) => setInstallmentsPaid(e.target.value)}
+            />
+            <span style={{ fontSize: '0.8rem' }}>Úsalo para traer un préstamo que ya venía en curso.</span>
           </div>
           <div className="field">
             <label htmlFor="loan-rate">Tasa de interés anual % (opcional)</label>

@@ -120,5 +120,10 @@ export class TransactionsService {
         'Este movimiento es el pago de un préstamo — regístralo desde el préstamo',
       );
     }
+    if (transaction.cardPurchaseId) {
+      throw new BadRequestException(
+        'Este movimiento es una compra a cuotas o el pago de una cuota — regístralo desde la compra',
+      );
+    }
   }
 }

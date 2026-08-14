@@ -58,6 +58,14 @@ class TransactionLoanSummaryDto {
   name: string;
 }
 
+class TransactionCardPurchaseSummaryDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'Falabella' })
+  merchant: string;
+}
+
 export class TransactionResponseDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
@@ -112,6 +120,12 @@ export class TransactionResponseDto {
 
   @ApiPropertyOptional({ type: TransactionLoanSummaryDto })
   loan: TransactionLoanSummaryDto | null;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Si es una compra a cuotas de tarjeta o el pago de una cuota' })
+  cardPurchaseId: string | null;
+
+  @ApiPropertyOptional({ type: TransactionCardPurchaseSummaryDto })
+  cardPurchase: TransactionCardPurchaseSummaryDto | null;
 
   @ApiProperty({ example: '2026-08-10T18:00:00.000Z' })
   createdAt: Date;

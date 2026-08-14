@@ -11,6 +11,7 @@ export type TransactionWithRelations = Transaction & {
   } | null;
   goal: { id: string; name: string } | null;
   loan: { id: string; name: string } | null;
+  cardPurchase: { id: string; merchant: string } | null;
 };
 
 export class TransactionMapper {
@@ -38,6 +39,8 @@ export class TransactionMapper {
       goal: transaction.goal,
       loanId: transaction.loanId,
       loan: transaction.loan,
+      cardPurchaseId: transaction.cardPurchaseId,
+      cardPurchase: transaction.cardPurchase,
       createdAt: transaction.createdAt,
       updatedAt: transaction.updatedAt,
     };

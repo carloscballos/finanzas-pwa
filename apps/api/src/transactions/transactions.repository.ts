@@ -17,6 +17,7 @@ const WITH_RELATIONS = {
   },
   goal: { select: { id: true, name: true } },
   loan: { select: { id: true, name: true } },
+  cardPurchase: { select: { id: true, merchant: true } },
 } as const;
 
 export interface TransactionFilters {

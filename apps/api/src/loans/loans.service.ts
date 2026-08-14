@@ -39,16 +39,30 @@ export class LoansService {
       const account = await this.accountsService.getAccessibleAccount(userId, dto.accountId);
       currency = account.currency;
     }
+
+    const installmentsPaid = dto.installmentsPaid ?? 0;
+    if (installmentsPaid > dto.installmentsTotal) {
+      throw new BadRequestException('Las cuotas ya pagadas no pueden ser más que el total de cuotas');
+    }
+    // Para importar un préstamo que ya viene en curso: solo se contabiliza lo
+    // que sigue pendiente hoy, sin generar movimientos por las cuotas pasadas.
+    const remainingBalance = round2(
+      Math.max(0, dto.principal - installmentsPaid * dto.installmentAmount),
+    );
+
     const created = await this.loansRepository.create({
       userId,
       name: dto.name,
       principal: dto.principal,
+      remainingBalance,
       currency,
       interestRate: dto.interestRate,
       installmentsTotal: dto.installmentsTotal,
+      installmentsPaid,
       installmentAmount: dto.installmentAmount,
       dueDay: dto.dueDay,
       accountId: dto.accountId,
+      status: remainingBalance <= 0 ? 'PAID_OFF' : 'ACTIVE',
     });
     return LoanMapper.toResponse(created);
   }
