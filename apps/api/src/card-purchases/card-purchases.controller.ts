@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,8 +10,11 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Auth } from '../common/decorators/auth.decorator';
 import { CurrentUser, type AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { CardPurchasesService } from './card-purchases.service';
@@ -19,6 +23,9 @@ import { UpdateCardPurchaseDto } from './dto/update-card-purchase.dto';
 import { PayCardPurchaseInstallmentDto } from './dto/pay-card-purchase-installment.dto';
 import { ListCardPurchasesQueryDto } from './dto/list-card-purchases-query.dto';
 import { CardPurchaseResponseDto } from './dto/card-purchase-response.dto';
+import { StatementPreviewItemDto } from './dto/statement-preview-item.dto';
+
+const MAX_STATEMENT_SIZE_BYTES = 15 * 1024 * 1024;
 
 @ApiTags('Card Purchases')
 @Auth()
@@ -92,6 +99,41 @@ export class CardPurchasesController {
     @Body() dto: PayCardPurchaseInstallmentDto,
   ): Promise<CardPurchaseResponseDto> {
     return this.cardPurchasesService.payInstallment(user.id, id, dto);
+  }
+
+  @Post('extract-statement')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_STATEMENT_SIZE_BYTES } }))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        accountId: { type: 'string', format: 'uuid' },
+        file: { type: 'string', format: 'binary' },
+      },
+      required: ['accountId', 'file'],
+    },
+  })
+  @ApiOperation({
+    summary:
+      'Subir un extracto PDF de tarjeta de crédito y previsualizar las compras detectadas — no crea ni modifica nada, solo analiza',
+  })
+  @ApiResponse({ status: 201, type: [StatementPreviewItemDto] })
+  @ApiResponse({ status: 400, description: 'Falta el archivo, no es un PDF, o la cuenta no es una tarjeta de crédito' })
+  @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
+  @ApiResponse({ status: 503, description: 'El servicio de extracción no está disponible' })
+  extractStatement(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body('accountId', ParseUUIDPipe) accountId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<StatementPreviewItemDto[]> {
+    if (!file) {
+      throw new BadRequestException('Debes subir un archivo PDF');
+    }
+    if (file.mimetype !== 'application/pdf') {
+      throw new BadRequestException('El archivo debe ser un PDF');
+    }
+    return this.cardPurchasesService.previewStatement(user.id, accountId, file.buffer);
   }
 
   @Delete(':id')

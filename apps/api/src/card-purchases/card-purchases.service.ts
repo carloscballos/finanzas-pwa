@@ -6,9 +6,33 @@ import { CardPurchaseResponseDto } from './dto/card-purchase-response.dto';
 import { CreateCardPurchaseDto } from './dto/create-card-purchase.dto';
 import { UpdateCardPurchaseDto } from './dto/update-card-purchase.dto';
 import { PayCardPurchaseInstallmentDto } from './dto/pay-card-purchase-installment.dto';
+import { StatementMatchType, StatementPreviewItemDto } from './dto/statement-preview-item.dto';
+import { StatementExtractionService } from './statement-extraction.service';
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+// Comparación tolerante: mismo comercio puede aparecer con mayúsculas,
+// acentos o espacios distintos entre el extracto y lo ya registrado.
+// Quita diacríticos por código de punto (0x0300-0x036F, marcas combinantes)
+// en vez de un regex con caracteres unicode literales, para que el rango sea
+// inequívoco en el código fuente.
+function normalizeMerchant(name: string): string {
+  let stripped = '';
+  for (const ch of name.normalize('NFD')) {
+    const code = ch.codePointAt(0)!;
+    if (code >= 0x0300 && code <= 0x036f) continue;
+    stripped += ch;
+  }
+  return stripped.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+function merchantsMatch(a: string, b: string): boolean {
+  const na = normalizeMerchant(a);
+  const nb = normalizeMerchant(b);
+  if (!na || !nb) return false;
+  return na === nb || na.includes(nb) || nb.includes(na);
 }
 
 @Injectable()
@@ -16,6 +40,7 @@ export class CardPurchasesService {
   constructor(
     private readonly cardPurchasesRepository: CardPurchasesRepository,
     private readonly accountsService: AccountsService,
+    private readonly statementExtractionService: StatementExtractionService,
   ) {}
 
   async findAllForUser(userId: string): Promise<CardPurchaseResponseDto[]> {
@@ -117,6 +142,74 @@ export class CardPurchasesService {
   async remove(userId: string, id: string): Promise<void> {
     await this.getOwnedPurchase(userId, id);
     await this.cardPurchasesRepository.delete(id);
+  }
+
+  // Solo lectura: no crea ni modifica nada. El usuario confirma cada fila
+  // desde el frontend usando los endpoints ya existentes (create/payInstallment)
+  // — así la conciliación reusa exactamente la misma lógica ya probada, en
+  // vez de duplicar la contabilización de compras/pagos.
+  async previewStatement(
+    userId: string,
+    accountId: string,
+    pdfBuffer: Buffer,
+  ): Promise<StatementPreviewItemDto[]> {
+    const account = await this.accountsService.getAccessibleAccount(userId, accountId);
+    if (account.type !== 'CREDIT_CARD') {
+      throw new BadRequestException('Solo se pueden conciliar extractos de tarjetas de crédito');
+    }
+
+    const [extracted, existing] = await Promise.all([
+      this.statementExtractionService.extractPurchases(pdfBuffer),
+      this.cardPurchasesRepository.findForAccount(accountId),
+    ]);
+    const activeExisting = existing.filter((p) => p.status === 'ACTIVE');
+
+    return extracted.map((item): StatementPreviewItemDto => {
+      const installmentsTotal = item.installmentTotal ?? 1;
+      const installmentCurrent = item.installmentCurrent ?? 1;
+      const installmentAmount = item.installmentAmount;
+      const amount = item.originalAmount ?? round2(installmentAmount * installmentsTotal);
+
+      const match = activeExisting.find(
+        (p) => merchantsMatch(p.merchant, item.merchant) && p.installmentsTotal === installmentsTotal,
+      );
+
+      if (!match) {
+        return {
+          merchant: item.merchant,
+          amount,
+          installmentsTotal,
+          installmentAmount,
+          matchType: StatementMatchType.NEW,
+          suggestedInstallmentsPaid: Math.max(0, installmentCurrent - 1),
+        };
+      }
+
+      const cuotasBehind = installmentCurrent - match.installmentsPaid;
+      if (cuotasBehind <= 0) {
+        return {
+          merchant: item.merchant,
+          amount,
+          installmentsTotal,
+          installmentAmount,
+          matchType: StatementMatchType.UP_TO_DATE,
+          purchaseId: match.id,
+          currentInstallmentsPaid: match.installmentsPaid,
+        };
+      }
+
+      return {
+        merchant: item.merchant,
+        amount,
+        installmentsTotal,
+        installmentAmount,
+        matchType: StatementMatchType.BEHIND,
+        purchaseId: match.id,
+        currentInstallmentsPaid: match.installmentsPaid,
+        statementInstallmentCurrent: installmentCurrent,
+        cuotasBehind,
+      };
+    });
   }
 
   private async getOwnedPurchase(userId: string, id: string): Promise<CardPurchaseWithAccount> {

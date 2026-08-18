@@ -12,4 +12,10 @@ export const envValidationSchema = Joi.object({
     .default('info'),
   JWT_SECRET: Joi.string().min(32).required(),
   JWT_EXPIRES_IN: Joi.string().default('7d'),
+  // Opcional a propósito por ahora: todavía no hay ningún módulo que la use
+  // (prevista para conciliación de extractos bancarios). Cuando se construya
+  // esa feature y pase a ser requerida, no olvidar agregarla también en
+  // Railway (ver "Despliegue" en este archivo) — si no, el próximo deploy
+  // crashea al arrancar por esta misma validación.
+  ANTHROPIC_API_KEY: Joi.string().optional(),
 });

@@ -1,6 +1,6 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeftRight, Receipt, ShoppingBag } from 'lucide-react'
+import { ArrowLeftRight, FileUp, Receipt, ShoppingBag } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { AccountMembers } from '../components/AccountMembers'
 import { useAuth } from '../context/AuthContext'
@@ -11,12 +11,117 @@ import {
   type CardPurchase,
   type Category,
   type RecurrenceFrequency,
+  type StatementPreviewItem,
   type Transaction,
   type TransactionType,
 } from '../lib/api'
 import { computeAvailableCredit, formatMoney } from '../lib/money'
 import './AccountTransactionsPage.css'
 import './LoansPage.css'
+
+function StatementPreviewRow({
+  item,
+  cardAccountId,
+  cardCurrency,
+  payingAccounts,
+  onCreated,
+  onCaughtUp,
+  onDismiss,
+}: {
+  item: StatementPreviewItem
+  cardAccountId: string
+  cardCurrency: string
+  payingAccounts: Account[]
+  onCreated: (item: StatementPreviewItem) => void
+  onCaughtUp: (item: StatementPreviewItem) => void
+  onDismiss: (item: StatementPreviewItem) => void
+}) {
+  const { token } = useAuth()
+  const matchingAccounts = payingAccounts.filter((a) => a.currency === cardCurrency)
+  const [accountId, setAccountId] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function handleCreate() {
+    if (!token) return
+    setBusy(true)
+    try {
+      await api.createCardPurchase(token, {
+        accountId: cardAccountId,
+        merchant: item.merchant,
+        amount: item.amount,
+        installmentsTotal: item.installmentsTotal,
+        installmentAmount: item.installmentAmount,
+        installmentsPaid: item.suggestedInstallmentsPaid,
+      })
+      onCreated(item)
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'No se pudo crear la compra')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleCatchUp() {
+    if (!token || !item.purchaseId || !item.cuotasBehind || !accountId) return
+    setBusy(true)
+    try {
+      for (let i = 0; i < item.cuotasBehind; i++) {
+        await api.payCardPurchaseInstallment(token, item.purchaseId, { accountId })
+      }
+      onCaughtUp(item)
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'No se pudo poner al día')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="statement-row">
+      <div className="statement-row-main">
+        <strong>{item.merchant}</strong>
+        <span className="statement-row-meta">
+          {formatMoney(item.amount, cardCurrency)} · {item.installmentsTotal} cuota
+          {item.installmentsTotal > 1 ? 's' : ''} de {formatMoney(item.installmentAmount, cardCurrency)}
+          {item.statementInstallmentCurrent && ` · extracto: cuota ${item.statementInstallmentCurrent}`}
+        </span>
+      </div>
+
+      {item.matchType === 'NEW' && (
+        <button className="btn" disabled={busy} onClick={handleCreate}>
+          Crear compra
+        </button>
+      )}
+
+      {item.matchType === 'UP_TO_DATE' && <span className="badge badge-ok">Ya al día</span>}
+
+      {item.matchType === 'BEHIND' &&
+        (matchingAccounts.length === 0 ? (
+          <span className="statement-row-meta">Sin cuenta en {cardCurrency} para pagar.</span>
+        ) : (
+          <div className="statement-row-catchup">
+            <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+              <option value="" disabled>
+                Cuenta
+              </option>
+              {matchingAccounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+            <button className="btn" disabled={busy || !accountId} onClick={handleCatchUp}>
+              Ponerme al día ({item.cuotasBehind} cuota{item.cuotasBehind !== 1 ? 's' : ''})
+            </button>
+          </div>
+        ))}
+
+      <button className="link-danger" onClick={() => onDismiss(item)}>
+        Ignorar
+      </button>
+    </div>
+  )
+}
 
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
@@ -161,6 +266,11 @@ export function AccountTransactionsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [statementPreview, setStatementPreview] = useState<StatementPreviewItem[] | null>(null)
+  const [statementLoading, setStatementLoading] = useState(false)
+  const [statementError, setStatementError] = useState<string | null>(null)
+  const statementInputRef = useRef<HTMLInputElement>(null)
+
   const [showPurchaseForm, setShowPurchaseForm] = useState(false)
   const [purchaseMerchant, setPurchaseMerchant] = useState('')
   const [purchaseAmount, setPurchaseAmount] = useState('')
@@ -223,6 +333,44 @@ export function AccountTransactionsPage() {
     ])
     setAccount(updatedAccount)
     setCardPurchases(updatedPurchases)
+  }
+
+  async function refreshAll() {
+    if (!token || !accountId) return
+    const [updatedAccount, updatedPurchases, updatedTxs] = await Promise.all([
+      api.getAccount(token, accountId),
+      api.getCardPurchases(token, { accountId }),
+      api.getTransactions(token, { accountId }),
+    ])
+    setAccount(updatedAccount)
+    setCardPurchases(updatedPurchases)
+    setTransactions(updatedTxs)
+  }
+
+  async function handleStatementFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!token || !accountId || !file) return
+    setStatementError(null)
+    setStatementLoading(true)
+    setStatementPreview(null)
+    try {
+      const preview = await api.previewCardStatement(token, accountId, file)
+      setStatementPreview(preview)
+    } catch (err) {
+      setStatementError(err instanceof ApiError ? err.message : 'No se pudo leer el extracto')
+    } finally {
+      setStatementLoading(false)
+    }
+  }
+
+  function removeStatementItem(item: StatementPreviewItem) {
+    setStatementPreview((prev) => (prev ? prev.filter((i) => i !== item) : prev))
+  }
+
+  async function handleStatementItemDone(item: StatementPreviewItem) {
+    removeStatementItem(item)
+    await refreshAll()
   }
 
   async function handleCreatePurchase(event: FormEvent) {
@@ -471,13 +619,56 @@ export function AccountTransactionsPage() {
             <section className="purchases-section">
               <div className="tx-header-actions" style={{ justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                 <h2>Compras a cuotas</h2>
-                <button
-                  className={`btn btn-secondary ${showPurchaseForm ? '' : 'toolbar-create-btn'}`}
-                  onClick={() => setShowPurchaseForm((v) => !v)}
-                >
-                  {showPurchaseForm ? 'Cancelar' : '+ Nueva compra'}
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    ref={statementInputRef}
+                    type="file"
+                    accept="application/pdf"
+                    style={{ display: 'none' }}
+                    onChange={handleStatementFile}
+                  />
+                  <button
+                    className="btn btn-secondary"
+                    disabled={statementLoading}
+                    onClick={() => statementInputRef.current?.click()}
+                  >
+                    {statementLoading ? 'Leyendo…' : <><FileUp size={16} /> Subir extracto</>}
+                  </button>
+                  <button
+                    className={`btn btn-secondary ${showPurchaseForm ? '' : 'toolbar-create-btn'}`}
+                    onClick={() => setShowPurchaseForm((v) => !v)}
+                  >
+                    {showPurchaseForm ? 'Cancelar' : '+ Nueva compra'}
+                  </button>
+                </div>
               </div>
+
+              {statementError && (
+                <div className="auth-error" style={{ marginBottom: '1rem' }}>
+                  {statementError}
+                </div>
+              )}
+
+              {statementPreview && (
+                <div className="statement-preview">
+                  {statementPreview.length === 0 ? (
+                    <p className="tx-empty">Ya procesaste todo lo del extracto.</p>
+                  ) : (
+                    statementPreview.map((item, i) => (
+                      <StatementPreviewRow
+                        key={`${item.merchant}-${i}`}
+                        item={item}
+                        cardAccountId={account.id}
+                        cardCurrency={account.currency}
+                        payingAccounts={allAccounts.filter((a) => a.id !== account.id)}
+                        onCreated={handleStatementItemDone}
+                        onCaughtUp={handleStatementItemDone}
+                        onDismiss={removeStatementItem}
+                      />
+                    ))
+                  )}
+                </div>
+              )}
 
               {showPurchaseForm && (
                 <form className="create-form" onSubmit={handleCreatePurchase}>

@@ -705,6 +705,43 @@ export function deleteCardPurchase(token: string, id: string) {
   return request<void>(`/api/v1/card-purchases/${id}`, { method: 'DELETE', token })
 }
 
+export type StatementMatchType = 'NEW' | 'BEHIND' | 'UP_TO_DATE'
+
+export interface StatementPreviewItem {
+  merchant: string
+  amount: number
+  installmentsTotal: number
+  installmentAmount: number
+  matchType: StatementMatchType
+  suggestedInstallmentsPaid?: number
+  purchaseId?: string
+  currentInstallmentsPaid?: number
+  statementInstallmentCurrent?: number
+  cuotasBehind?: number
+}
+
+// Multipart — no pasa por request(), que siempre manda JSON.
+export async function previewCardStatement(
+  token: string,
+  accountId: string,
+  file: File,
+): Promise<StatementPreviewItem[]> {
+  const formData = new FormData()
+  formData.append('accountId', accountId)
+  formData.append('file', file)
+  const res = await fetch(`${API_URL}/api/v1/card-purchases/extract-statement`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  })
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null)
+    const message = payload?.message ?? `Error ${res.status}`
+    throw new ApiError(res.status, Array.isArray(message) ? message.join(', ') : message)
+  }
+  return res.json()
+}
+
 export function getForecastSummary(token: string) {
   return request<ForecastSummary[]>('/api/v1/forecast/summary', { token })
 }

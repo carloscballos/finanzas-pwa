@@ -42,6 +42,44 @@
   margin: 0 0 0.75rem;
 }
 
+.statement-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+}
+
+.statement-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  padding: 0.75rem 1rem;
+}
+
+.statement-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.statement-row-meta {
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.statement-row-catchup {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .purchases-grid {
   display: grid;
   grid-template-columns: 1fr;
