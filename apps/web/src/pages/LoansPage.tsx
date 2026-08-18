@@ -1,7 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { Landmark } from 'lucide-react'
 import { Layout } from '../components/Layout'
+import { Badge } from '../components/ui/Badge'
+import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
+import { CardGrid } from '../components/ui/CardGrid'
+import { EmptyState } from '../components/ui/EmptyState'
+import { Form, FormField, FormError } from '../components/ui/Form'
+import { Money } from '../components/ui/Money'
+import { ProgressBar } from '../components/ui/ProgressBar'
+import { SectionHeader } from '../components/ui/SectionHeader'
+import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Account, type Loan } from '../lib/api'
@@ -56,7 +65,7 @@ function LoanCard({
   }
 
   return (
-    <div className="loan-card">
+    <Card>
       <div className="loan-card-header">
         <div>
           <h3>{loan.name}</h3>
@@ -70,18 +79,20 @@ function LoanCard({
           Eliminar
         </button>
       </div>
-      <div className="loan-bar-track">
-        <div className="loan-bar-fill" style={{ width: `${Math.min(loan.percentPaid, 100)}%` }} />
-      </div>
+      <ProgressBar value={loan.percentPaid} tone="accent" />
       <div className="loan-amounts">
-        <span>{formatMoney(loan.remainingBalance, loan.currency)} pendiente</span>
+        <span>
+          <Money amount={loan.remainingBalance} currency={loan.currency} /> pendiente
+        </span>
         <span>{loan.percentPaid}% pagado</span>
       </div>
       <div className="loan-amounts">
-        <span>Original {formatMoney(loan.principal, loan.currency)}</span>
-        <span className={`badge ${loan.status === 'PAID_OFF' ? 'badge-ok' : 'badge-neutral'}`}>
-          {loan.status === 'PAID_OFF' ? 'Pagado' : 'Activo'}
+        <span>
+          Original <Money amount={loan.principal} currency={loan.currency} />
         </span>
+        <Badge tone={loan.status === 'PAID_OFF' ? 'ok' : 'neutral'}>
+          {loan.status === 'PAID_OFF' ? 'Pagado' : 'Activo'}
+        </Badge>
       </div>
 
       {loan.status !== 'PAID_OFF' &&
@@ -114,24 +125,23 @@ function LoanCard({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
-            <button className="btn" type="submit" disabled={busy || !accountId}>
+            <Button type="submit" disabled={busy || !accountId}>
               Pagar cuota
-            </button>
+            </Button>
           </form>
         ))}
-    </div>
+    </Card>
   )
 }
 
 export function LoansPage() {
   const { token } = useAuth()
-  const [searchParams] = useSearchParams()
   const [loans, setLoans] = useState<Loan[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [showForm, setShowForm] = useState(searchParams.get('new') === '1')
+  const { open: showForm, toggle: toggleForm, close: closeForm } = useCreateFormToggle()
   const [name, setName] = useState('')
   const [principal, setPrincipal] = useState('')
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY)
@@ -182,7 +192,7 @@ export function LoansPage() {
       setDueDay('')
       setAccountId('')
       setInstallmentsPaid('')
-      setShowForm(false)
+      closeForm()
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'No se pudo crear el préstamo')
     } finally {
@@ -199,157 +209,132 @@ export function LoansPage() {
   }
 
   return (
-    <Layout fabActions={[{ label: 'Nuevo préstamo', icon: Landmark, onClick: () => setShowForm(true) }]}>
-      <div className="loans-toolbar">
-        <h1>Préstamos</h1>
-        <button
-          className={`btn ${showForm ? '' : 'toolbar-create-btn'}`}
-          onClick={() => setShowForm((v) => !v)}
-        >
+    <Layout fabActions={[{ label: 'Nuevo préstamo', icon: Landmark, onClick: toggleForm }]}>
+      <SectionHeader as="h1" title="Préstamos">
+        <Button className={showForm ? '' : 'toolbar-create-btn'} onClick={toggleForm}>
           {showForm ? 'Cancelar' : '+ Nuevo préstamo'}
-        </button>
-      </div>
+        </Button>
+      </SectionHeader>
 
       {showForm && (
-        <form className="create-form" onSubmit={handleCreate}>
-          {formError && (
-            <div className="auth-error field-full" style={{ margin: 0 }}>
-              {formError}
-            </div>
-          )}
-          <div className="field field-full">
-            <label htmlFor="loan-name">Nombre</label>
-            <input
-              id="loan-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              placeholder="Préstamo carro"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="loan-principal">Monto original</label>
-            <input
-              id="loan-principal"
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={principal}
-              onChange={(e) => setPrincipal(e.target.value)}
-              required
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="loan-currency">Moneda</label>
-            {accountId ? (
+        <Card className="ui-form-card">
+          <Form onSubmit={handleCreate}>
+            <FormError>{formError}</FormError>
+            <FormField label="Nombre" htmlFor="loan-name" full>
               <input
-                id="loan-currency"
-                value={accounts.find((a) => a.id === accountId)?.currency ?? ''}
-                disabled
+                id="loan-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                placeholder="Préstamo carro"
               />
-            ) : (
-              <select
-                id="loan-currency"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value as typeof currency)}
-              >
-                {CURRENCIES.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.code} · {c.label}
+            </FormField>
+            <FormField label="Monto original" htmlFor="loan-principal">
+              <input
+                id="loan-principal"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={principal}
+                onChange={(e) => setPrincipal(e.target.value)}
+                required
+              />
+            </FormField>
+            <FormField label="Moneda" htmlFor="loan-currency">
+              {accountId ? (
+                <input id="loan-currency" value={accounts.find((a) => a.id === accountId)?.currency ?? ''} disabled />
+              ) : (
+                <select id="loan-currency" value={currency} onChange={(e) => setCurrency(e.target.value as typeof currency)}>
+                  {CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code} · {c.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </FormField>
+            <FormField label="Número de cuotas" htmlFor="loan-installments">
+              <input
+                id="loan-installments"
+                type="number"
+                min="1"
+                step="1"
+                value={installmentsTotal}
+                onChange={(e) => setInstallmentsTotal(e.target.value)}
+                required
+              />
+            </FormField>
+            <FormField label="Monto de cada cuota" htmlFor="loan-installment-amount">
+              <input
+                id="loan-installment-amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={installmentAmount}
+                onChange={(e) => setInstallmentAmount(e.target.value)}
+                required
+              />
+            </FormField>
+            <FormField label="Cuotas ya pagadas (opcional)" htmlFor="loan-installments-paid">
+              <input
+                id="loan-installments-paid"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="0"
+                value={installmentsPaid}
+                onChange={(e) => setInstallmentsPaid(e.target.value)}
+              />
+              <span style={{ fontSize: '0.8rem' }}>Úsalo para traer un préstamo que ya venía en curso.</span>
+            </FormField>
+            <FormField label="Tasa de interés anual % (opcional)" htmlFor="loan-rate">
+              <input
+                id="loan-rate"
+                type="number"
+                step="0.01"
+                min="0"
+                value={interestRate}
+                onChange={(e) => setInterestRate(e.target.value)}
+              />
+            </FormField>
+            <FormField label="Día de pago (opcional)" htmlFor="loan-due-day">
+              <input
+                id="loan-due-day"
+                type="number"
+                min="1"
+                max="31"
+                value={dueDay}
+                onChange={(e) => setDueDay(e.target.value)}
+                placeholder="1-31"
+              />
+            </FormField>
+            <FormField label="Cuenta de pago (opcional)" htmlFor="loan-account">
+              <select id="loan-account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                <option value="">Sin preseleccionar</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.currency})
                   </option>
                 ))}
               </select>
-            )}
-          </div>
-          <div className="field">
-            <label htmlFor="loan-installments">Número de cuotas</label>
-            <input
-              id="loan-installments"
-              type="number"
-              min="1"
-              step="1"
-              value={installmentsTotal}
-              onChange={(e) => setInstallmentsTotal(e.target.value)}
-              required
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="loan-installment-amount">Monto de cada cuota</label>
-            <input
-              id="loan-installment-amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={installmentAmount}
-              onChange={(e) => setInstallmentAmount(e.target.value)}
-              required
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="loan-installments-paid">Cuotas ya pagadas (opcional)</label>
-            <input
-              id="loan-installments-paid"
-              type="number"
-              min="0"
-              step="1"
-              placeholder="0"
-              value={installmentsPaid}
-              onChange={(e) => setInstallmentsPaid(e.target.value)}
-            />
-            <span style={{ fontSize: '0.8rem' }}>Úsalo para traer un préstamo que ya venía en curso.</span>
-          </div>
-          <div className="field">
-            <label htmlFor="loan-rate">Tasa de interés anual % (opcional)</label>
-            <input
-              id="loan-rate"
-              type="number"
-              step="0.01"
-              min="0"
-              value={interestRate}
-              onChange={(e) => setInterestRate(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="loan-due-day">Día de pago (opcional)</label>
-            <input
-              id="loan-due-day"
-              type="number"
-              min="1"
-              max="31"
-              value={dueDay}
-              onChange={(e) => setDueDay(e.target.value)}
-              placeholder="1-31"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="loan-account">Cuenta de pago (opcional)</label>
-            <select id="loan-account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-              <option value="">Sin preseleccionar</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.currency})
-                </option>
-              ))}
-            </select>
-          </div>
-          <button className="btn" type="submit" disabled={creating}>
-            {creating ? 'Creando…' : 'Crear préstamo'}
-          </button>
-        </form>
+            </FormField>
+            <Button type="submit" disabled={creating}>
+              {creating ? 'Creando…' : 'Crear préstamo'}
+            </Button>
+          </Form>
+        </Card>
       )}
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}
 
-      {!loading && !error && loans.length === 0 && (
-        <p className="accounts-empty">Todavía no tienes préstamos registrados.</p>
-      )}
+      {!loading && !error && loans.length === 0 && <EmptyState>Todavía no tienes préstamos registrados.</EmptyState>}
 
-      <div className="loans-grid">
+      <CardGrid>
         {loans.map((loan) => (
           <LoanCard key={loan.id} loan={loan} accounts={accounts} onChange={updateOne} onDeleted={removeOne} />
         ))}
-      </div>
+      </CardGrid>
     </Layout>
   )
 }

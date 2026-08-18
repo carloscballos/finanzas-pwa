@@ -4,6 +4,130 @@
   flex-direction: column;
 }
 
+@media (min-width: 1024px) {
+  .layout {
+    flex-direction: row;
+  }
+}
+
+/* Sidebar: reemplaza el header por completo a partir de 1024px (columna en
+   vez de fila, así entran los 10 items de navegación sin overflow "Más").
+   Abajo de eso no se renderiza — mobile/tablet siguen con el header +
+   bottom-nav de siempre, sin ningún cambio. */
+.layout-sidebar {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .layout-sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 260px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    background: var(--card-bg);
+    border-right: 1px solid var(--border-color);
+    padding: var(--space-5) var(--space-4);
+  }
+}
+
+.layout-sidebar-brand {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.4rem;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 0 var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.layout-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.layout-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem var(--space-3);
+  border-radius: var(--radius-control);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.layout-sidebar-link:hover {
+  background: var(--bg-subtle);
+  color: var(--text-h);
+}
+
+.layout-sidebar-link.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.layout-sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-color);
+}
+
+.layout-sidebar-rate {
+  font-size: 0.75rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  padding: 0.3rem 0.7rem;
+  text-align: center;
+}
+
+.layout-sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 var(--space-2);
+}
+
+.layout-sidebar-user-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-sidebar-logout {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border-color);
+  background: none;
+  color: var(--text-h);
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.layout-sidebar-logout:hover {
+  border-color: var(--badge-error-fg);
+  color: var(--badge-error-fg);
+}
+
 .layout-header {
   position: sticky;
   top: 0;
@@ -12,6 +136,12 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-color);
+}
+
+@media (min-width: 1024px) {
+  .layout-header {
+    display: none;
+  }
 }
 
 .layout-header-inner {

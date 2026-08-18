@@ -45,6 +45,11 @@ const SECONDARY_ITEMS: MoreMenuItem[] = [
   { to: '/forecast', label: 'Proyección', icon: TrendingUp },
 ]
 
+// En el sidebar de escritorio (≥1024px) sí entran los 10 items en una sola
+// columna, sin necesitar el overflow "Más" que sí hace falta en el header
+// horizontal de mobile/tablet.
+const ALL_NAV_ITEMS: NavItem[] = [...PRIMARY_ITEMS, ...SECONDARY_ITEMS]
+
 export function Layout({
   children,
   fabActions = [],
@@ -82,6 +87,45 @@ export function Layout({
 
   return (
     <div className="layout">
+      <aside className="layout-sidebar">
+        <NavLink to="/" className="layout-sidebar-brand">
+          Finanzas
+        </NavLink>
+
+        <nav className="layout-sidebar-nav" aria-label="Navegación principal">
+          {ALL_NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
+              className={({ isActive }) => `layout-sidebar-link ${isActive ? 'active' : ''}`}
+            >
+              <item.icon size={18} strokeWidth={2} />
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="layout-sidebar-footer">
+          {usdRate !== null && (
+            <div
+              className="layout-sidebar-rate"
+              title="Tasa de cambio USD/COP (TRM oficial del Banco de la República)"
+            >
+              1 USD = {formatMoney(Math.round(usdRate), 'COP')}
+            </div>
+          )}
+          <div className="layout-sidebar-user">
+            <span className="layout-user-avatar">{user?.name?.[0]?.toUpperCase() ?? '?'}</span>
+            <span className="layout-sidebar-user-name">{user?.name}</span>
+          </div>
+          <button className="layout-sidebar-logout" onClick={logout}>
+            <LogOut size={16} />
+            Salir
+          </button>
+        </div>
+      </aside>
+
       <header className="layout-header">
         <div className="layout-header-inner page">
           <NavLink to="/" className="layout-brand">

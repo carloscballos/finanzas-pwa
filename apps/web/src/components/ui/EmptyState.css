@@ -1,0 +1,9 @@
+.ui-empty-state {
+  color: var(--text);
+  text-align: center;
+  background: var(--card-bg);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-card);
+  padding: var(--space-6) var(--space-4);
+  margin: 0;
+}

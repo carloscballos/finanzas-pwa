@@ -1,6 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Tags } from 'lucide-react'
 import { Layout } from '../components/Layout'
+import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
+import { EmptyState } from '../components/ui/EmptyState'
+import { Form, FormField, FormError } from '../components/ui/Form'
+import { ListRow } from '../components/ui/ListRow'
+import { SectionHeader } from '../components/ui/SectionHeader'
+import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Category, type TransactionType } from '../lib/api'
@@ -48,7 +55,7 @@ function CategoryRow({
 
   if (editing) {
     return (
-      <div className="category-row">
+      <div className="category-row-edit">
         <input
           value={emoji}
           onChange={(e) => setEmoji(e.target.value)}
@@ -67,16 +74,18 @@ function CategoryRow({
   }
 
   return (
-    <div className="category-row">
-      {category.emoji && <span className="category-emoji">{category.emoji}</span>}
-      <span className="category-name">{category.name}</span>
-      <div className="category-row-actions">
-        <button onClick={() => setEditing(true)}>Editar</button>
-        <button className="link-danger" onClick={handleDelete}>
-          Eliminar
-        </button>
-      </div>
-    </div>
+    <ListRow
+      leading={category.emoji || undefined}
+      title={category.name}
+      actions={
+        <div className="category-row-actions">
+          <button onClick={() => setEditing(true)}>Editar</button>
+          <button className="link-danger" onClick={handleDelete}>
+            Eliminar
+          </button>
+        </div>
+      }
+    />
   )
 }
 
@@ -86,7 +95,7 @@ export function CategoriesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [showForm, setShowForm] = useState(false)
+  const { open: showForm, toggle: toggleForm, close: closeForm } = useCreateFormToggle()
   const [name, setName] = useState('')
   const [type, setType] = useState<TransactionType>('EXPENSE')
   const [emoji, setEmoji] = useState('')
@@ -112,7 +121,7 @@ export function CategoriesPage() {
       setCategories((prev) => [...prev, category])
       setName('')
       setEmoji('')
-      setShowForm(false)
+      closeForm()
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'No se pudo crear la categoría')
     } finally {
@@ -132,51 +141,34 @@ export function CategoriesPage() {
   }
 
   return (
-    <Layout
-      fabActions={[{ label: 'Nueva categoría', icon: Tags, onClick: () => setShowForm(true) }]}
-    >
-      <div className="categories-toolbar">
-        <h1>Categorías</h1>
-        <button
-          className={`btn ${showForm ? '' : 'toolbar-create-btn'}`}
-          onClick={() => setShowForm((v) => !v)}
-        >
+    <Layout fabActions={[{ label: 'Nueva categoría', icon: Tags, onClick: toggleForm }]}>
+      <SectionHeader as="h1" title="Categorías">
+        <Button className={showForm ? '' : 'toolbar-create-btn'} onClick={toggleForm}>
           {showForm ? 'Cancelar' : '+ Nueva categoría'}
-        </button>
-      </div>
+        </Button>
+      </SectionHeader>
 
       {showForm && (
-        <form className="create-form" onSubmit={handleCreate}>
-          {formError && (
-            <div className="auth-error field-full" style={{ margin: 0 }}>
-              {formError}
-            </div>
-          )}
-          <div className="field field-full">
-            <label htmlFor="cat-name">Nombre</label>
-            <input
-              id="cat-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              placeholder="Comida"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="cat-type">Tipo</label>
-            <select id="cat-type" value={type} onChange={(e) => setType(e.target.value as TransactionType)}>
-              <option value="EXPENSE">Gasto</option>
-              <option value="INCOME">Ingreso</option>
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="cat-emoji">Emoji (opcional)</label>
-            <input id="cat-emoji" value={emoji} onChange={(e) => setEmoji(e.target.value)} maxLength={4} />
-          </div>
-          <button className="btn" type="submit" disabled={creating}>
-            {creating ? 'Creando…' : 'Crear categoría'}
-          </button>
-        </form>
+        <Card className="ui-form-card">
+          <Form onSubmit={handleCreate}>
+            <FormError>{formError}</FormError>
+            <FormField label="Nombre" htmlFor="cat-name" full>
+              <input id="cat-name" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Comida" />
+            </FormField>
+            <FormField label="Tipo" htmlFor="cat-type">
+              <select id="cat-type" value={type} onChange={(e) => setType(e.target.value as TransactionType)}>
+                <option value="EXPENSE">Gasto</option>
+                <option value="INCOME">Ingreso</option>
+              </select>
+            </FormField>
+            <FormField label="Emoji (opcional)" htmlFor="cat-emoji">
+              <input id="cat-emoji" value={emoji} onChange={(e) => setEmoji(e.target.value)} maxLength={4} />
+            </FormField>
+            <Button type="submit" disabled={creating}>
+              {creating ? 'Creando…' : 'Crear categoría'}
+            </Button>
+          </Form>
+        </Card>
       )}
 
       {loading && <p>Cargando…</p>}
@@ -186,7 +178,7 @@ export function CategoriesPage() {
         <div className="categories-columns">
           <div className="categories-column">
             <h2>Gastos</h2>
-            {expenseCategories.length === 0 && <p className="category-empty">Sin categorías de gasto</p>}
+            {expenseCategories.length === 0 && <EmptyState>Sin categorías de gasto</EmptyState>}
             <div className="category-list">
               {expenseCategories.map((c) => (
                 <CategoryRow key={c.id} category={c} onSaved={updateOne} onDeleted={removeOne} />
@@ -195,7 +187,7 @@ export function CategoriesPage() {
           </div>
           <div className="categories-column">
             <h2>Ingresos</h2>
-            {incomeCategories.length === 0 && <p className="category-empty">Sin categorías de ingreso</p>}
+            {incomeCategories.length === 0 && <EmptyState>Sin categorías de ingreso</EmptyState>}
             <div className="category-list">
               {incomeCategories.map((c) => (
                 <CategoryRow key={c.id} category={c} onSaved={updateOne} onDeleted={removeOne} />

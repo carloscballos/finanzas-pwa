@@ -1,12 +1,19 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { Target } from 'lucide-react'
 import { Layout } from '../components/Layout'
+import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
+import { CardGrid } from '../components/ui/CardGrid'
+import { EmptyState } from '../components/ui/EmptyState'
+import { Form, FormField, FormError } from '../components/ui/Form'
+import { Money } from '../components/ui/Money'
+import { ProgressBar } from '../components/ui/ProgressBar'
+import { SectionHeader } from '../components/ui/SectionHeader'
+import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Account, type Goal } from '../lib/api'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
-import { formatMoney } from '../lib/money'
 import './GoalsPage.css'
 
 function GoalCard({
@@ -53,7 +60,7 @@ function GoalCard({
   }
 
   return (
-    <div className="goal-card">
+    <Card>
       <div className="goal-card-header">
         <div>
           <h3>{goal.name}</h3>
@@ -69,15 +76,17 @@ function GoalCard({
           Eliminar
         </button>
       </div>
-      <div className="goal-bar-track">
-        <div className="goal-bar-fill" style={{ width: `${Math.min(goal.percentComplete, 100)}%` }} />
-      </div>
+      <ProgressBar value={goal.percentComplete} tone="accent" />
       <div className="goal-amounts">
-        <span>{formatMoney(goal.currentAmount, goal.currency)} ahorrado</span>
+        <span>
+          <Money amount={goal.currentAmount} currency={goal.currency} /> ahorrado
+        </span>
         <span>{goal.percentComplete}%</span>
       </div>
       <div className="goal-amounts">
-        <span>Meta {formatMoney(goal.targetAmount, goal.currency)}</span>
+        <span>
+          Meta <Money amount={goal.targetAmount} currency={goal.currency} />
+        </span>
       </div>
       {matchingAccounts.length === 0 ? (
         <p className="goal-no-account">
@@ -107,24 +116,23 @@ function GoalCard({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
-          <button className="btn" type="submit" disabled={busy || !amount || !accountId}>
+          <Button type="submit" disabled={busy || !amount || !accountId}>
             Registrar
-          </button>
+          </Button>
         </form>
       )}
-    </div>
+    </Card>
   )
 }
 
 export function GoalsPage() {
   const { token } = useAuth()
-  const [searchParams] = useSearchParams()
   const [goals, setGoals] = useState<Goal[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [showForm, setShowForm] = useState(searchParams.get('new') === '1')
+  const { open: showForm, toggle: toggleForm, close: closeForm } = useCreateFormToggle()
   const [name, setName] = useState('')
   const [targetAmount, setTargetAmount] = useState('')
   const [targetDate, setTargetDate] = useState('')
@@ -163,7 +171,7 @@ export function GoalsPage() {
       setTargetDate('')
       setAccountId('')
       setCurrency(DEFAULT_CURRENCY)
-      setShowForm(false)
+      closeForm()
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'No se pudo crear la meta')
     } finally {
@@ -180,106 +188,80 @@ export function GoalsPage() {
   }
 
   return (
-    <Layout fabActions={[{ label: 'Nueva meta', icon: Target, onClick: () => setShowForm(true) }]}>
-      <div className="goals-toolbar">
-        <h1>Metas de ahorro</h1>
-        <button
-          className={`btn ${showForm ? '' : 'toolbar-create-btn'}`}
-          onClick={() => setShowForm((v) => !v)}
-        >
+    <Layout fabActions={[{ label: 'Nueva meta', icon: Target, onClick: toggleForm }]}>
+      <SectionHeader as="h1" title="Metas de ahorro">
+        <Button className={showForm ? '' : 'toolbar-create-btn'} onClick={toggleForm}>
           {showForm ? 'Cancelar' : '+ Nueva meta'}
-        </button>
-      </div>
+        </Button>
+      </SectionHeader>
 
       {showForm && (
-        <form className="create-form" onSubmit={handleCreate}>
-          {formError && (
-            <div className="auth-error field-full" style={{ margin: 0 }}>
-              {formError}
-            </div>
-          )}
-          <div className="field field-full">
-            <label htmlFor="goal-name">Nombre</label>
-            <input
-              id="goal-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              placeholder="Enganche del carro"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="goal-target">Monto meta</label>
-            <input
-              id="goal-target"
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={targetAmount}
-              onChange={(e) => setTargetAmount(e.target.value)}
-              required
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="goal-date">Fecha meta (opcional)</label>
-            <input
-              id="goal-date"
-              type="date"
-              value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="goal-account">Cuenta relacionada (opcional)</label>
-            <select id="goal-account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-              <option value="">Sin cuenta</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.currency})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="goal-currency">Moneda</label>
-            {accountId ? (
+        <Card className="ui-form-card">
+          <Form onSubmit={handleCreate}>
+            <FormError>{formError}</FormError>
+            <FormField label="Nombre" htmlFor="goal-name" full>
               <input
-                id="goal-currency"
-                value={accounts.find((a) => a.id === accountId)?.currency ?? ''}
-                disabled
+                id="goal-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                placeholder="Enganche del carro"
               />
-            ) : (
-              <select
-                id="goal-currency"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value as typeof currency)}
-              >
-                {CURRENCIES.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.code} · {c.label}
+            </FormField>
+            <FormField label="Monto meta" htmlFor="goal-target">
+              <input
+                id="goal-target"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={targetAmount}
+                onChange={(e) => setTargetAmount(e.target.value)}
+                required
+              />
+            </FormField>
+            <FormField label="Fecha meta (opcional)" htmlFor="goal-date">
+              <input id="goal-date" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+            </FormField>
+            <FormField label="Cuenta relacionada (opcional)" htmlFor="goal-account">
+              <select id="goal-account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                <option value="">Sin cuenta</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.currency})
                   </option>
                 ))}
               </select>
-            )}
-          </div>
-          <button className="btn" type="submit" disabled={creating}>
-            {creating ? 'Creando…' : 'Crear meta'}
-          </button>
-        </form>
+            </FormField>
+            <FormField label="Moneda" htmlFor="goal-currency">
+              {accountId ? (
+                <input id="goal-currency" value={accounts.find((a) => a.id === accountId)?.currency ?? ''} disabled />
+              ) : (
+                <select id="goal-currency" value={currency} onChange={(e) => setCurrency(e.target.value as typeof currency)}>
+                  {CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code} · {c.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </FormField>
+            <Button type="submit" disabled={creating}>
+              {creating ? 'Creando…' : 'Crear meta'}
+            </Button>
+          </Form>
+        </Card>
       )}
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}
 
-      {!loading && !error && goals.length === 0 && (
-        <p className="accounts-empty">Todavía no tienes metas de ahorro.</p>
-      )}
+      {!loading && !error && goals.length === 0 && <EmptyState>Todavía no tienes metas de ahorro.</EmptyState>}
 
-      <div className="goals-grid">
+      <CardGrid>
         {goals.map((goal) => (
           <GoalCard key={goal.id} goal={goal} accounts={accounts} onChange={updateOne} onDeleted={removeOne} />
         ))}
-      </div>
+      </CardGrid>
     </Layout>
   )
 }

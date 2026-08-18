@@ -2,7 +2,8 @@
   margin: 1.75rem 0;
 }
 
-.friends-section h2 {
-  font-size: 1.05rem;
-  margin: 0 0 0.75rem;
+.friends-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }

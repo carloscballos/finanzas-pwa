@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Button } from '../components/ui/Button'
+import { FormField, FormError } from '../components/ui/Form'
 import { useAuth } from '../context/AuthContext'
 import { ApiError } from '../lib/api'
 import './Auth.css'
@@ -31,32 +33,15 @@ export function RegisterPage() {
     <div className="auth-page">
       <div className="auth-card">
         <h1>Crear cuenta</h1>
-        {error && <div className="auth-error">{error}</div>}
-        <form onSubmit={handleSubmit}>
-          <div className="field">
-            <label htmlFor="name">Nombre</label>
-            <input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              autoComplete="name"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="password">Contraseña</label>
+        <FormError>{error}</FormError>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <FormField label="Nombre" htmlFor="name">
+            <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" />
+          </FormField>
+          <FormField label="Email" htmlFor="email">
+            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+          </FormField>
+          <FormField label="Contraseña" htmlFor="password">
             <input
               id="password"
               type="password"
@@ -66,10 +51,10 @@ export function RegisterPage() {
               minLength={8}
               autoComplete="new-password"
             />
-          </div>
-          <button className="btn" type="submit" disabled={submitting}>
+          </FormField>
+          <Button type="submit" disabled={submitting}>
             {submitting ? 'Creando…' : 'Crear cuenta'}
-          </button>
+          </Button>
         </form>
         <p className="auth-switch">
           ¿Ya tienes cuenta? <Link to="/login">Entra aquí</Link>

@@ -1,53 +1,7 @@
-.budgets-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.25rem;
-}
-
-.budgets-toolbar h1 {
-  font-size: 1.3rem;
-  margin: 0;
-}
-
-.budgets-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-
-@media (min-width: 640px) {
-  .budgets-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (min-width: 1024px) {
-  .budgets-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-.budget-card {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
 .budget-card-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-}
-
-.budget-card h3 {
-  margin: 0;
-  font-size: 1.05rem;
 }
 
 .budget-period {
@@ -59,30 +13,6 @@
   display: flex;
   justify-content: space-between;
   font-size: 0.85rem;
-}
-
-.budget-bar-track {
-  height: 8px;
-  border-radius: var(--radius-pill);
-  background: var(--badge-neutral-bg);
-  overflow: hidden;
-}
-
-.budget-bar-fill {
-  height: 100%;
-  border-radius: var(--radius-pill);
-}
-
-.budget-bar-fill.ok {
-  background: #22c55e;
-}
-
-.budget-bar-fill.warn {
-  background: #f59e0b;
-}
-
-.budget-bar-fill.over {
-  background: var(--badge-error-fg);
 }
 
 .budget-percent {

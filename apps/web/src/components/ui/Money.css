@@ -1,0 +1,16 @@
+.ui-money-sm {
+  font-size: 0.85rem;
+}
+
+.ui-money-lg {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.ui-money-negative {
+  color: var(--badge-error-fg);
+}
+
+.ui-money-positive {
+  color: var(--badge-ok-fg);
+}

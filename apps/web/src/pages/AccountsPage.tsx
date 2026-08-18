@@ -1,7 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Wallet } from 'lucide-react'
 import { Layout } from '../components/Layout'
+import { Badge } from '../components/ui/Badge'
+import { Button } from '../components/ui/Button'
+import { Card, CardHeader } from '../components/ui/Card'
+import { CardGrid } from '../components/ui/CardGrid'
+import { EmptyState } from '../components/ui/EmptyState'
+import { Form, FormField, FormError } from '../components/ui/Form'
+import { Money } from '../components/ui/Money'
+import { SectionHeader } from '../components/ui/SectionHeader'
+import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Account, type AccountType } from '../lib/api'
@@ -14,12 +23,11 @@ const ACCOUNT_TYPES = Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]
 
 export function AccountsPage() {
   const { token } = useAuth()
-  const [searchParams] = useSearchParams()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [showForm, setShowForm] = useState(searchParams.get('new') === '1')
+  const { open: showForm, toggle: toggleForm, close: closeForm } = useCreateFormToggle()
   const [name, setName] = useState('')
   const [type, setType] = useState<AccountType>('SAVINGS')
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY)
@@ -59,7 +67,7 @@ export function AccountsPage() {
       setInitialBalance('0')
       setCreditLimit('')
       setPaymentDueDay('')
-      setShowForm(false)
+      closeForm()
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'No se pudo crear la cuenta')
     } finally {
@@ -79,130 +87,107 @@ export function AccountsPage() {
   }
 
   return (
-    <Layout
-      fabActions={[{ label: 'Nueva cuenta', icon: Wallet, onClick: () => setShowForm(true) }]}
-    >
-      <div className="accounts-toolbar">
-        <h1>Mis cuentas</h1>
-        <button
-          className={`btn ${showForm ? '' : 'toolbar-create-btn'}`}
-          onClick={() => setShowForm((v) => !v)}
-        >
+    <Layout fabActions={[{ label: 'Nueva cuenta', icon: Wallet, onClick: toggleForm }]}>
+      <SectionHeader as="h1" title="Mis cuentas">
+        <Button className={showForm ? '' : 'toolbar-create-btn'} onClick={toggleForm}>
           {showForm ? 'Cancelar' : '+ Nueva cuenta'}
-        </button>
-      </div>
+        </Button>
+      </SectionHeader>
 
       {showForm && (
-        <form className="create-form" onSubmit={handleCreate}>
-          {formError && (
-            <div className="auth-error field-full" style={{ margin: 0 }}>
-              {formError}
-            </div>
-          )}
-          <div className="field field-full">
-            <label htmlFor="acc-name">Nombre</label>
-            <input
-              id="acc-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              placeholder="Ahorros Banorte"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="acc-type">Tipo</label>
-            <select id="acc-type" value={type} onChange={(e) => setType(e.target.value as AccountType)}>
-              {ACCOUNT_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {ACCOUNT_TYPE_LABELS[t]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="acc-currency">Moneda</label>
-            <select
-              id="acc-currency"
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value as typeof currency)}
+        <Card className="ui-form-card">
+          <Form onSubmit={handleCreate}>
+            <FormError>{formError}</FormError>
+            <FormField label="Nombre" htmlFor="acc-name" full>
+              <input
+                id="acc-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                placeholder="Ahorros Banorte"
+              />
+            </FormField>
+            <FormField label="Tipo" htmlFor="acc-type">
+              <select id="acc-type" value={type} onChange={(e) => setType(e.target.value as AccountType)}>
+                {ACCOUNT_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {ACCOUNT_TYPE_LABELS[t]}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Moneda" htmlFor="acc-currency">
+              <select id="acc-currency" value={currency} onChange={(e) => setCurrency(e.target.value as typeof currency)}>
+                {CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} · {c.label}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField
+              label={type === 'CREDIT_CARD' ? 'Deuda actual (0 si no debes nada)' : 'Saldo inicial'}
+              htmlFor="acc-balance"
             >
-              {CURRENCIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.code} · {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="acc-balance">
-              {type === 'CREDIT_CARD' ? 'Deuda actual (0 si no debes nada)' : 'Saldo inicial'}
-            </label>
-            <input
-              id="acc-balance"
-              type="number"
-              step="0.01"
-              max={type === 'CREDIT_CARD' ? 0 : undefined}
-              value={initialBalance}
-              onChange={(e) => setInitialBalance(e.target.value)}
-            />
+              <input
+                id="acc-balance"
+                type="number"
+                step="0.01"
+                max={type === 'CREDIT_CARD' ? 0 : undefined}
+                value={initialBalance}
+                onChange={(e) => setInitialBalance(e.target.value)}
+              />
+              {type === 'CREDIT_CARD' && (
+                <span style={{ fontSize: '0.8rem' }}>
+                  Va en 0 o negativo — ej. -700000 si ya debes $700.000 en esta tarjeta. No es el cupo disponible.
+                </span>
+              )}
+            </FormField>
             {type === 'CREDIT_CARD' && (
-              <span style={{ fontSize: '0.8rem' }}>
-                Va en 0 o negativo — ej. -700000 si ya debes $700.000 en esta tarjeta. No es el cupo disponible.
-              </span>
+              <>
+                <FormField label="Cupo de crédito" htmlFor="acc-credit-limit">
+                  <input
+                    id="acc-credit-limit"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={creditLimit}
+                    onChange={(e) => setCreditLimit(e.target.value)}
+                  />
+                </FormField>
+                <FormField label="Día de pago" htmlFor="acc-due-day">
+                  <input
+                    id="acc-due-day"
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={paymentDueDay}
+                    onChange={(e) => setPaymentDueDay(e.target.value)}
+                    placeholder="1-31"
+                  />
+                </FormField>
+              </>
             )}
-          </div>
-          {type === 'CREDIT_CARD' && (
-            <>
-              <div className="field">
-                <label htmlFor="acc-credit-limit">Cupo de crédito</label>
-                <input
-                  id="acc-credit-limit"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={creditLimit}
-                  onChange={(e) => setCreditLimit(e.target.value)}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="acc-due-day">Día de pago</label>
-                <input
-                  id="acc-due-day"
-                  type="number"
-                  min="1"
-                  max="31"
-                  value={paymentDueDay}
-                  onChange={(e) => setPaymentDueDay(e.target.value)}
-                  placeholder="1-31"
-                />
-              </div>
-            </>
-          )}
-          <button className="btn" type="submit" disabled={creating}>
-            {creating ? 'Creando…' : 'Crear cuenta'}
-          </button>
-        </form>
+            <Button type="submit" disabled={creating}>
+              {creating ? 'Creando…' : 'Crear cuenta'}
+            </Button>
+          </Form>
+        </Card>
       )}
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}
 
       {!loading && !error && accounts.length === 0 && (
-        <p className="accounts-empty">Todavía no tienes cuentas. Crea la primera arriba.</p>
+        <EmptyState>Todavía no tienes cuentas. Crea la primera arriba.</EmptyState>
       )}
 
-      <div className="accounts-grid">
+      <CardGrid>
         {accounts.map((account) => (
-          <div className="account-card" key={account.id}>
-            <div className="account-card-header">
-              <div>
-                <h3>{account.name}</h3>
-                <span className="account-type">{ACCOUNT_TYPE_LABELS[account.type]}</span>
-              </div>
-            </div>
-            <span className={`account-balance ${account.currentBalance < 0 ? 'negative' : ''}`}>
-              {formatMoney(account.currentBalance, account.currency)}
-            </span>
+          <Card key={account.id} accent>
+            <CardHeader title={account.name} />
+            <span className="account-type">{ACCOUNT_TYPE_LABELS[account.type]}</span>
+            <Money amount={account.currentBalance} currency={account.currency} tone="balance" size="lg" />
             {account.type === 'CREDIT_CARD' && account.creditLimit !== null && (
               <div className="account-credit-info">
                 Disponible: {formatMoney(computeAvailableCredit(account.creditLimit, account.currentBalance), account.currency)} de{' '}
@@ -211,12 +196,10 @@ export function AccountsPage() {
               </div>
             )}
             <div className="account-meta">
-              <span className={`badge ${account.role === 'OWNER' ? 'badge-ok' : 'badge-neutral'}`}>
+              <Badge tone={account.role === 'OWNER' ? 'ok' : 'neutral'}>
                 {account.role === 'OWNER' ? 'Propietario' : 'Miembro'}
-              </span>
-              {account.memberCount > 1 && (
-                <span className="badge badge-neutral">Compartida · {account.memberCount}</span>
-              )}
+              </Badge>
+              {account.memberCount > 1 && <Badge tone="neutral">Compartida · {account.memberCount}</Badge>}
             </div>
             <div className="account-actions">
               <Link to={`/accounts/${account.id}/transactions`}>Ver movimientos</Link>
@@ -226,9 +209,9 @@ export function AccountsPage() {
                 </button>
               )}
             </div>
-          </div>
+          </Card>
         ))}
-      </div>
+      </CardGrid>
     </Layout>
   )
 }

@@ -1,19 +1,26 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { HandCoins } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { UserAutocomplete } from '../components/UserAutocomplete'
+import { Badge, type BadgeTone } from '../components/ui/Badge'
+import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
+import { EmptyState } from '../components/ui/EmptyState'
+import { Form, FormField, FormError } from '../components/ui/Form'
+import { Money } from '../components/ui/Money'
+import { SectionHeader } from '../components/ui/SectionHeader'
+import { SegmentedControl } from '../components/ui/SegmentedControl'
+import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Debt, type DebtDirection } from '../lib/api'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
-import { formatMoney } from '../lib/money'
 import './DebtsPage.css'
 
-function statusBadge(debt: Debt) {
-  if (debt.status === 'SETTLED') return { label: 'Liquidada', className: 'badge-ok' }
-  if (debt.status === 'PAID_PENDING_CONFIRMATION') return { label: 'Esperando confirmación', className: 'badge-warn' }
-  return { label: 'Pendiente', className: 'badge-neutral' }
+function statusBadge(debt: Debt): { label: string; tone: BadgeTone } {
+  if (debt.status === 'SETTLED') return { label: 'Liquidada', tone: 'ok' }
+  if (debt.status === 'PAID_PENDING_CONFIRMATION') return { label: 'Esperando confirmación', tone: 'warn' }
+  return { label: 'Pendiente', tone: 'neutral' }
 }
 
 function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Debt) => void; onDeleted: (id: string) => void }) {
@@ -47,7 +54,7 @@ function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Deb
   }
 
   return (
-    <div className="debt-card">
+    <Card>
       <div className="debt-card-header">
         <div>
           <div className="debt-party">
@@ -55,19 +62,17 @@ function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Deb
           </div>
           {debt.description && <div className="debt-description">{debt.description}</div>}
         </div>
-        <span className={`debt-amount ${owed ? 'owed' : 'owe'}`}>
-          {formatMoney(debt.amount, debt.currency)}
-        </span>
+        <Money amount={debt.amount} currency={debt.currency} tone={owed ? 'positive' : 'negative'} size="lg" />
       </div>
 
       <div className="debt-actions">
-        <span className={`badge ${badge.className}`}>{badge.label}</span>
+        <Badge tone={badge.tone}>{badge.label}</Badge>
 
         {debt.status === 'PENDING' && (
           <>
-            <button className="btn btn-secondary" disabled={busy} onClick={() => run(api.markDebtPaid)}>
+            <Button variant="secondary" disabled={busy} onClick={() => run(api.markDebtPaid)}>
               Marcar como pagada
-            </button>
+            </Button>
             {debt.createdByMe && (
               <button className="link-danger" onClick={handleDelete}>
                 Eliminar
@@ -81,12 +86,12 @@ function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Deb
             <span className="debt-waiting">Esperando que {debt.counterparty.name} confirme</span>
           ) : (
             <>
-              <button className="btn" disabled={busy} onClick={() => run(api.confirmDebt)}>
+              <Button disabled={busy} onClick={() => run(api.confirmDebt)}>
                 Confirmar pago
-              </button>
-              <button className="btn btn-secondary" disabled={busy} onClick={() => run(api.rejectDebt)}>
+              </Button>
+              <Button variant="secondary" disabled={busy} onClick={() => run(api.rejectDebt)}>
                 Rechazar
-              </button>
+              </Button>
             </>
           ))}
 
@@ -96,18 +101,17 @@ function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Deb
           </span>
         )}
       </div>
-    </div>
+    </Card>
   )
 }
 
 export function DebtsPage() {
   const { token } = useAuth()
-  const [searchParams] = useSearchParams()
   const [debts, setDebts] = useState<Debt[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [showForm, setShowForm] = useState(searchParams.get('new') === '1')
+  const { open: showForm, toggle: toggleForm, close: closeForm } = useCreateFormToggle()
   const [counterpartyEmail, setCounterpartyEmail] = useState('')
   const [direction, setDirection] = useState<DebtDirection>('THEY_OWE_ME')
   const [amount, setAmount] = useState('')
@@ -143,7 +147,7 @@ export function DebtsPage() {
       setAmount('')
       setCurrency(DEFAULT_CURRENCY)
       setDescription('')
-      setShowForm(false)
+      closeForm()
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'No se pudo crear la deuda')
     } finally {
@@ -160,96 +164,74 @@ export function DebtsPage() {
   }
 
   return (
-    <Layout fabActions={[{ label: 'Nueva deuda', icon: HandCoins, onClick: () => setShowForm(true) }]}>
-      <div className="debts-toolbar">
-        <h1>Deudas</h1>
-        <button
-          className={`btn ${showForm ? '' : 'toolbar-create-btn'}`}
-          onClick={() => setShowForm((v) => !v)}
-        >
+    <Layout fabActions={[{ label: 'Nueva deuda', icon: HandCoins, onClick: toggleForm }]}>
+      <SectionHeader as="h1" title="Deudas">
+        <Button className={showForm ? '' : 'toolbar-create-btn'} onClick={toggleForm}>
           {showForm ? 'Cancelar' : '+ Nueva deuda'}
-        </button>
-      </div>
+        </Button>
+      </SectionHeader>
 
       {showForm && (
-        <form className="create-form" onSubmit={handleCreate}>
-          {formError && (
-            <div className="auth-error field-full" style={{ margin: 0 }}>
-              {formError}
+        <Card className="ui-form-card">
+          <Form onSubmit={handleCreate}>
+            <FormError>{formError}</FormError>
+            <div className="ui-field-full">
+              <SegmentedControl<DebtDirection>
+                value={direction}
+                onChange={setDirection}
+                options={[
+                  { value: 'THEY_OWE_ME', label: 'Me deben', tone: 'ok' },
+                  { value: 'I_OWE_THEM', label: 'Yo debo', tone: 'error' },
+                ]}
+              />
             </div>
-          )}
-          <div className="debts-direction-toggle">
-            <button
-              type="button"
-              className={direction === 'THEY_OWE_ME' ? 'active-owed' : ''}
-              onClick={() => setDirection('THEY_OWE_ME')}
-            >
-              Me deben
-            </button>
-            <button
-              type="button"
-              className={direction === 'I_OWE_THEM' ? 'active-owe' : ''}
-              onClick={() => setDirection('I_OWE_THEM')}
-            >
-              Yo debo
-            </button>
-          </div>
-          <div className="field field-full">
-            <label htmlFor="debt-email">Email de la otra persona</label>
-            <UserAutocomplete
-              id="debt-email"
-              value={counterpartyEmail}
-              onChange={setCounterpartyEmail}
-              placeholder="alguien@example.com"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="debt-amount">Monto</label>
-            <input
-              id="debt-amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              required
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="debt-currency">Moneda</label>
-            <select
-              id="debt-currency"
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value as typeof currency)}
-            >
-              {CURRENCIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.code} · {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field field-full">
-            <label htmlFor="debt-description">Descripción (opcional)</label>
-            <input
-              id="debt-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Cena del viernes"
-            />
-          </div>
-          <button className="btn" type="submit" disabled={creating}>
-            {creating ? 'Creando…' : 'Crear deuda'}
-          </button>
-        </form>
+            <FormField label="Email de la otra persona" htmlFor="debt-email" full>
+              <UserAutocomplete
+                id="debt-email"
+                value={counterpartyEmail}
+                onChange={setCounterpartyEmail}
+                placeholder="alguien@example.com"
+              />
+            </FormField>
+            <FormField label="Monto" htmlFor="debt-amount">
+              <input
+                id="debt-amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                required
+              />
+            </FormField>
+            <FormField label="Moneda" htmlFor="debt-currency">
+              <select id="debt-currency" value={currency} onChange={(e) => setCurrency(e.target.value as typeof currency)}>
+                {CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} · {c.label}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Descripción (opcional)" htmlFor="debt-description" full>
+              <input
+                id="debt-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Cena del viernes"
+              />
+            </FormField>
+            <Button type="submit" disabled={creating}>
+              {creating ? 'Creando…' : 'Crear deuda'}
+            </Button>
+          </Form>
+        </Card>
       )}
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}
 
-      {!loading && !error && debts.length === 0 && (
-        <p className="accounts-empty">No tienes deudas registradas.</p>
-      )}
+      {!loading && !error && debts.length === 0 && <EmptyState>No tienes deudas registradas.</EmptyState>}
 
       <div className="debts-list">
         {debts.map((debt) => (

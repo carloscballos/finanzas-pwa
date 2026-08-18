@@ -23,18 +23,6 @@
   color: var(--accent);
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: 1rem;
-}
-
-.field label {
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
 .auth-error {
   background: var(--badge-error-bg);
   color: var(--badge-error-fg);

@@ -11,6 +11,14 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { Layout } from '../components/Layout'
+import { Badge } from '../components/ui/Badge'
+import { CardGrid } from '../components/ui/CardGrid'
+import { EmptyState } from '../components/ui/EmptyState'
+import { IconChip } from '../components/ui/IconChip'
+import { ListRow } from '../components/ui/ListRow'
+import { Money } from '../components/ui/Money'
+import { SectionHeader } from '../components/ui/SectionHeader'
+import { StatCard } from '../components/ui/StatCard'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import {
@@ -24,7 +32,6 @@ import {
   type Invitation,
   type Transaction,
 } from '../lib/api'
-import { formatMoney } from '../lib/money'
 import './HomePage.css'
 
 const RECENT_TRANSACTIONS_LIMIT = 8
@@ -148,24 +155,24 @@ export function HomePage() {
   const newTransactionHref = accounts.length === 1 ? `/accounts/${accounts[0].id}/transactions?new=1` : '/accounts'
 
   const quickActions = [
-    { to: '/accounts?new=1', label: 'Nueva cuenta', icon: Wallet },
-    { to: newTransactionHref, label: 'Nuevo movimiento', icon: Receipt },
-    { to: '/goals?new=1', label: 'Nueva meta', icon: Target },
-    { to: '/budgets?new=1', label: 'Nuevo presupuesto', icon: PiggyBank },
-    { to: '/loans?new=1', label: 'Nuevo préstamo', icon: Landmark },
-    { to: '/forecast', label: 'Ver proyección', icon: TrendingUp },
+    { to: '/accounts?new=1', label: 'Nueva cuenta', icon: Wallet, tone: 'accent' as const },
+    { to: newTransactionHref, label: 'Nuevo movimiento', icon: Receipt, tone: 'ok' as const },
+    { to: '/goals?new=1', label: 'Nueva meta', icon: Target, tone: 'warn' as const },
+    { to: '/budgets?new=1', label: 'Nuevo presupuesto', icon: PiggyBank, tone: 'neutral' as const },
+    { to: '/loans?new=1', label: 'Nuevo préstamo', icon: Landmark, tone: 'error' as const },
+    { to: '/forecast', label: 'Ver proyección', icon: TrendingUp, tone: 'accent' as const },
   ]
 
   return (
     <Layout>
-      <h1>Hola, {user?.name?.split(' ')[0]}</h1>
+      <SectionHeader as="h1" title={`Hola, ${user?.name?.split(' ')[0]}`} subtitle="Este es tu resumen financiero" />
 
       <div className="home-quick-actions">
         {quickActions.map((action) => (
           <Link className="home-quick-action" to={action.to} key={action.label}>
-            <span className="home-quick-action-icon">
+            <IconChip tone={action.tone}>
               <action.icon size={18} strokeWidth={2} />
-            </span>
+            </IconChip>
             <span>{action.label}</span>
           </Link>
         ))}
@@ -202,39 +209,37 @@ export function HomePage() {
           </div>
 
           <section className="home-section">
-            <h2>Saldo total</h2>
+            <SectionHeader title="Saldo total" />
             {accounts.length === 0 ? (
-              <p className="accounts-empty">Todavía no tienes cuentas — créalas en Cuentas.</p>
+              <EmptyState>Todavía no tienes cuentas — créalas en Cuentas.</EmptyState>
             ) : (
               <>
                 {personalAccounts.length > 0 && (
                   <div className="home-balance-group">
                     <div className="home-balance-group-label">Cuentas personales</div>
-                    <div className="home-stat-cards">
+                    <CardGrid minWidth={240}>
                       {Object.entries(personalBalancesByCurrency).map(([currency, total]) => (
-                        <div className="home-stat-card" key={currency}>
-                          <div className="home-stat-currency">{currency}</div>
-                          <div className={`home-stat-amount figure ${total < 0 ? 'negative' : ''}`}>
-                            {formatMoney(total, currency)}
-                          </div>
-                        </div>
+                        <StatCard
+                          key={currency}
+                          label={currency}
+                          value={<Money amount={total} currency={currency} tone="balance" size="lg" />}
+                        />
                       ))}
-                    </div>
+                    </CardGrid>
                   </div>
                 )}
                 {sharedAccounts.length > 0 && (
                   <div className="home-balance-group">
                     <div className="home-balance-group-label">Cuentas compartidas</div>
-                    <div className="home-stat-cards">
+                    <CardGrid minWidth={240}>
                       {Object.entries(sharedBalancesByCurrency).map(([currency, total]) => (
-                        <div className="home-stat-card" key={currency}>
-                          <div className="home-stat-currency">{currency}</div>
-                          <div className={`home-stat-amount figure ${total < 0 ? 'negative' : ''}`}>
-                            {formatMoney(total, currency)}
-                          </div>
-                        </div>
+                        <StatCard
+                          key={currency}
+                          label={currency}
+                          value={<Money amount={total} currency={currency} tone="balance" size="lg" />}
+                        />
                       ))}
-                    </div>
+                    </CardGrid>
                   </div>
                 )}
               </>
@@ -243,46 +248,56 @@ export function HomePage() {
 
           {monthCurrencies.length > 0 && (
             <section className="home-section">
-              <h2>Resumen de {formatMonthLabel(monthStart)}</h2>
-              <div className="home-stat-cards">
+              <SectionHeader title={`Resumen de ${formatMonthLabel(monthStart)}`} />
+              <CardGrid minWidth={240}>
                 {monthCurrencies.map((currency) => {
                   const income = monthIncomeByCurrency[currency] ?? 0
                   const expense = monthExpenseByCurrency[currency] ?? 0
                   return (
-                    <div className="home-stat-card" key={currency}>
-                      <div className="home-stat-currency">{currency}</div>
-                      <div className={`home-stat-amount figure ${income - expense < 0 ? 'negative' : 'income'}`}>
-                        {formatMoney(income - expense, currency)}
-                      </div>
-                      <div className="home-stat-sub figure">
-                        +{formatMoney(income, currency)} / -{formatMoney(expense, currency)}
-                      </div>
-                    </div>
+                    <StatCard
+                      key={currency}
+                      label={currency}
+                      value={<Money amount={income - expense} currency={currency} tone="flow" size="lg" />}
+                      sub={
+                        <>
+                          +<Money amount={income} currency={currency} /> / -
+                          <Money amount={expense} currency={currency} />
+                        </>
+                      }
+                    />
                   )
                 })}
-              </div>
+              </CardGrid>
             </section>
           )}
 
           {pendingRequestsCount > 0 && (
             <section className="home-section">
-              <h2>Solicitudes pendientes</h2>
+              <SectionHeader title="Solicitudes pendientes" />
               <div className="home-requests-list">
                 {invitations.map((inv) => (
-                  <Link className="home-request-row" to="/invitations" key={`inv-${inv.id}`}>
-                    <span>
-                      Invitación a <strong>{inv.account.name}</strong> de {inv.invitedBy.name}
-                    </span>
-                    <span className="badge badge-warn">Ver</span>
-                  </Link>
+                  <ListRow
+                    key={`inv-${inv.id}`}
+                    href="/invitations"
+                    title={
+                      <>
+                        Invitación a <strong>{inv.account.name}</strong> de {inv.invitedBy.name}
+                      </>
+                    }
+                    trailing={<Badge tone="warn">Ver</Badge>}
+                  />
                 ))}
                 {friendRequests.map((r) => (
-                  <Link className="home-request-row" to="/friends" key={`fr-${r.id}`}>
-                    <span>
-                      Solicitud de amistad de <strong>{r.requestedBy.name}</strong>
-                    </span>
-                    <span className="badge badge-warn">Ver</span>
-                  </Link>
+                  <ListRow
+                    key={`fr-${r.id}`}
+                    href="/friends"
+                    title={
+                      <>
+                        Solicitud de amistad de <strong>{r.requestedBy.name}</strong>
+                      </>
+                    }
+                    trailing={<Badge tone="warn">Ver</Badge>}
+                  />
                 ))}
               </div>
             </section>
@@ -290,44 +305,39 @@ export function HomePage() {
 
           {forecast.length > 0 && (
             <section className="home-section">
-              <div className="home-section-header">
-                <h2>Proyección mensual</h2>
+              <SectionHeader title="Proyección mensual">
                 <Link to="/forecast">Ver detalle →</Link>
-              </div>
-              <div className="home-stat-cards">
+              </SectionHeader>
+              <CardGrid minWidth={240}>
                 {forecast.map((f) => (
-                  <div className="home-stat-card" key={f.currency}>
-                    <div className="home-stat-currency">{f.currency}</div>
-                    <div className={`home-stat-amount figure ${f.projectedMonthlyNet < 0 ? 'negative' : ''}`}>
-                      {formatMoney(f.projectedMonthlyNet, f.currency)}
-                    </div>
-                    <div className="home-stat-sub figure">
-                      +{formatMoney(f.projectedMonthlyIncome, f.currency)} / -
-                      {formatMoney(f.projectedMonthlyExpense, f.currency)}
-                    </div>
-                  </div>
+                  <StatCard
+                    key={f.currency}
+                    label={f.currency}
+                    value={<Money amount={f.projectedMonthlyNet} currency={f.currency} tone="flow" size="lg" />}
+                    sub={
+                      <>
+                        +<Money amount={f.projectedMonthlyIncome} currency={f.currency} /> / -
+                        <Money amount={f.projectedMonthlyExpense} currency={f.currency} />
+                      </>
+                    }
+                  />
                 ))}
-              </div>
+              </CardGrid>
             </section>
           )}
 
           {budgetsAtRisk.length > 0 && (
             <section className="home-section">
-              <div className="home-section-header">
-                <h2>Presupuestos en riesgo</h2>
+              <SectionHeader title="Presupuestos en riesgo">
                 <Link to="/budgets">Ver todos →</Link>
-              </div>
+              </SectionHeader>
               <div className="home-list">
                 {budgetsAtRisk.map((b) => (
-                  <div className="home-list-row" key={b.id}>
-                    <span>
-                      {b.category.emoji ? `${b.category.emoji} ` : ''}
-                      {b.category.name}
-                    </span>
-                    <span className={`badge ${b.percentUsed >= 100 ? 'badge-error' : 'badge-warn'}`}>
-                      {b.percentUsed}% usado
-                    </span>
-                  </div>
+                  <ListRow
+                    key={b.id}
+                    title={`${b.category.emoji ? `${b.category.emoji} ` : ''}${b.category.name}`}
+                    trailing={<Badge tone={b.percentUsed >= 100 ? 'error' : 'warn'}>{b.percentUsed}% usado</Badge>}
+                  />
                 ))}
               </div>
             </section>
@@ -335,16 +345,12 @@ export function HomePage() {
 
           {goals.length > 0 && (
             <section className="home-section">
-              <div className="home-section-header">
-                <h2>Metas de ahorro</h2>
+              <SectionHeader title="Metas de ahorro">
                 <Link to="/goals">Ver todas →</Link>
-              </div>
+              </SectionHeader>
               <div className="home-list">
                 {goals.map((g) => (
-                  <div className="home-list-row" key={g.id}>
-                    <span>{g.name}</span>
-                    <span>{g.percentComplete}%</span>
-                  </div>
+                  <ListRow key={g.id} title={g.name} trailing={`${g.percentComplete}%`} />
                 ))}
               </div>
             </section>
@@ -352,56 +358,71 @@ export function HomePage() {
 
           {pendingDebts.length > 0 && (
             <section className="home-section">
-              <div className="home-section-header">
-                <h2>Deudas pendientes</h2>
+              <SectionHeader title="Deudas pendientes">
                 <Link to="/debts">Ver todas →</Link>
-              </div>
-              <div className="home-stat-cards">
+              </SectionHeader>
+              <CardGrid minWidth={240}>
                 {Object.entries(owedToMe).map(([currency, total]) => (
-                  <div className="home-stat-card" key={`owed-to-me-${currency}`}>
-                    <div className="home-stat-currency">Te deben ({currency})</div>
-                    <div className="home-stat-amount figure income">{formatMoney(total, currency)}</div>
-                  </div>
+                  <StatCard
+                    key={`owed-to-me-${currency}`}
+                    label={`Te deben (${currency})`}
+                    value={<Money amount={total} currency={currency} tone="positive" size="lg" />}
+                  />
                 ))}
                 {Object.entries(owedByMe).map(([currency, total]) => (
-                  <div className="home-stat-card" key={`owed-by-me-${currency}`}>
-                    <div className="home-stat-currency">Debes ({currency})</div>
-                    <div className="home-stat-amount figure negative">{formatMoney(total, currency)}</div>
-                  </div>
+                  <StatCard
+                    key={`owed-by-me-${currency}`}
+                    label={`Debes (${currency})`}
+                    value={<Money amount={total} currency={currency} tone="negative" size="lg" />}
+                  />
                 ))}
-              </div>
+              </CardGrid>
             </section>
           )}
 
           <section className="home-section">
-            <div className="home-section-header">
-              <h2>Movimientos de {formatMonthLabel(monthStart)}</h2>
-            </div>
+            <SectionHeader title={`Movimientos de ${formatMonthLabel(monthStart)}`} />
             {recentTransactions.length === 0 ? (
-              <p className="accounts-empty">No hay movimientos en este mes.</p>
+              <EmptyState>No hay movimientos en este mes.</EmptyState>
             ) : (
               <>
                 <div className="home-list">
-                  {recentTransactions.map((tx) => (
-                    <div className="home-list-row" key={tx.id}>
-                      <span>
-                        {tx.transferId
-                          ? `⇄ Transferencia (${tx.account.name})`
-                          : tx.goal
-                            ? `🎯 ${tx.goal.name} (${tx.account.name})`
-                            : tx.loan
-                              ? `🏦 ${tx.loan.name} (${tx.account.name})`
-                              : tx.cardPurchase
-                                ? `🛍️ ${tx.cardPurchase.merchant} (${tx.account.name})`
-                                : `${tx.category?.emoji ? `${tx.category.emoji} ` : ''}${tx.category?.name} · ${tx.account.name}`}
-                        <span className="home-list-date"> · {formatDate(tx.occurredAt)}</span>
-                      </span>
-                      <span className={`figure ${tx.type === 'INCOME' ? 'income' : 'expense'}`}>
-                        {tx.type === 'INCOME' ? '+' : '-'}
-                        {formatMoney(tx.amount, tx.account.currency)}
-                      </span>
-                    </div>
-                  ))}
+                  {recentTransactions.map((tx) => {
+                    const emoji = tx.transferId
+                      ? '⇄'
+                      : tx.goal
+                        ? '🎯'
+                        : tx.loan
+                          ? '🏦'
+                          : tx.cardPurchase
+                            ? '🛍️'
+                            : (tx.category?.emoji ?? '💰')
+                    const label = tx.transferId
+                      ? `Transferencia (${tx.account.name})`
+                      : tx.goal
+                        ? `${tx.goal.name} (${tx.account.name})`
+                        : tx.loan
+                          ? `${tx.loan.name} (${tx.account.name})`
+                          : tx.cardPurchase
+                            ? `${tx.cardPurchase.merchant} (${tx.account.name})`
+                            : `${tx.category?.name} · ${tx.account.name}`
+                    return (
+                      <ListRow
+                        key={tx.id}
+                        leading={<IconChip tone={tx.type === 'INCOME' ? 'ok' : 'error'}>{emoji}</IconChip>}
+                        title={label}
+                        subtitle={formatDate(tx.occurredAt)}
+                        trailing={
+                          <Money
+                            amount={tx.amount}
+                            currency={tx.account.currency}
+                            tone={tx.type === 'INCOME' ? 'positive' : 'negative'}
+                            showSign
+                          />
+                        }
+                      />
+                    )
+                  })}
                 </div>
                 {transactions.length > RECENT_TRANSACTIONS_LIMIT && (
                   <p className="home-more-note">

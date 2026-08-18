@@ -13,20 +13,6 @@
   margin-bottom: 1.25rem;
 }
 
-.tx-header h1 {
-  font-size: 1.3rem;
-  margin: 0 0 0.25rem;
-}
-
-.tx-balance {
-  font-size: 1.4rem;
-  font-weight: 700;
-}
-
-.tx-balance.negative {
-  color: var(--badge-error-fg);
-}
-
 .account-credit-info {
   font-size: 0.8rem;
   color: var(--text);
@@ -37,36 +23,11 @@
   margin: 1.5rem 0;
 }
 
-.purchases-section h2 {
-  font-size: 1.05rem;
-  margin: 0 0 0.75rem;
-}
-
 .statement-preview {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
   margin-bottom: 1.5rem;
-}
-
-.statement-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
-  padding: 0.75rem 1rem;
-}
-
-.statement-row-main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  flex: 1 1 12rem;
-  min-width: 0;
 }
 
 .statement-row-meta {
@@ -90,18 +51,6 @@
   text-decoration: underline;
 }
 
-.purchases-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-
-@media (min-width: 640px) {
-  .purchases-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 .tx-header-actions {
   display: flex;
   gap: 0.5rem;
@@ -111,7 +60,7 @@
   font-size: 0.85rem;
   background: var(--bg);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   padding: 0.6rem 0.75rem;
 }
 
@@ -120,83 +69,10 @@
   color: var(--text);
 }
 
-.tx-type-toggle {
-  display: flex;
-  gap: 0.5rem;
-  grid-column: 1 / -1;
-}
-
-.tx-type-toggle button {
-  flex: 1;
-  padding: 0.5rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color);
-  background: var(--bg);
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.tx-type-toggle button.active-expense {
-  background: var(--badge-error-bg);
-  color: var(--badge-error-fg);
-  border-color: var(--badge-error-fg);
-}
-
-.tx-type-toggle button.active-income {
-  background: var(--badge-ok-bg);
-  color: var(--badge-ok-fg);
-  border-color: var(--badge-ok-fg);
-}
-
 .tx-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
-
-.tx-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
-  padding: 0.75rem 1rem;
-}
-
-/* En pantallas angostas, el texto de .tx-row-main puede envolver a varias
-   líneas; con align-items: center los elementos fijos (fecha/monto/borrar)
-   quedan centrados verticalmente y se traslapan con esas líneas. */
-@media (max-width: 480px) {
-  .tx-row {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .tx-row-date {
-    order: 1;
-    flex-basis: 100%;
-    margin-top: 0.25rem;
-  }
-
-  .tx-row-amount {
-    order: 2;
-    margin-left: auto;
-  }
-}
-
-.tx-row-emoji {
-  font-size: 1.3rem;
-}
-
-.tx-row-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.tx-row-category {
-  font-weight: 600;
 }
 
 .tx-row-note {
@@ -231,39 +107,12 @@
   white-space: nowrap;
 }
 
-.tx-row-amount {
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.tx-row-amount.income {
-  color: var(--badge-ok-fg);
-}
-
-.tx-row-amount.expense {
-  color: var(--badge-error-fg);
-}
-
 .tx-row-locked {
   font-size: 0.8rem;
   opacity: 0.6;
 }
 
-.tx-empty {
-  color: var(--text);
-  text-align: center;
-  background: var(--card-bg);
-  border: 1px dashed var(--border-color);
-  border-radius: var(--radius-md);
-  padding: var(--space-6) var(--space-4);
-}
-
 .members-section {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  padding: 1rem 1.25rem;
   margin-bottom: 1.25rem;
 }
 
@@ -274,33 +123,11 @@
   cursor: pointer;
 }
 
-.members-section-header h2 {
-  font-size: 1rem;
-  margin: 0;
-}
-
 .members-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   margin-top: 1rem;
-}
-
-.member-row {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  font-size: 0.9rem;
-}
-
-.member-row-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.member-row-email {
-  font-size: 0.75rem;
-  color: var(--text);
 }
 
 .invite-form {

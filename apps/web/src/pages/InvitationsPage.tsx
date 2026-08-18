@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
 import { Layout } from '../components/Layout'
+import { Badge, type BadgeTone } from '../components/ui/Badge'
+import { Button } from '../components/ui/Button'
+import { EmptyState } from '../components/ui/EmptyState'
+import { ListRow } from '../components/ui/ListRow'
+import { SectionHeader } from '../components/ui/SectionHeader'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Invitation } from '../lib/api'
 import './InvitationsPage.css'
 
-function statusBadge(status: Invitation['status']) {
-  if (status === 'ACCEPTED') return { label: 'Aceptada', className: 'badge-ok' }
-  if (status === 'DECLINED') return { label: 'Rechazada', className: 'badge-error' }
-  if (status === 'CANCELED') return { label: 'Cancelada', className: 'badge-neutral' }
-  return { label: 'Pendiente', className: 'badge-warn' }
+function statusBadge(status: Invitation['status']): { label: string; tone: BadgeTone } {
+  if (status === 'ACCEPTED') return { label: 'Aceptada', tone: 'ok' }
+  if (status === 'DECLINED') return { label: 'Rechazada', tone: 'error' }
+  if (status === 'CANCELED') return { label: 'Cancelada', tone: 'neutral' }
+  return { label: 'Pendiente', tone: 'warn' }
 }
 
 export function InvitationsPage() {
@@ -46,57 +51,45 @@ export function InvitationsPage() {
 
   return (
     <Layout>
-      <div className="debts-toolbar">
-        <h1>Invitaciones</h1>
-      </div>
+      <SectionHeader as="h1" title="Invitaciones" />
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}
 
-      {!loading && !error && invitations.length === 0 && (
-        <p className="accounts-empty">No tienes invitaciones.</p>
-      )}
+      {!loading && !error && invitations.length === 0 && <EmptyState>No tienes invitaciones.</EmptyState>}
 
       <div className="invitations-list">
         {pending.map((inv) => {
           const badge = statusBadge(inv.status)
           return (
-            <div className="invitation-card" key={inv.id}>
-              <div className="invitation-info">
-                <span className="invitation-account">{inv.account.name}</span>
-                <span className="invitation-from">Invitado por {inv.invitedBy.name}</span>
-              </div>
-              <div className="invitation-actions">
-                <span className={`badge ${badge.className}`}>{badge.label}</span>
-                <button
-                  className="btn"
-                  disabled={busyId === inv.id}
-                  onClick={() => respond(inv, api.acceptInvitation)}
-                >
-                  Aceptar
-                </button>
-                <button
-                  className="btn btn-secondary"
-                  disabled={busyId === inv.id}
-                  onClick={() => respond(inv, api.declineInvitation)}
-                >
-                  Rechazar
-                </button>
-              </div>
-            </div>
+            <ListRow
+              key={inv.id}
+              title={inv.account.name}
+              subtitle={`Invitado por ${inv.invitedBy.name}`}
+              trailing={<Badge tone={badge.tone}>{badge.label}</Badge>}
+              actions={
+                <>
+                  <Button disabled={busyId === inv.id} onClick={() => respond(inv, api.acceptInvitation)}>
+                    Aceptar
+                  </Button>
+                  <Button variant="secondary" disabled={busyId === inv.id} onClick={() => respond(inv, api.declineInvitation)}>
+                    Rechazar
+                  </Button>
+                </>
+              }
+            />
           )
         })}
 
         {others.map((inv) => {
           const badge = statusBadge(inv.status)
           return (
-            <div className="invitation-card" key={inv.id}>
-              <div className="invitation-info">
-                <span className="invitation-account">{inv.account.name}</span>
-                <span className="invitation-from">Invitado por {inv.invitedBy.name}</span>
-              </div>
-              <span className={`badge ${badge.className}`}>{badge.label}</span>
-            </div>
+            <ListRow
+              key={inv.id}
+              title={inv.account.name}
+              subtitle={`Invitado por ${inv.invitedBy.name}`}
+              trailing={<Badge tone={badge.tone}>{badge.label}</Badge>}
+            />
           )
         })}
       </div>

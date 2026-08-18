@@ -1,6 +1,18 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Layout } from '../components/Layout'
+import { Badge } from '../components/ui/Badge'
+import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
+import { CardGrid } from '../components/ui/CardGrid'
+import { EmptyState } from '../components/ui/EmptyState'
+import { Form, FormField, FormError } from '../components/ui/Form'
+import { IconChip } from '../components/ui/IconChip'
+import { ListRow } from '../components/ui/ListRow'
+import { Money } from '../components/ui/Money'
+import { SectionHeader } from '../components/ui/SectionHeader'
+import { SegmentedControl } from '../components/ui/SegmentedControl'
+import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import {
@@ -38,7 +50,7 @@ export function ForecastPage() {
   const [error, setError] = useState<string | null>(null)
   const [creatingBudgetFor, setCreatingBudgetFor] = useState<string | null>(null)
 
-  const [showForm, setShowForm] = useState(false)
+  const { open: showForm, toggle: toggleForm, close: closeForm } = useCreateFormToggle()
   const [accountId, setAccountId] = useState('')
   const [type, setType] = useState<TransactionType>('EXPENSE')
   const [categoryId, setCategoryId] = useState('')
@@ -79,6 +91,11 @@ export function ForecastPage() {
 
   const categoriesForType = categories.filter((c) => c.type === type)
 
+  function selectType(next: TransactionType) {
+    setType(next)
+    setCategoryId('')
+  }
+
   async function handleCreate(event: FormEvent) {
     event.preventDefault()
     if (!token) return
@@ -102,7 +119,7 @@ export function ForecastPage() {
       setCategoryId('')
       setAmount('')
       setNote('')
-      setShowForm(false)
+      closeForm()
       loadAll()
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'No se pudo crear el movimiento recurrente')
@@ -189,198 +206,167 @@ export function ForecastPage() {
 
   return (
     <Layout>
-      <div className="debts-toolbar">
-        <h1>Proyección</h1>
-        <button className="btn" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Cancelar' : '+ Nuevo recurrente'}
-        </button>
-      </div>
+      <SectionHeader as="h1" title="Proyección">
+        <Button onClick={toggleForm}>{showForm ? 'Cancelar' : '+ Nuevo recurrente'}</Button>
+      </SectionHeader>
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}
 
       {showForm && (
-        <form className="create-form" onSubmit={handleCreate}>
-          {formError && (
-            <div className="auth-error field-full" style={{ margin: 0 }}>
-              {formError}
+        <Card className="ui-form-card">
+          <Form onSubmit={handleCreate}>
+            <FormError>{formError}</FormError>
+            <div className="ui-field-full">
+              <SegmentedControl<TransactionType>
+                value={type}
+                onChange={selectType}
+                options={[
+                  { value: 'EXPENSE', label: 'Gasto', tone: 'error' },
+                  { value: 'INCOME', label: 'Ingreso', tone: 'ok' },
+                ]}
+              />
             </div>
-          )}
-          <div className="recurring-type-toggle">
-            <button
-              type="button"
-              className={type === 'EXPENSE' ? 'active-expense' : ''}
-              onClick={() => {
-                setType('EXPENSE')
-                setCategoryId('')
-              }}
-            >
-              Gasto
-            </button>
-            <button
-              type="button"
-              className={type === 'INCOME' ? 'active-income' : ''}
-              onClick={() => {
-                setType('INCOME')
-                setCategoryId('')
-              }}
-            >
-              Ingreso
-            </button>
-          </div>
-          <div className="field">
-            <label htmlFor="rt-account">Cuenta</label>
-            <select id="rt-account" value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
-              <option value="" disabled>
-                Elige una
-              </option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.currency})
+            <FormField label="Cuenta" htmlFor="rt-account">
+              <select id="rt-account" value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
+                <option value="" disabled>
+                  Elige una
                 </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="rt-category">Categoría</label>
-            <select
-              id="rt-category"
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              required
-            >
-              <option value="" disabled>
-                Elige una
-              </option>
-              {categoriesForType.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.emoji ? `${c.emoji} ` : ''}
-                  {c.name}
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.currency})
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Categoría" htmlFor="rt-category">
+              <select id="rt-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
+                <option value="" disabled>
+                  Elige una
                 </option>
-              ))}
-            </select>
-            {categoriesForType.length === 0 && (
-              <span style={{ fontSize: '0.8rem' }}>
-                No tienes categorías de {type === 'EXPENSE' ? 'gasto' : 'ingreso'} — créalas en{' '}
-                <Link to="/categories">Categorías</Link>
-              </span>
-            )}
-          </div>
-          <div className="field">
-            <label htmlFor="rt-amount">Monto</label>
-            <input
-              id="rt-amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              required
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="rt-frequency">Frecuencia</label>
-            <select
-              id="rt-frequency"
-              value={frequency}
-              onChange={(e) => setFrequency(e.target.value as RecurrenceFrequency)}
-            >
-              <option value="MONTHLY">Mensual</option>
-              <option value="SEMIMONTHLY">Quincenal</option>
-              <option value="WEEKLY">Semanal</option>
-              <option value="YEARLY">Anual</option>
-            </select>
-          </div>
-          <div className="field field-full">
-            <label htmlFor="rt-note">Nota (opcional)</label>
-            <input id="rt-note" value={note} onChange={(e) => setNote(e.target.value)} />
-          </div>
-          <button className="btn" type="submit" disabled={creating}>
-            {creating ? 'Creando…' : 'Crear plantilla'}
-          </button>
-        </form>
+                {categoriesForType.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.emoji ? `${c.emoji} ` : ''}
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              {categoriesForType.length === 0 && (
+                <span style={{ fontSize: '0.8rem' }}>
+                  No tienes categorías de {type === 'EXPENSE' ? 'gasto' : 'ingreso'} — créalas en{' '}
+                  <Link to="/categories">Categorías</Link>
+                </span>
+              )}
+            </FormField>
+            <FormField label="Monto" htmlFor="rt-amount">
+              <input
+                id="rt-amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                required
+              />
+            </FormField>
+            <FormField label="Frecuencia" htmlFor="rt-frequency">
+              <select id="rt-frequency" value={frequency} onChange={(e) => setFrequency(e.target.value as RecurrenceFrequency)}>
+                <option value="MONTHLY">Mensual</option>
+                <option value="SEMIMONTHLY">Quincenal</option>
+                <option value="WEEKLY">Semanal</option>
+                <option value="YEARLY">Anual</option>
+              </select>
+            </FormField>
+            <FormField label="Nota (opcional)" htmlFor="rt-note" full>
+              <input id="rt-note" value={note} onChange={(e) => setNote(e.target.value)} />
+            </FormField>
+            <Button type="submit" disabled={creating}>
+              {creating ? 'Creando…' : 'Crear plantilla'}
+            </Button>
+          </Form>
+        </Card>
       )}
 
       {!loading && !error && (
         <>
           <section className="forecast-section">
-            <h2>Resumen mensual proyectado</h2>
+            <SectionHeader title="Resumen mensual proyectado" />
             {summary.length === 0 ? (
-              <p className="accounts-empty">
-                Sin movimientos recurrentes activos todavía — créalos arriba para ver una proyección.
-              </p>
+              <EmptyState>Sin movimientos recurrentes activos todavía — créalos arriba para ver una proyección.</EmptyState>
             ) : (
-              <div className="summary-cards">
+              <CardGrid minWidth={260}>
                 {summary.map((s) => (
-                  <div className="summary-card" key={s.currency}>
+                  <Card key={s.currency}>
                     <div className="summary-card-currency">{s.currency}</div>
                     <div className="summary-row">
                       <span>Ingreso recurrente</span>
-                      <span className="income">{formatMoney(s.projectedMonthlyIncome, s.currency)}</span>
+                      <Money amount={s.projectedMonthlyIncome} currency={s.currency} tone="positive" />
                     </div>
                     <div className="summary-row">
                       <span>Gasto recurrente</span>
-                      <span className="expense">{formatMoney(s.projectedMonthlyExpense, s.currency)}</span>
+                      <Money amount={s.projectedMonthlyExpense} currency={s.currency} tone="negative" />
                     </div>
                     <div className="summary-row net">
                       <span>Neto mensual</span>
-                      <span>{formatMoney(s.projectedMonthlyNet, s.currency)}</span>
+                      <Money amount={s.projectedMonthlyNet} currency={s.currency} tone="flow" />
                     </div>
-                  </div>
+                  </Card>
                 ))}
-              </div>
+              </CardGrid>
             )}
           </section>
 
           <section className="forecast-section">
-            <h2>Movimientos recurrentes</h2>
+            <SectionHeader title="Movimientos recurrentes" />
             <p className="recurring-row-meta" style={{ marginBottom: '0.75rem' }}>
               Son plantillas: no se generan solas. Ábrelas cuando quieras registrar el movimiento.
             </p>
             {recurring.length === 0 ? (
-              <p className="accounts-empty">No tienes plantillas de movimientos recurrentes.</p>
+              <EmptyState>No tienes plantillas de movimientos recurrentes.</EmptyState>
             ) : (
               <div className="recurring-list">
                 {recurring.map((item) => (
-                  <div className={`recurring-row-wrapper ${item.active ? '' : 'paused'}`} key={item.id}>
-                    <div className="recurring-row">
-                      {item.category.emoji && <span>{item.category.emoji}</span>}
-                      <div className="recurring-row-main">
-                        <div className="recurring-row-category">{item.category.name}</div>
-                        <div className="recurring-row-meta">
+                  <div key={item.id}>
+                    <ListRow
+                      leading={
+                        item.category.emoji && (
+                          <IconChip tone={item.type === 'INCOME' ? 'ok' : 'error'}>{item.category.emoji}</IconChip>
+                        )
+                      }
+                      title={item.category.name}
+                      subtitle={
+                        <>
                           {item.account.name} · {FREQUENCY_LABELS[item.frequency]}
                           {' · '}
-                          {item.lastAppliedAt
-                            ? `Última vez: ${formatDate(item.lastAppliedAt)}`
-                            : 'Nunca aplicada'}
+                          {item.lastAppliedAt ? `Última vez: ${formatDate(item.lastAppliedAt)}` : 'Nunca aplicada'}
                           {!item.active && ' · Fuera de la proyección'}
+                        </>
+                      }
+                      trailing={
+                        <Money
+                          amount={item.amount}
+                          currency={item.account.currency}
+                          tone={item.type === 'INCOME' ? 'positive' : 'negative'}
+                          showSign
+                        />
+                      }
+                      actions={
+                        <div className="recurring-row-actions">
+                          <Button onClick={() => openApply(item)}>Aplicar</Button>
+                          <Button variant="secondary" onClick={() => toggleActive(item)}>
+                            {item.active ? 'Quitar de proyección' : 'Incluir en proyección'}
+                          </Button>
+                          <button className="link-danger" onClick={() => handleDelete(item)}>
+                            Eliminar
+                          </button>
                         </div>
-                      </div>
-                      <span className={`recurring-row-amount ${item.type === 'INCOME' ? 'income' : 'expense'}`}>
-                        {item.type === 'INCOME' ? '+' : '-'}
-                        {formatMoney(item.amount, item.account.currency)}
-                      </span>
-                      <div className="recurring-row-actions">
-                        <button className="btn" onClick={() => openApply(item)}>
-                          Aplicar
-                        </button>
-                        <button className="btn btn-secondary" onClick={() => toggleActive(item)}>
-                          {item.active ? 'Quitar de proyección' : 'Incluir en proyección'}
-                        </button>
-                        <button className="link-danger" onClick={() => handleDelete(item)}>
-                          Eliminar
-                        </button>
-                      </div>
-                    </div>
+                      }
+                      muted={!item.active}
+                    />
                     {applyingId === item.id && (
                       <form className="apply-form" onSubmit={(e) => submitApply(e, item)}>
-                        {applyError && (
-                          <div className="auth-error field-full" style={{ margin: 0 }}>
-                            {applyError}
-                          </div>
-                        )}
-                        <div className="field">
-                          <label htmlFor={`apply-amount-${item.id}`}>Monto</label>
+                        <FormError>{applyError}</FormError>
+                        <FormField label="Monto" htmlFor={`apply-amount-${item.id}`}>
                           <input
                             id={`apply-amount-${item.id}`}
                             type="number"
@@ -390,9 +376,8 @@ export function ForecastPage() {
                             onChange={(e) => setApplyAmount(e.target.value)}
                             required
                           />
-                        </div>
-                        <div className="field">
-                          <label htmlFor={`apply-date-${item.id}`}>Fecha</label>
+                        </FormField>
+                        <FormField label="Fecha" htmlFor={`apply-date-${item.id}`}>
                           <input
                             id={`apply-date-${item.id}`}
                             type="date"
@@ -400,22 +385,17 @@ export function ForecastPage() {
                             onChange={(e) => setApplyDate(e.target.value)}
                             required
                           />
-                        </div>
-                        <div className="field field-full">
-                          <label htmlFor={`apply-note-${item.id}`}>Nota (opcional)</label>
-                          <input
-                            id={`apply-note-${item.id}`}
-                            value={applyNote}
-                            onChange={(e) => setApplyNote(e.target.value)}
-                          />
-                        </div>
+                        </FormField>
+                        <FormField label="Nota (opcional)" htmlFor={`apply-note-${item.id}`} full>
+                          <input id={`apply-note-${item.id}`} value={applyNote} onChange={(e) => setApplyNote(e.target.value)} />
+                        </FormField>
                         <div className="recurring-row-actions">
-                          <button className="btn" type="submit" disabled={applying}>
+                          <Button type="submit" disabled={applying}>
                             {applying ? 'Guardando…' : 'Guardar movimiento'}
-                          </button>
-                          <button className="btn btn-secondary" type="button" onClick={closeApply}>
+                          </Button>
+                          <Button variant="secondary" type="button" onClick={closeApply}>
                             Cancelar
-                          </button>
+                          </Button>
                         </div>
                       </form>
                     )}
@@ -426,41 +406,36 @@ export function ForecastPage() {
           </section>
 
           <section className="forecast-section">
-            <h2>Presupuestos sugeridos</h2>
+            <SectionHeader title="Presupuestos sugeridos" />
             <p className="recurring-row-meta" style={{ marginBottom: '0.75rem' }}>
               Basado en tu gasto real promedio de los últimos 3 meses completos.
             </p>
             {suggestions.length === 0 ? (
-              <p className="accounts-empty">
-                Todavía no hay suficiente historial de gastos para sugerir presupuestos.
-              </p>
+              <EmptyState>Todavía no hay suficiente historial de gastos para sugerir presupuestos.</EmptyState>
             ) : (
               <div className="suggestions-list">
                 {suggestions.map((s) => {
                   const key = `${s.category.id}:${s.currency}`
                   return (
-                    <div className="suggestion-row" key={key}>
-                      {s.category.emoji && <span>{s.category.emoji}</span>}
-                      <div className="suggestion-info">
-                        <div className="recurring-row-category">{s.category.name}</div>
-                        <div className="recurring-row-meta">
+                    <ListRow
+                      key={key}
+                      leading={s.category.emoji && <IconChip tone="error">{s.category.emoji}</IconChip>}
+                      title={s.category.name}
+                      subtitle={
+                        <>
                           Promedio: {formatMoney(s.averageMonthlySpend, s.currency)}/mes
-                        </div>
-                      </div>
-                      {s.existingBudget ? (
-                        <span className="badge badge-ok">
-                          Ya tienes presupuesto de {formatMoney(s.existingBudget.limitAmount, s.currency)}
-                        </span>
-                      ) : (
-                        <button
-                          className="btn"
-                          disabled={creatingBudgetFor === key}
-                          onClick={() => handleCreateSuggestedBudget(s)}
-                        >
-                          Crear presupuesto de {formatMoney(Math.ceil(s.averageMonthlySpend), s.currency)}
-                        </button>
-                      )}
-                    </div>
+                        </>
+                      }
+                      trailing={
+                        s.existingBudget ? (
+                          <Badge tone="ok">Ya tienes presupuesto de {formatMoney(s.existingBudget.limitAmount, s.currency)}</Badge>
+                        ) : (
+                          <Button disabled={creatingBudgetFor === key} onClick={() => handleCreateSuggestedBudget(s)}>
+                            Crear presupuesto de {formatMoney(Math.ceil(s.averageMonthlySpend), s.currency)}
+                          </Button>
+                        )
+                      }
+                    />
                   )
                 })}
               </div>

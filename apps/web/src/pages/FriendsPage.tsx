@@ -1,6 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Layout } from '../components/Layout'
 import { UserAutocomplete } from '../components/UserAutocomplete'
+import { Badge } from '../components/ui/Badge'
+import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
+import { EmptyState } from '../components/ui/EmptyState'
+import { Form, FormField, FormError } from '../components/ui/Form'
+import { ListRow } from '../components/ui/ListRow'
+import { SectionHeader } from '../components/ui/SectionHeader'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Friend, type FriendRequest } from '../lib/api'
@@ -102,29 +109,19 @@ export function FriendsPage() {
 
   return (
     <Layout>
-      <div className="debts-toolbar">
-        <h1>Amigos</h1>
-      </div>
+      <SectionHeader as="h1" title="Amigos" />
 
-      <form className="create-form" onSubmit={handleSend}>
-        {sendError && (
-          <div className="auth-error field-full" style={{ margin: 0 }}>
-            {sendError}
-          </div>
-        )}
-        <div className="field field-full">
-          <label htmlFor="friend-email">Agregar amigo por email</label>
-          <UserAutocomplete
-            id="friend-email"
-            value={email}
-            onChange={setEmail}
-            placeholder="alguien@example.com"
-          />
-        </div>
-        <button className="btn" type="submit" disabled={sending}>
-          {sending ? 'Enviando…' : 'Enviar solicitud'}
-        </button>
-      </form>
+      <Card className="ui-form-card">
+        <Form onSubmit={handleSend}>
+          <FormError>{sendError}</FormError>
+          <FormField label="Agregar amigo por email" htmlFor="friend-email" full>
+            <UserAutocomplete id="friend-email" value={email} onChange={setEmail} placeholder="alguien@example.com" />
+          </FormField>
+          <Button type="submit" disabled={sending}>
+            {sending ? 'Enviando…' : 'Enviar solicitud'}
+          </Button>
+        </Form>
+      </Card>
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}
@@ -133,27 +130,24 @@ export function FriendsPage() {
         <>
           {received.length > 0 && (
             <section className="friends-section">
-              <h2>Solicitudes recibidas</h2>
-              <div className="invitations-list">
+              <SectionHeader title="Solicitudes recibidas" />
+              <div className="friends-list">
                 {received.map((r) => (
-                  <div className="invitation-card" key={r.id}>
-                    <div className="invitation-info">
-                      <span className="invitation-account">{r.requestedBy.name}</span>
-                      <span className="invitation-from">{r.requestedBy.email}</span>
-                    </div>
-                    <div className="invitation-actions">
-                      <button className="btn" disabled={busyId === r.id} onClick={() => handleAccept(r)}>
-                        Aceptar
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        disabled={busyId === r.id}
-                        onClick={() => handleDecline(r)}
-                      >
-                        Rechazar
-                      </button>
-                    </div>
-                  </div>
+                  <ListRow
+                    key={r.id}
+                    title={r.requestedBy.name}
+                    subtitle={r.requestedBy.email}
+                    actions={
+                      <>
+                        <Button disabled={busyId === r.id} onClick={() => handleAccept(r)}>
+                          Aceptar
+                        </Button>
+                        <Button variant="secondary" disabled={busyId === r.id} onClick={() => handleDecline(r)}>
+                          Rechazar
+                        </Button>
+                      </>
+                    }
+                  />
                 ))}
               </div>
             </section>
@@ -161,46 +155,44 @@ export function FriendsPage() {
 
           {sent.length > 0 && (
             <section className="friends-section">
-              <h2>Solicitudes enviadas</h2>
-              <div className="invitations-list">
+              <SectionHeader title="Solicitudes enviadas" />
+              <div className="friends-list">
                 {sent.map((r) => (
-                  <div className="invitation-card" key={r.id}>
-                    <div className="invitation-info">
-                      <span className="invitation-account">{r.requestedTo.name}</span>
-                      <span className="invitation-from">{r.requestedTo.email}</span>
-                    </div>
-                    <div className="invitation-actions">
-                      <span className="badge badge-warn">Pendiente</span>
-                      <button
-                        className="link-danger"
-                        disabled={busyId === r.id}
-                        onClick={() => handleCancel(r)}
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
+                  <ListRow
+                    key={r.id}
+                    title={r.requestedTo.name}
+                    subtitle={r.requestedTo.email}
+                    actions={
+                      <>
+                        <Badge tone="warn">Pendiente</Badge>
+                        <button className="link-danger" disabled={busyId === r.id} onClick={() => handleCancel(r)}>
+                          Cancelar
+                        </button>
+                      </>
+                    }
+                  />
                 ))}
               </div>
             </section>
           )}
 
           <section className="friends-section">
-            <h2>Mis amigos</h2>
+            <SectionHeader title="Mis amigos" />
             {friends.length === 0 ? (
-              <p className="accounts-empty">Todavía no tienes amigos agregados.</p>
+              <EmptyState>Todavía no tienes amigos agregados.</EmptyState>
             ) : (
-              <div className="invitations-list">
+              <div className="friends-list">
                 {friends.map((f) => (
-                  <div className="invitation-card" key={f.id}>
-                    <div className="invitation-info">
-                      <span className="invitation-account">{f.name}</span>
-                      <span className="invitation-from">{f.email}</span>
-                    </div>
-                    <button className="link-danger" onClick={() => handleRemove(f)}>
-                      Quitar
-                    </button>
-                  </div>
+                  <ListRow
+                    key={f.id}
+                    title={f.name}
+                    subtitle={f.email}
+                    actions={
+                      <button className="link-danger" onClick={() => handleRemove(f)}>
+                        Quitar
+                      </button>
+                    }
+                  />
                 ))}
               </div>
             )}

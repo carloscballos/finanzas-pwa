@@ -1,0 +1,34 @@
+.ui-icon-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+}
+
+.ui-icon-chip-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.ui-icon-chip-neutral {
+  background: var(--badge-neutral-bg);
+  color: var(--text);
+}
+
+.ui-icon-chip-ok {
+  background: var(--badge-ok-bg);
+  color: var(--badge-ok-fg);
+}
+
+.ui-icon-chip-warn {
+  background: var(--badge-warn-bg);
+  color: var(--badge-warn-fg);
+}
+
+.ui-icon-chip-error {
+  background: var(--badge-error-bg);
+  color: var(--badge-error-fg);
+}

@@ -1,0 +1,41 @@
+.ui-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .ui-form {
+    grid-template-columns: repeat(2, 1fr);
+    align-items: end;
+  }
+}
+
+.ui-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ui-field label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.ui-field-full {
+  grid-column: 1 / -1;
+}
+
+.ui-form-error {
+  background: var(--badge-error-bg);
+  color: var(--badge-error-fg);
+  border-radius: var(--radius-control);
+  padding: 0.6rem 0.85rem;
+  font-size: 0.85rem;
+}
+
+/* Modificador para el Card que envuelve un Form disparado desde un Toolbar
+   (no aplica al form de Auth, que ya vive dentro de su propio .auth-card). */
+.ui-form-card {
+  margin-bottom: var(--space-5);
+}

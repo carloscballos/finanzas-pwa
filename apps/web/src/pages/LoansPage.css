@@ -1,51 +1,15 @@
-.loans-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.25rem;
-}
-
-.loans-toolbar h1 {
-  font-size: 1.3rem;
-  margin: 0;
-}
-
-.loans-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-
-@media (min-width: 640px) {
-  .loans-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (min-width: 1024px) {
-  .loans-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-.loan-card {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
+/* Piezas compartidas por LoanCard (esta página) y CardPurchaseCard
+   (AccountTransactionsPage.tsx, que importa este archivo) — ambas ya usan
+   <Card>/<ProgressBar>/<Money>/<Badge> para el resto, pero conservan esta
+   cabecera de dos líneas + fila de montos + mini-form de pago porque no
+   encajan en un slot genérico sin forzar la forma. */
 .loan-card-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
 }
 
-.loan-card h3 {
+.loan-card-header h3 {
   margin: 0;
   font-size: 1.05rem;
 }
@@ -53,19 +17,6 @@
 .loan-meta {
   font-size: 0.75rem;
   color: var(--text);
-}
-
-.loan-bar-track {
-  height: 10px;
-  border-radius: var(--radius-pill);
-  background: var(--badge-neutral-bg);
-  overflow: hidden;
-}
-
-.loan-bar-fill {
-  height: 100%;
-  border-radius: var(--radius-pill);
-  background: var(--accent);
 }
 
 .loan-amounts {

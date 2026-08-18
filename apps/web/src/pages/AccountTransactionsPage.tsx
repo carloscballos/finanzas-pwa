@@ -1,8 +1,20 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { ArrowLeftRight, FileUp, Receipt, ShoppingBag } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { AccountMembers } from '../components/AccountMembers'
+import { Badge } from '../components/ui/Badge'
+import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
+import { CardGrid } from '../components/ui/CardGrid'
+import { EmptyState } from '../components/ui/EmptyState'
+import { Form, FormField, FormError } from '../components/ui/Form'
+import { IconChip } from '../components/ui/IconChip'
+import { ListRow } from '../components/ui/ListRow'
+import { Money } from '../components/ui/Money'
+import { ProgressBar } from '../components/ui/ProgressBar'
+import { SegmentedControl } from '../components/ui/SegmentedControl'
+import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import {
@@ -15,6 +27,7 @@ import {
   type Transaction,
   type TransactionType,
 } from '../lib/api'
+import { ACCOUNT_TYPE_LABELS } from '../lib/accountTypeLabels'
 import { computeAvailableCredit, estimateInstallmentAmount, formatMoney } from '../lib/money'
 import './AccountTransactionsPage.css'
 import './LoansPage.css'
@@ -80,36 +93,36 @@ function StatementPreviewRow({
   }
 
   return (
-    <div className="statement-row">
-      <div className="statement-row-main">
-        <strong>{item.merchant}</strong>
-        <span className="statement-row-meta">
-          {formatMoney(item.amount, cardCurrency)} · {item.installmentsTotal} cuota
-          {item.installmentsTotal > 1 ? 's' : ''} de {formatMoney(item.installmentAmount, cardCurrency)}
-          {item.statementInstallmentCurrent && ` · extracto: cuota ${item.statementInstallmentCurrent}`}
-          {item.matchType === 'NEW' && item.purchasedAt && ` · fecha: ${formatShortDate(item.purchasedAt)}`}
-        </span>
-        {item.matchType === 'NEW' && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 400, fontSize: '0.78rem' }}>
-            <input type="checkbox" checked={alreadyInBalance} onChange={(e) => setAlreadyInBalance(e.target.checked)} />
-            Ya está en el saldo actual (no registrar movimiento)
-          </label>
-        )}
-      </div>
-
-      {item.matchType === 'NEW' && (
-        <button className="btn" disabled={busy} onClick={handleCreate}>
-          Crear compra
-        </button>
-      )}
-
-      {item.matchType === 'UP_TO_DATE' && <span className="badge badge-ok">Ya al día</span>}
-
-      {item.matchType === 'BEHIND' &&
-        (matchingAccounts.length === 0 ? (
+    <ListRow
+      title={item.merchant}
+      subtitle={
+        <>
+          <div>
+            {formatMoney(item.amount, cardCurrency)} · {item.installmentsTotal} cuota
+            {item.installmentsTotal > 1 ? 's' : ''} de {formatMoney(item.installmentAmount, cardCurrency)}
+            {item.statementInstallmentCurrent && ` · extracto: cuota ${item.statementInstallmentCurrent}`}
+            {item.matchType === 'NEW' && item.purchasedAt && ` · fecha: ${formatShortDate(item.purchasedAt)}`}
+          </div>
+          {item.matchType === 'NEW' && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 400, marginTop: '0.25rem' }}>
+              <input type="checkbox" checked={alreadyInBalance} onChange={(e) => setAlreadyInBalance(e.target.checked)} />
+              Ya está en el saldo actual (no registrar movimiento)
+            </label>
+          )}
+        </>
+      }
+      trailing={
+        item.matchType === 'NEW' ? (
+          <Button disabled={busy} onClick={handleCreate}>
+            Crear compra
+          </Button>
+        ) : item.matchType === 'UP_TO_DATE' ? (
+          <Badge tone="ok">Ya al día</Badge>
+        ) : matchingAccounts.length === 0 ? (
           <span className="statement-row-meta">Sin cuenta en {cardCurrency} para pagar.</span>
         ) : (
           <div className="statement-row-catchup">
+            <Badge tone="warn">Atrasada</Badge>
             <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
               <option value="" disabled>
                 Cuenta
@@ -120,16 +133,18 @@ function StatementPreviewRow({
                 </option>
               ))}
             </select>
-            <button className="btn" disabled={busy || !accountId} onClick={handleCatchUp}>
+            <Button disabled={busy || !accountId} onClick={handleCatchUp}>
               Ponerme al día ({item.cuotasBehind} cuota{item.cuotasBehind !== 1 ? 's' : ''})
-            </button>
+            </Button>
           </div>
-        ))}
-
-      <button className="link-danger" onClick={() => onDismiss(item)}>
-        Ignorar
-      </button>
-    </div>
+        )
+      }
+      actions={
+        <button className="link-danger" onClick={() => onDismiss(item)}>
+          Ignorar
+        </button>
+      }
+    />
   )
 }
 
@@ -222,7 +237,7 @@ function CardPurchaseCard({
   }
 
   return (
-    <div className="loan-card">
+    <Card>
       <div className="loan-card-header">
         <div>
           <h3>{purchase.merchant}</h3>
@@ -242,27 +257,25 @@ function CardPurchaseCard({
           </button>
         </div>
       </div>
-      <div className="loan-bar-track">
-        <div className="loan-bar-fill" style={{ width: `${Math.min(purchase.percentPaid, 100)}%` }} />
-      </div>
+      <ProgressBar value={purchase.percentPaid} tone="accent" />
       <div className="loan-amounts">
-        <span>{formatMoney(purchase.remainingBalance, purchase.account.currency)} pendiente</span>
+        <span>
+          <Money amount={purchase.remainingBalance} currency={purchase.account.currency} /> pendiente
+        </span>
         <span>{purchase.percentPaid}% pagado</span>
       </div>
       <div className="loan-amounts">
-        <span>Original {formatMoney(purchase.amount, purchase.account.currency)}</span>
-        <span className={`badge ${purchase.status === 'PAID_OFF' ? 'badge-ok' : 'badge-neutral'}`}>
-          {purchase.status === 'PAID_OFF' ? 'Pagada' : 'Activa'}
+        <span>
+          Original <Money amount={purchase.amount} currency={purchase.account.currency} />
         </span>
+        <Badge tone={purchase.status === 'PAID_OFF' ? 'ok' : 'neutral'}>
+          {purchase.status === 'PAID_OFF' ? 'Pagada' : 'Activa'}
+        </Badge>
       </div>
 
       {editing && (
         <form className="loan-pay" onSubmit={handleSaveEdit}>
-          {editError && (
-            <div className="auth-error field-full" style={{ margin: 0 }}>
-              {editError}
-            </div>
-          )}
+          <FormError>{editError}</FormError>
           <input
             type="number"
             step="0.01"
@@ -282,12 +295,12 @@ function CardPurchaseCard({
             value={editInterestRate}
             onChange={(e) => setEditInterestRate(e.target.value)}
           />
-          <button className="btn" type="submit" disabled={editBusy}>
+          <Button type="submit" disabled={editBusy}>
             Guardar
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => setEditing(false)}>
             Cancelar
-          </button>
+          </Button>
         </form>
       )}
 
@@ -319,12 +332,12 @@ function CardPurchaseCard({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
-            <button className="btn" type="submit" disabled={busy || !accountId}>
+            <Button type="submit" disabled={busy || !accountId}>
               Pagar cuota
-            </button>
+            </Button>
           </form>
         ))}
-    </div>
+    </Card>
   )
 }
 
@@ -341,7 +354,6 @@ function previewMultiplier(fromCurrency: string, toCurrency: string, usdToCop: n
 export function AccountTransactionsPage() {
   const { accountId } = useParams<{ accountId: string }>()
   const { token } = useAuth()
-  const [searchParams] = useSearchParams()
 
   const [account, setAccount] = useState<Account | null>(null)
   const [allAccounts, setAllAccounts] = useState<Account[]>([])
@@ -368,7 +380,7 @@ export function AccountTransactionsPage() {
   const [creatingPurchase, setCreatingPurchase] = useState(false)
   const [purchaseFormError, setPurchaseFormError] = useState<string | null>(null)
 
-  const [showForm, setShowForm] = useState(searchParams.get('new') === '1')
+  const { open: showForm, toggle: toggleForm, close: closeForm } = useCreateFormToggle()
   const [type, setType] = useState<TransactionType>('EXPENSE')
   const [categoryId, setCategoryId] = useState('')
   const [amount, setAmount] = useState('')
@@ -546,6 +558,11 @@ export function AccountTransactionsPage() {
 
   const categoriesForType = categories.filter((c) => c.type === type)
 
+  function selectType(next: TransactionType) {
+    setType(next)
+    setCategoryId('')
+  }
+
   async function handleCreate(event: FormEvent) {
     event.preventDefault()
     if (!token || !accountId) return
@@ -588,7 +605,7 @@ export function AccountTransactionsPage() {
       setNote('')
       setCategoryId('')
       setSaveAsTemplate(false)
-      setShowForm(false)
+      closeForm()
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'No se pudo registrar el movimiento')
     } finally {
@@ -656,7 +673,7 @@ export function AccountTransactionsPage() {
       fabActions={
         account
           ? [
-              { label: 'Nuevo movimiento', icon: Receipt, onClick: () => setShowForm(true) },
+              { label: 'Nuevo movimiento', icon: Receipt, onClick: toggleForm },
               { label: 'Transferir', icon: ArrowLeftRight, onClick: () => setShowTransferForm(true) },
               ...(account.type === 'CREDIT_CARD'
                 ? [{ label: 'Nueva compra', icon: ShoppingBag, onClick: () => setShowPurchaseForm(true) }]
@@ -677,9 +694,8 @@ export function AccountTransactionsPage() {
           <div className="tx-header">
             <div>
               <h1>{account.name}</h1>
-              <span className={`tx-balance ${account.currentBalance < 0 ? 'negative' : ''}`}>
-                {formatMoney(account.currentBalance, account.currency)}
-              </span>
+              <p className="ui-section-header-subtitle">{ACCOUNT_TYPE_LABELS[account.type]}</p>
+              <Money amount={account.currentBalance} currency={account.currency} tone="balance" size="lg" />
               {account.type === 'CREDIT_CARD' && account.creditLimit !== null && (
                 <div className="account-credit-info">
                   Disponible: {formatMoney(computeAvailableCredit(account.creditLimit, account.currentBalance), account.currency)} de{' '}
@@ -689,18 +705,16 @@ export function AccountTransactionsPage() {
               )}
             </div>
             <div className="tx-header-actions">
-              <button
-                className={`btn btn-secondary ${showTransferForm ? '' : 'toolbar-create-btn'}`}
+              <Button
+                variant="secondary"
+                className={showTransferForm ? '' : 'toolbar-create-btn'}
                 onClick={() => setShowTransferForm((v) => !v)}
               >
                 {showTransferForm ? 'Cancelar' : 'Transferir'}
-              </button>
-              <button
-                className={`btn ${showForm ? '' : 'toolbar-create-btn'}`}
-                onClick={() => setShowForm((v) => !v)}
-              >
+              </Button>
+              <Button className={showForm ? '' : 'toolbar-create-btn'} onClick={toggleForm}>
                 {showForm ? 'Cancelar' : '+ Nuevo movimiento'}
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -718,19 +732,16 @@ export function AccountTransactionsPage() {
                     style={{ display: 'none' }}
                     onChange={handleStatementFile}
                   />
-                  <button
-                    className="btn btn-secondary"
-                    disabled={statementLoading}
-                    onClick={() => statementInputRef.current?.click()}
-                  >
+                  <Button variant="secondary" disabled={statementLoading} onClick={() => statementInputRef.current?.click()}>
                     {statementLoading ? 'Leyendo…' : <><FileUp size={16} /> Subir extracto</>}
-                  </button>
-                  <button
-                    className={`btn btn-secondary ${showPurchaseForm ? '' : 'toolbar-create-btn'}`}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className={showPurchaseForm ? '' : 'toolbar-create-btn'}
                     onClick={() => setShowPurchaseForm((v) => !v)}
                   >
                     {showPurchaseForm ? 'Cancelar' : '+ Nueva compra'}
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -743,7 +754,7 @@ export function AccountTransactionsPage() {
               {statementPreview && (
                 <div className="statement-preview">
                   {statementPreview.length === 0 ? (
-                    <p className="tx-empty">Ya procesaste todo lo del extracto.</p>
+                    <EmptyState>Ya procesaste todo lo del extracto.</EmptyState>
                   ) : (
                     statementPreview.map((item, i) => (
                       <StatementPreviewRow
@@ -762,136 +773,127 @@ export function AccountTransactionsPage() {
               )}
 
               {showPurchaseForm && (
-                <form className="create-form" onSubmit={handleCreatePurchase}>
-                  {purchaseFormError && (
-                    <div className="auth-error field-full" style={{ margin: 0 }}>
-                      {purchaseFormError}
-                    </div>
-                  )}
-                  <div className="field field-full">
-                    <label htmlFor="purchase-merchant">Comercio</label>
-                    <input
-                      id="purchase-merchant"
-                      value={purchaseMerchant}
-                      onChange={(e) => setPurchaseMerchant(e.target.value)}
-                      required
-                      placeholder="Falabella"
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="purchase-amount">Monto total</label>
-                    <input
-                      id="purchase-amount"
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={purchaseAmount}
-                      onChange={(e) => setPurchaseAmount(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="purchase-date">Fecha de compra</label>
-                    <input
-                      id="purchase-date"
-                      type="date"
-                      value={purchaseDate}
-                      onChange={(e) => setPurchaseDate(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="purchase-installments">Número de cuotas</label>
-                    <input
-                      id="purchase-installments"
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={purchaseInstallmentsTotal}
-                      onChange={(e) => setPurchaseInstallmentsTotal(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="purchase-interest-rate">% interés mensual (opcional)</label>
-                    <input
-                      id="purchase-interest-rate"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0"
-                      value={purchaseInterestRate}
-                      onChange={(e) => setPurchaseInterestRate(e.target.value)}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="purchase-installment-amount">Monto de cada cuota</label>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <Card className="ui-form-card">
+                  <Form onSubmit={handleCreatePurchase}>
+                    <FormError>{purchaseFormError}</FormError>
+                    <FormField label="Comercio" htmlFor="purchase-merchant" full>
                       <input
-                        id="purchase-installment-amount"
+                        id="purchase-merchant"
+                        value={purchaseMerchant}
+                        onChange={(e) => setPurchaseMerchant(e.target.value)}
+                        required
+                        placeholder="Falabella"
+                      />
+                    </FormField>
+                    <FormField label="Monto total" htmlFor="purchase-amount">
+                      <input
+                        id="purchase-amount"
                         type="number"
                         step="0.01"
                         min="0.01"
-                        value={purchaseInstallmentAmount}
-                        onChange={(e) => setPurchaseInstallmentAmount(e.target.value)}
+                        value={purchaseAmount}
+                        onChange={(e) => setPurchaseAmount(e.target.value)}
                         required
                       />
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        disabled={!purchaseAmount || !purchaseInstallmentsTotal}
-                        onClick={() =>
-                          setPurchaseInstallmentAmount(
-                            String(
-                              estimateInstallmentAmount(
-                                Number(purchaseAmount),
-                                Number(purchaseInterestRate || 0),
-                                Number(purchaseInstallmentsTotal),
-                              ),
-                            ),
-                          )
-                        }
-                      >
-                        Estimar
-                      </button>
-                    </div>
-                    <span style={{ fontSize: '0.8rem' }}>
-                      "Estimar" calcula la cuota a partir del interés — puedes corregirla a mano con el valor real del extracto.
-                    </span>
-                  </div>
-                  <div className="field">
-                    <label htmlFor="purchase-installments-paid">Cuotas ya pagadas (opcional)</label>
-                    <input
-                      id="purchase-installments-paid"
-                      type="number"
-                      min="0"
-                      step="1"
-                      placeholder="0"
-                      value={purchaseInstallmentsPaid}
-                      onChange={(e) => setPurchaseInstallmentsPaid(e.target.value)}
-                    />
-                    <span style={{ fontSize: '0.8rem' }}>Úsalo para traer una compra que ya venía en curso.</span>
-                  </div>
-                  <div className="field field-full">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 400 }}>
+                    </FormField>
+                    <FormField label="Fecha de compra" htmlFor="purchase-date">
                       <input
-                        type="checkbox"
-                        checked={purchaseAlreadyInBalance}
-                        onChange={(e) => setPurchaseAlreadyInBalance(e.target.checked)}
+                        id="purchase-date"
+                        type="date"
+                        value={purchaseDate}
+                        onChange={(e) => setPurchaseDate(e.target.value)}
+                        required
                       />
-                      Ya está incluida en el saldo actual de la tarjeta (no registrar un movimiento nuevo)
-                    </label>
-                  </div>
-                  <button className="btn" type="submit" disabled={creatingPurchase}>
-                    {creatingPurchase ? 'Guardando…' : 'Registrar compra'}
-                  </button>
-                </form>
+                    </FormField>
+                    <FormField label="Número de cuotas" htmlFor="purchase-installments">
+                      <input
+                        id="purchase-installments"
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={purchaseInstallmentsTotal}
+                        onChange={(e) => setPurchaseInstallmentsTotal(e.target.value)}
+                        required
+                      />
+                    </FormField>
+                    <FormField label="% interés mensual (opcional)" htmlFor="purchase-interest-rate">
+                      <input
+                        id="purchase-interest-rate"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0"
+                        value={purchaseInterestRate}
+                        onChange={(e) => setPurchaseInterestRate(e.target.value)}
+                      />
+                    </FormField>
+                    <FormField label="Monto de cada cuota" htmlFor="purchase-installment-amount">
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <input
+                          id="purchase-installment-amount"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={purchaseInstallmentAmount}
+                          onChange={(e) => setPurchaseInstallmentAmount(e.target.value)}
+                          required
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled={!purchaseAmount || !purchaseInstallmentsTotal}
+                          onClick={() =>
+                            setPurchaseInstallmentAmount(
+                              String(
+                                estimateInstallmentAmount(
+                                  Number(purchaseAmount),
+                                  Number(purchaseInterestRate || 0),
+                                  Number(purchaseInstallmentsTotal),
+                                ),
+                              ),
+                            )
+                          }
+                        >
+                          Estimar
+                        </Button>
+                      </div>
+                      <span style={{ fontSize: '0.8rem' }}>
+                        "Estimar" calcula la cuota a partir del interés — puedes corregirla a mano con el valor real del extracto.
+                      </span>
+                    </FormField>
+                    <FormField label="Cuotas ya pagadas (opcional)" htmlFor="purchase-installments-paid">
+                      <input
+                        id="purchase-installments-paid"
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="0"
+                        value={purchaseInstallmentsPaid}
+                        onChange={(e) => setPurchaseInstallmentsPaid(e.target.value)}
+                      />
+                      <span style={{ fontSize: '0.8rem' }}>Úsalo para traer una compra que ya venía en curso.</span>
+                    </FormField>
+                    <div className="ui-field-full">
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 400 }}>
+                        <input
+                          type="checkbox"
+                          checked={purchaseAlreadyInBalance}
+                          onChange={(e) => setPurchaseAlreadyInBalance(e.target.checked)}
+                        />
+                        Ya está incluida en el saldo actual de la tarjeta (no registrar un movimiento nuevo)
+                      </label>
+                    </div>
+                    <Button type="submit" disabled={creatingPurchase}>
+                      {creatingPurchase ? 'Guardando…' : 'Registrar compra'}
+                    </Button>
+                  </Form>
+                </Card>
               )}
 
               {cardPurchases.length === 0 ? (
-                <p className="tx-empty">Todavía no hay compras a cuotas registradas.</p>
+                <EmptyState>Todavía no hay compras a cuotas registradas.</EmptyState>
               ) : (
-                <div className="purchases-grid">
+                <CardGrid minWidth={280}>
                   {cardPurchases.map((purchase) => (
                     <CardPurchaseCard
                       key={purchase.id}
@@ -901,251 +903,223 @@ export function AccountTransactionsPage() {
                       onDeleted={removePurchase}
                     />
                   ))}
-                </div>
+                </CardGrid>
               )}
             </section>
           )}
 
           {showTransferForm && (
-            <form className="create-form" onSubmit={handleTransfer}>
-              {transferError && (
-                <div className="auth-error field-full" style={{ margin: 0 }}>
-                  {transferError}
-                </div>
-              )}
-              <div className="field">
-                <label htmlFor="transfer-to">Cuenta destino</label>
-                <select
-                  id="transfer-to"
-                  value={toAccountId}
-                  onChange={(e) => {
-                    setToAccountId(e.target.value)
-                    setTransferRate('')
-                  }}
-                  required
-                >
-                  <option value="" disabled>
-                    Elige una
-                  </option>
-                  {allAccounts
-                    .filter((a) => a.id !== accountId)
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} ({a.currency})
-                      </option>
-                    ))}
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor="transfer-amount">Monto ({account.currency})</label>
-                <input
-                  id="transfer-amount"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={transferAmount}
-                  onChange={(e) => setTransferAmount(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="transfer-date">Fecha</label>
-                <input
-                  id="transfer-date"
-                  type="date"
-                  value={transferDate}
-                  onChange={(e) => setTransferDate(e.target.value)}
-                  required
-                />
-              </div>
-              {needsRate && (
-                <div className="field">
-                  <label htmlFor="transfer-rate">
-                    Tasa ({account.currency} → {toAccount?.currency})
-                  </label>
+            <Card className="ui-form-card">
+              <Form onSubmit={handleTransfer}>
+                <FormError>{transferError}</FormError>
+                <FormField label="Cuenta destino" htmlFor="transfer-to">
+                  <select
+                    id="transfer-to"
+                    value={toAccountId}
+                    onChange={(e) => {
+                      setToAccountId(e.target.value)
+                      setTransferRate('')
+                    }}
+                    required
+                  >
+                    <option value="" disabled>
+                      Elige una
+                    </option>
+                    {allAccounts
+                      .filter((a) => a.id !== accountId)
+                      .map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name} ({a.currency})
+                        </option>
+                      ))}
+                  </select>
+                </FormField>
+                <FormField label={`Monto (${account.currency})`} htmlFor="transfer-amount">
                   <input
-                    id="transfer-rate"
+                    id="transfer-amount"
                     type="number"
-                    step="0.000001"
-                    min="0.000001"
-                    value={transferRate}
-                    onChange={(e) => setTransferRate(e.target.value)}
-                    placeholder={autoRate ? undefined : 'Sin tasa automática — ingrésala'}
+                    step="0.01"
+                    min="0.01"
+                    value={transferAmount}
+                    onChange={(e) => setTransferAmount(e.target.value)}
                     required
                   />
-                </div>
-              )}
-              {toAccount && previewToAmount !== null && (
-                <div className="field-full transfer-preview">
-                  Recibe en {toAccount.name}: <strong>{formatMoney(previewToAmount, toAccount.currency)}</strong>
-                  {needsRate && autoRate && (
-                    <span className="tx-row-meta"> · TRM oficial del {autoRate.date.slice(0, 10)}</span>
-                  )}
-                </div>
-              )}
-              <div className="field field-full">
-                <label htmlFor="transfer-note">Nota (opcional)</label>
-                <input
-                  id="transfer-note"
-                  value={transferNote}
-                  onChange={(e) => setTransferNote(e.target.value)}
-                />
-              </div>
-              <button className="btn" type="submit" disabled={transferring}>
-                {transferring ? 'Transfiriendo…' : 'Transferir'}
-              </button>
-            </form>
+                </FormField>
+                <FormField label="Fecha" htmlFor="transfer-date">
+                  <input
+                    id="transfer-date"
+                    type="date"
+                    value={transferDate}
+                    onChange={(e) => setTransferDate(e.target.value)}
+                    required
+                  />
+                </FormField>
+                {needsRate && (
+                  <FormField label={`Tasa (${account.currency} → ${toAccount?.currency})`} htmlFor="transfer-rate">
+                    <input
+                      id="transfer-rate"
+                      type="number"
+                      step="0.000001"
+                      min="0.000001"
+                      value={transferRate}
+                      onChange={(e) => setTransferRate(e.target.value)}
+                      placeholder={autoRate ? undefined : 'Sin tasa automática — ingrésala'}
+                      required
+                    />
+                  </FormField>
+                )}
+                {toAccount && previewToAmount !== null && (
+                  <div className="ui-field-full transfer-preview">
+                    Recibe en {toAccount.name}: <strong>{formatMoney(previewToAmount, toAccount.currency)}</strong>
+                    {needsRate && autoRate && (
+                      <span className="tx-row-meta"> · TRM oficial del {autoRate.date.slice(0, 10)}</span>
+                    )}
+                  </div>
+                )}
+                <FormField label="Nota (opcional)" htmlFor="transfer-note" full>
+                  <input id="transfer-note" value={transferNote} onChange={(e) => setTransferNote(e.target.value)} />
+                </FormField>
+                <Button type="submit" disabled={transferring}>
+                  {transferring ? 'Transfiriendo…' : 'Transferir'}
+                </Button>
+              </Form>
+            </Card>
           )}
 
           {showForm && (
-            <form className="create-form" onSubmit={handleCreate}>
-              {formError && (
-                <div className="auth-error field-full" style={{ margin: 0 }}>
-                  {formError}
-                </div>
-              )}
-              <div className="tx-type-toggle">
-                <button
-                  type="button"
-                  className={type === 'EXPENSE' ? 'active-expense' : ''}
-                  onClick={() => {
-                    setType('EXPENSE')
-                    setCategoryId('')
-                  }}
-                >
-                  Gasto
-                </button>
-                <button
-                  type="button"
-                  className={type === 'INCOME' ? 'active-income' : ''}
-                  onClick={() => {
-                    setType('INCOME')
-                    setCategoryId('')
-                  }}
-                >
-                  Ingreso
-                </button>
-              </div>
-              <div className="field">
-                <label htmlFor="tx-category">Categoría</label>
-                <select
-                  id="tx-category"
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  required
-                >
-                  <option value="" disabled>
-                    Elige una
-                  </option>
-                  {categoriesForType.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.emoji ? `${c.emoji} ` : ''}
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                {categoriesForType.length === 0 && (
-                  <span style={{ fontSize: '0.8rem' }}>
-                    No tienes categorías de {type === 'EXPENSE' ? 'gasto' : 'ingreso'} — créalas en{' '}
-                    <Link to="/categories">Categorías</Link>
-                  </span>
-                )}
-              </div>
-              <div className="field">
-                <label htmlFor="tx-amount">Monto</label>
-                <input
-                  id="tx-amount"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="field field-full">
-                <label htmlFor="tx-note">Nota (opcional)</label>
-                <input id="tx-note" value={note} onChange={(e) => setNote(e.target.value)} />
-              </div>
-              <div className="field field-full tx-template-toggle">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={saveAsTemplate}
-                    onChange={(e) => setSaveAsTemplate(e.target.checked)}
+            <Card className="ui-form-card">
+              <Form onSubmit={handleCreate}>
+                <FormError>{formError}</FormError>
+                <div className="ui-field-full">
+                  <SegmentedControl<TransactionType>
+                    value={type}
+                    onChange={selectType}
+                    options={[
+                      { value: 'EXPENSE', label: 'Gasto', tone: 'error' },
+                      { value: 'INCOME', label: 'Ingreso', tone: 'ok' },
+                    ]}
                   />
-                  Guardar como plantilla recurrente
-                </label>
-                {saveAsTemplate && (
-                  <select
-                    aria-label="Frecuencia de la plantilla"
-                    value={templateFrequency}
-                    onChange={(e) => setTemplateFrequency(e.target.value as RecurrenceFrequency)}
-                  >
-                    <option value="MONTHLY">Mensual</option>
-                    <option value="SEMIMONTHLY">Quincenal</option>
-                    <option value="WEEKLY">Semanal</option>
-                    <option value="YEARLY">Anual</option>
+                </div>
+                <FormField label="Categoría" htmlFor="tx-category">
+                  <select id="tx-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
+                    <option value="" disabled>
+                      Elige una
+                    </option>
+                    {categoriesForType.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.emoji ? `${c.emoji} ` : ''}
+                        {c.name}
+                      </option>
+                    ))}
                   </select>
-                )}
-              </div>
-              <button className="btn" type="submit" disabled={creating}>
-                {creating ? 'Guardando…' : 'Registrar movimiento'}
-              </button>
-            </form>
+                  {categoriesForType.length === 0 && (
+                    <span style={{ fontSize: '0.8rem' }}>
+                      No tienes categorías de {type === 'EXPENSE' ? 'gasto' : 'ingreso'} — créalas en{' '}
+                      <Link to="/categories">Categorías</Link>
+                    </span>
+                  )}
+                </FormField>
+                <FormField label="Monto" htmlFor="tx-amount">
+                  <input
+                    id="tx-amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    required
+                  />
+                </FormField>
+                <FormField label="Nota (opcional)" htmlFor="tx-note" full>
+                  <input id="tx-note" value={note} onChange={(e) => setNote(e.target.value)} />
+                </FormField>
+                <div className="ui-field-full tx-template-toggle">
+                  <label>
+                    <input type="checkbox" checked={saveAsTemplate} onChange={(e) => setSaveAsTemplate(e.target.checked)} />
+                    Guardar como plantilla recurrente
+                  </label>
+                  {saveAsTemplate && (
+                    <select
+                      aria-label="Frecuencia de la plantilla"
+                      value={templateFrequency}
+                      onChange={(e) => setTemplateFrequency(e.target.value as RecurrenceFrequency)}
+                    >
+                      <option value="MONTHLY">Mensual</option>
+                      <option value="SEMIMONTHLY">Quincenal</option>
+                      <option value="WEEKLY">Semanal</option>
+                      <option value="YEARLY">Anual</option>
+                    </select>
+                  )}
+                </div>
+                <Button type="submit" disabled={creating}>
+                  {creating ? 'Guardando…' : 'Registrar movimiento'}
+                </Button>
+              </Form>
+            </Card>
           )}
 
-          {transactions.length === 0 && <p className="tx-empty">Todavía no hay movimientos.</p>}
+          {transactions.length === 0 && <EmptyState>Todavía no hay movimientos.</EmptyState>}
 
           <div className="tx-list">
             {transactions.map((tx) => {
               const isTransfer = !!tx.transferId
               const isLinked = isTransfer || !!tx.goal || !!tx.loan || !!tx.cardPurchase
+              const emoji = isTransfer
+                ? '⇄'
+                : tx.goal
+                  ? '🎯'
+                  : tx.loan
+                    ? '🏦'
+                    : tx.cardPurchase
+                      ? '🛍️'
+                      : tx.category?.emoji
+
               return (
-                <div className="tx-row" key={tx.id}>
-                  {isTransfer ? (
-                    <span className="tx-row-emoji">⇄</span>
-                  ) : tx.goal ? (
-                    <span className="tx-row-emoji">🎯</span>
-                  ) : tx.loan ? (
-                    <span className="tx-row-emoji">🏦</span>
-                  ) : tx.cardPurchase ? (
-                    <span className="tx-row-emoji">🛍️</span>
-                  ) : (
-                    tx.category?.emoji && <span className="tx-row-emoji">{tx.category.emoji}</span>
-                  )}
-                  <div className="tx-row-main">
-                    <div className="tx-row-category">
-                      {isTransfer
-                        ? `Transferencia ${tx.type === 'EXPENSE' ? 'hacia' : 'desde'} ${tx.transferCounterpartyAccount?.name ?? ''}`
-                        : tx.goal
-                          ? `Meta: ${tx.goal.name}`
-                          : tx.loan
-                            ? `Préstamo: ${tx.loan.name}`
-                            : tx.cardPurchase
-                              ? `Compra: ${tx.cardPurchase.merchant}`
-                              : tx.category?.name}
-                    </div>
-                    {tx.note && <div className="tx-row-note">{tx.note}</div>}
-                    {account.memberCount > 1 && (
-                      <div className="tx-row-creator">{tx.createdBy.name}</div>
-                    )}
-                  </div>
-                  <div className="tx-row-date">{formatDate(tx.occurredAt)}</div>
-                  <span className={`tx-row-amount ${tx.type === 'INCOME' ? 'income' : 'expense'}`}>
-                    {tx.type === 'INCOME' ? '+' : '-'}
-                    {formatMoney(tx.amount, tx.account.currency)}
-                  </span>
-                  {isLinked ? (
-                    <span className="tx-row-locked" title="Edítalo desde donde se originó">
-                      🔒
-                    </span>
-                  ) : (
-                    <button className="link-danger" onClick={() => handleDelete(tx)}>
-                      ✕
-                    </button>
-                  )}
-                </div>
+                <ListRow
+                  key={tx.id}
+                  leading={<IconChip tone={tx.type === 'INCOME' ? 'ok' : 'error'}>{emoji}</IconChip>}
+                  title={
+                    isTransfer
+                      ? `Transferencia ${tx.type === 'EXPENSE' ? 'hacia' : 'desde'} ${tx.transferCounterpartyAccount?.name ?? ''}`
+                      : tx.goal
+                        ? `Meta: ${tx.goal.name}`
+                        : tx.loan
+                          ? `Préstamo: ${tx.loan.name}`
+                          : tx.cardPurchase
+                            ? `Compra: ${tx.cardPurchase.merchant}`
+                            : tx.category?.name
+                  }
+                  subtitle={
+                    (tx.note || account.memberCount > 1) && (
+                      <>
+                        {tx.note && <div className="tx-row-note">{tx.note}</div>}
+                        {account.memberCount > 1 && <div className="tx-row-creator">{tx.createdBy.name}</div>}
+                      </>
+                    )
+                  }
+                  trailing={
+                    <>
+                      <div className="tx-row-date">{formatDate(tx.occurredAt)}</div>
+                      <Money
+                        amount={tx.amount}
+                        currency={tx.account.currency}
+                        tone={tx.type === 'INCOME' ? 'positive' : 'negative'}
+                        showSign
+                      />
+                    </>
+                  }
+                  actions={
+                    isLinked ? (
+                      <span className="tx-row-locked" title="Edítalo desde donde se originó">
+                        🔒
+                      </span>
+                    ) : (
+                      <button className="link-danger" onClick={() => handleDelete(tx)}>
+                        ✕
+                      </button>
+                    )
+                  }
+                />
               )
             })}
           </div>

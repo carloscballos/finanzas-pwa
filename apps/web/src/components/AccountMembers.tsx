@@ -2,6 +2,10 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Account, type Invitation } from '../lib/api'
+import { Badge } from './ui/Badge'
+import { Button } from './ui/Button'
+import { Card } from './ui/Card'
+import { ListRow } from './ui/ListRow'
 import { UserAutocomplete } from './UserAutocomplete'
 
 export function AccountMembers({
@@ -73,7 +77,7 @@ export function AccountMembers({
   }
 
   return (
-    <div className="members-section">
+    <Card className="members-section">
       <div className="members-section-header" onClick={() => setExpanded((v) => !v)}>
         <h2>Miembros ({account.memberCount})</h2>
         <span>{expanded ? '▲' : '▼'}</span>
@@ -86,22 +90,23 @@ export function AccountMembers({
               const isSelf = m.userId === user?.id
               const canRemove = isOwner ? m.role !== 'OWNER' : isSelf && m.role !== 'OWNER'
               return (
-                <div className="member-row" key={m.userId}>
-                  <div className="member-row-info">
-                    <div>
+                <ListRow
+                  key={m.userId}
+                  title={
+                    <>
                       {m.name} {isSelf && '(tú)'}
-                    </div>
-                    <div className="member-row-email">{m.email}</div>
-                  </div>
-                  <span className={`badge ${m.role === 'OWNER' ? 'badge-ok' : 'badge-neutral'}`}>
-                    {m.role === 'OWNER' ? 'Propietario' : 'Miembro'}
-                  </span>
-                  {canRemove && (
-                    <button className="link-danger" onClick={() => handleRemove(m.userId, isSelf)}>
-                      {isSelf ? 'Salir' : 'Quitar'}
-                    </button>
-                  )}
-                </div>
+                    </>
+                  }
+                  subtitle={m.email}
+                  trailing={<Badge tone={m.role === 'OWNER' ? 'ok' : 'neutral'}>{m.role === 'OWNER' ? 'Propietario' : 'Miembro'}</Badge>}
+                  actions={
+                    canRemove ? (
+                      <button className="link-danger" onClick={() => handleRemove(m.userId, isSelf)}>
+                        {isSelf ? 'Salir' : 'Quitar'}
+                      </button>
+                    ) : undefined
+                  }
+                />
               )
             })}
           </div>
@@ -109,14 +114,10 @@ export function AccountMembers({
           {isOwner && (
             <>
               <form className="invite-form" onSubmit={handleInvite}>
-                <UserAutocomplete
-                  value={email}
-                  onChange={setEmail}
-                  placeholder="Email de la persona a invitar"
-                />
-                <button className="btn" type="submit" disabled={inviting}>
+                <UserAutocomplete value={email} onChange={setEmail} placeholder="Email de la persona a invitar" />
+                <Button type="submit" disabled={inviting}>
                   Invitar
-                </button>
+                </Button>
               </form>
               {inviteError && (
                 <div className="auth-error" style={{ marginTop: '0.5rem' }}>
@@ -139,6 +140,6 @@ export function AccountMembers({
           )}
         </>
       )}
-    </div>
+    </Card>
   )
 }

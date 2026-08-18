@@ -47,17 +47,6 @@
   transform: scale(0.98);
 }
 
-.home-quick-action-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-pill);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
 .home-month-nav {
   display: flex;
   align-items: center;
@@ -108,21 +97,6 @@
   margin: 0.5rem 0 0;
 }
 
-.home-section-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 0.75rem;
-}
-
-.home-section h2 {
-  margin: 0 0 0.75rem;
-}
-
-.home-section-header h2 {
-  margin: 0;
-}
-
 .home-balance-group {
   margin-bottom: 1.25rem;
 }
@@ -140,119 +114,9 @@
   margin-bottom: 0.5rem;
 }
 
-.home-stat-cards {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-
-@media (min-width: 640px) {
-  .home-stat-cards {
-    /* 240px en vez de 200px: a 24px JetBrains Mono, montos largos en COP
-       ("-COP 12,432,000") necesitan ese ancho para no partirse en dos
-       líneas dentro de la tarjeta. */
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  }
-}
-
-.home-stat-card {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-sm);
-  padding: 1.1rem 1.25rem;
-}
-
-.home-stat-currency {
-  font-size: 0.75rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: var(--text);
-  margin-bottom: 0.35rem;
-}
-
-.home-stat-amount {
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.home-stat-amount.negative {
-  color: var(--badge-error-fg);
-}
-
-.home-stat-amount.income {
-  color: var(--badge-ok-fg);
-}
-
-.home-stat-sub {
-  font-size: 0.75rem;
-  color: var(--text);
-  margin-top: 0.25rem;
-}
-
-.home-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.home-list-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  padding: 0.65rem 1rem;
-  font-size: 0.9rem;
-}
-
-.home-list-row .income {
-  color: var(--badge-ok-fg);
-  font-weight: 600;
-}
-
-.home-list-row .expense {
-  color: var(--badge-error-fg);
-  font-weight: 600;
-}
-
-.home-list-date {
-  font-size: 0.75rem;
-  color: var(--text);
-}
-
+.home-list,
 .home-requests-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
-
-.home-request-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  padding: 0.65rem 1rem;
-  font-size: 0.9rem;
-  color: var(--text-h);
-  text-decoration: none;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
-}
-
-.home-request-row:hover {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-md);
-}
-
-.home-request-row:active {
-  transform: scale(0.98);
 }

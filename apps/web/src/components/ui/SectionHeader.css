@@ -1,0 +1,29 @@
+.ui-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: 0.75rem;
+}
+
+.ui-section-header-page {
+  margin-bottom: 1.25rem;
+}
+
+.ui-section-header h1,
+.ui-section-header h2 {
+  margin: 0;
+}
+
+.ui-section-header-subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.ui-section-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}

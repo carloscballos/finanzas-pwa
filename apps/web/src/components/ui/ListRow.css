@@ -1,0 +1,60 @@
+.ui-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.ui-list-row.muted {
+  opacity: 0.6;
+}
+
+.ui-list-row-leading {
+  flex-shrink: 0;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+}
+
+.ui-list-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.ui-list-row-title {
+  font-weight: 600;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-list-row-subtitle {
+  font-size: 0.78rem;
+  color: var(--text);
+  margin-top: 0.1rem;
+}
+
+.ui-list-row-trailing {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.ui-list-row-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .ui-list-row {
+    flex-wrap: wrap;
+  }
+}
