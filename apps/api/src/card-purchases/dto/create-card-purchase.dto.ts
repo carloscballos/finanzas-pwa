@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsISO8601,
   IsInt,
   IsNotEmpty,
@@ -49,4 +50,19 @@ export class CreateCardPurchaseDto {
   @IsInt()
   @Min(0)
   installmentsPaid?: number;
+
+  @ApiPropertyOptional({ example: 2.5, description: '% de interés mensual, solo informativo/de referencia' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  interestRate?: number;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'Si es true, no se registra el movimiento inicial en la tarjeta — se asume que esta deuda ya estaba contemplada en el saldo actual de la cuenta (ej. saldo inicial al crearla) y solo se quiere llevar el historial de cuotas. Pagar cuotas después sí afecta el saldo normalmente. Default false.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  alreadyInBalance?: boolean;
 }

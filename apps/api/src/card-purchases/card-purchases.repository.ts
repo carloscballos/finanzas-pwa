@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CardPurchaseStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { UpdateCardPurchaseDto } from './dto/update-card-purchase.dto';
 import { CardPurchaseWithAccount } from './mappers/card-purchase.mapper';
 
 const WITH_ACCOUNT = { account: { select: { id: true, name: true, currency: true } } } as const;
@@ -15,8 +14,18 @@ export interface CreateCardPurchaseRecord {
   installmentsTotal: number;
   installmentsPaid: number;
   installmentAmount: number;
+  interestRate?: number;
   purchasedAt: Date;
   status: CardPurchaseStatus;
+  bookTransaction: boolean;
+}
+
+export interface UpdateCardPurchaseRecord {
+  merchant?: string;
+  interestRate?: number;
+  installmentAmount?: number;
+  remainingBalance?: number;
+  status?: CardPurchaseStatus;
 }
 
 export interface RegisterInstallmentPaymentInput {
@@ -54,10 +63,13 @@ export class CardPurchasesRepository {
     return this.prisma.cardPurchase.findUnique({ where: { id }, include: WITH_ACCOUNT });
   }
 
-  // Transacción interactiva: crea la compra y, si queda algo pendiente, el
-  // EXPENSE inicial en la tarjeta por ese saldo (no por el monto total, para
-  // no contabilizar de más al importar una compra que ya traía cuotas
-  // pagadas) — mismo principio que GoalsRepository.addContribution.
+  // Transacción interactiva: crea la compra y, si queda algo pendiente Y
+  // bookTransaction es true, el EXPENSE inicial en la tarjeta por ese saldo
+  // (no por el monto total, para no contabilizar de más al importar una
+  // compra que ya traía cuotas pagadas) — mismo principio que
+  // GoalsRepository.addContribution. bookTransaction en false es para
+  // cuando esa deuda ya estaba reflejada en el saldo de la cuenta por otro
+  // lado (ej. el saldo inicial al crearla) y solo se quiere el historial.
   async create(data: CreateCardPurchaseRecord): Promise<CardPurchaseWithAccount> {
     const id = await this.prisma.$transaction(async (tx) => {
       const purchase = await tx.cardPurchase.create({
@@ -70,12 +82,13 @@ export class CardPurchasesRepository {
           installmentsTotal: data.installmentsTotal,
           installmentsPaid: data.installmentsPaid,
           installmentAmount: data.installmentAmount,
+          interestRate: data.interestRate,
           purchasedAt: data.purchasedAt,
           status: data.status,
         },
       });
 
-      if (data.remainingBalance > 0) {
+      if (data.remainingBalance > 0 && data.bookTransaction) {
         await tx.transaction.create({
           data: {
             accountId: data.accountId,
@@ -94,10 +107,10 @@ export class CardPurchasesRepository {
     return (await this.findById(id))!;
   }
 
-  update(id: string, dto: UpdateCardPurchaseDto): Promise<CardPurchaseWithAccount> {
+  update(id: string, data: UpdateCardPurchaseRecord): Promise<CardPurchaseWithAccount> {
     return this.prisma.cardPurchase.update({
       where: { id },
-      data: { merchant: dto.merchant },
+      data,
       include: WITH_ACCOUNT,
     });
   }

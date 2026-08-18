@@ -71,7 +71,7 @@ export class CardPurchasesController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Actualizar el comercio de una compra' })
+  @ApiOperation({ summary: 'Actualizar el comercio, la cuota o el % de interés de una compra' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 200, type: CardPurchaseResponseDto })
   @ApiResponse({ status: 404, description: 'Compra no encontrada' })

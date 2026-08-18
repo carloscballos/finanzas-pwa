@@ -163,7 +163,9 @@ export function HomePage() {
       <div className="home-quick-actions">
         {quickActions.map((action) => (
           <Link className="home-quick-action" to={action.to} key={action.label}>
-            <action.icon size={18} strokeWidth={2} />
+            <span className="home-quick-action-icon">
+              <action.icon size={18} strokeWidth={2} />
+            </span>
             <span>{action.label}</span>
           </Link>
         ))}
@@ -212,7 +214,7 @@ export function HomePage() {
                       {Object.entries(personalBalancesByCurrency).map(([currency, total]) => (
                         <div className="home-stat-card" key={currency}>
                           <div className="home-stat-currency">{currency}</div>
-                          <div className={`home-stat-amount ${total < 0 ? 'negative' : ''}`}>
+                          <div className={`home-stat-amount figure ${total < 0 ? 'negative' : ''}`}>
                             {formatMoney(total, currency)}
                           </div>
                         </div>
@@ -227,7 +229,7 @@ export function HomePage() {
                       {Object.entries(sharedBalancesByCurrency).map(([currency, total]) => (
                         <div className="home-stat-card" key={currency}>
                           <div className="home-stat-currency">{currency}</div>
-                          <div className={`home-stat-amount ${total < 0 ? 'negative' : ''}`}>
+                          <div className={`home-stat-amount figure ${total < 0 ? 'negative' : ''}`}>
                             {formatMoney(total, currency)}
                           </div>
                         </div>
@@ -249,10 +251,10 @@ export function HomePage() {
                   return (
                     <div className="home-stat-card" key={currency}>
                       <div className="home-stat-currency">{currency}</div>
-                      <div className={`home-stat-amount ${income - expense < 0 ? 'negative' : 'income'}`}>
+                      <div className={`home-stat-amount figure ${income - expense < 0 ? 'negative' : 'income'}`}>
                         {formatMoney(income - expense, currency)}
                       </div>
-                      <div className="home-stat-sub">
+                      <div className="home-stat-sub figure">
                         +{formatMoney(income, currency)} / -{formatMoney(expense, currency)}
                       </div>
                     </div>
@@ -296,10 +298,10 @@ export function HomePage() {
                 {forecast.map((f) => (
                   <div className="home-stat-card" key={f.currency}>
                     <div className="home-stat-currency">{f.currency}</div>
-                    <div className={`home-stat-amount ${f.projectedMonthlyNet < 0 ? 'negative' : ''}`}>
+                    <div className={`home-stat-amount figure ${f.projectedMonthlyNet < 0 ? 'negative' : ''}`}>
                       {formatMoney(f.projectedMonthlyNet, f.currency)}
                     </div>
-                    <div className="home-stat-sub">
+                    <div className="home-stat-sub figure">
                       +{formatMoney(f.projectedMonthlyIncome, f.currency)} / -
                       {formatMoney(f.projectedMonthlyExpense, f.currency)}
                     </div>
@@ -358,13 +360,13 @@ export function HomePage() {
                 {Object.entries(owedToMe).map(([currency, total]) => (
                   <div className="home-stat-card" key={`owed-to-me-${currency}`}>
                     <div className="home-stat-currency">Te deben ({currency})</div>
-                    <div className="home-stat-amount income">{formatMoney(total, currency)}</div>
+                    <div className="home-stat-amount figure income">{formatMoney(total, currency)}</div>
                   </div>
                 ))}
                 {Object.entries(owedByMe).map(([currency, total]) => (
                   <div className="home-stat-card" key={`owed-by-me-${currency}`}>
                     <div className="home-stat-currency">Debes ({currency})</div>
-                    <div className="home-stat-amount negative">{formatMoney(total, currency)}</div>
+                    <div className="home-stat-amount figure negative">{formatMoney(total, currency)}</div>
                   </div>
                 ))}
               </div>
@@ -394,7 +396,7 @@ export function HomePage() {
                                 : `${tx.category?.emoji ? `${tx.category.emoji} ` : ''}${tx.category?.name} · ${tx.account.name}`}
                         <span className="home-list-date"> · {formatDate(tx.occurredAt)}</span>
                       </span>
-                      <span className={tx.type === 'INCOME' ? 'income' : 'expense'}>
+                      <span className={`figure ${tx.type === 'INCOME' ? 'income' : 'expense'}`}>
                         {tx.type === 'INCOME' ? '+' : '-'}
                         {formatMoney(tx.amount, tx.account.currency)}
                       </span>

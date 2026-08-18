@@ -1,26 +1,39 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --bg-subtle: #f4f4f7;
-  --border-color: #e5e4e7;
-  --card-bg: #f9f9fb;
+  /* Modern Ledger — paleta clara (ver DESIGN.md). "surface-container-lowest"
+     de M3 se usa para tarjetas (blanco puro) contra un fondo mineral
+     verde-teal muy claro, en vez de blanco sobre blanco. */
+  --text: #3f4946;
+  --text-h: #141d1a;
+  --bg: #f2fcf6;
+  --bg-subtle: #e6f0eb;
+  --border-color: #e1e5e2;
+  --card-bg: #ffffff;
   --card-bg-raised: #ffffff;
-  --accent: #4169e1;
-  --accent-hover: #3555c4;
+  --accent: #0f6b5c;
+  --accent-hover: #005145;
   --accent-contrast: #ffffff;
-  --accent-soft: #eef1fc;
+  --accent-soft: rgba(15, 106, 92, 0.12);
 
-  --badge-neutral-bg: #eceef3;
-  --badge-neutral-fg: #4b5563;
-  --badge-ok-bg: #dcfce7;
-  --badge-ok-fg: #15803d;
-  --badge-warn-bg: #fef3c7;
-  --badge-warn-fg: #92400e;
-  --badge-error-bg: #fee2e2;
-  --badge-error-fg: #b91c1c;
+  --secondary: #7e5700;
+  --secondary-container: #ffe1a3;
+  --tertiary: #104a7a;
+  --tertiary-container: #d7e6f7;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --badge-neutral-bg: #e6f0eb;
+  --badge-neutral-fg: #3f4946;
+  --badge-ok-bg: #dcf3e8;
+  --badge-ok-fg: #0b6b4f;
+  --badge-warn-bg: #fdecc8;
+  --badge-warn-fg: #7e5700;
+  --badge-error-bg: #f9ded4;
+  --badge-error-fg: #a8461f;
+
+  /* Triple tipografía: Fraunces para momentos editoriales (saldos hero,
+     títulos de página), Inter para UI, JetBrains Mono con tabular-nums
+     estrictamente para cifras de dinero — ver utilidad .figure abajo. */
+  --sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -30,18 +43,26 @@
   --space-6: 2rem;
   --space-7: 3rem;
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-pill: 999px;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-pill: 9999px;
+  /* Overrides explícitos del design system para dos familias de componentes
+     que NO siguen la escala genérica de arriba. */
+  --radius-card: 1.25rem;
+  --radius-control: 0.875rem;
 
   --content-max-width: 1080px;
   --bottom-nav-height: 64px;
 
-  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
-  --shadow-md: 0 4px 10px rgba(16, 24, 40, 0.06), 0 2px 4px rgba(16, 24, 40, 0.05);
-  --shadow-lg: 0 12px 24px rgba(16, 24, 40, 0.1), 0 4px 8px rgba(16, 24, 40, 0.06);
-  --shadow-focus: 0 0 0 3px var(--accent-soft);
+  /* El sistema evita sombras duras en tarjetas estándar (se apoya en el
+     borde hairline en su lugar) y las reserva, muy difuminadas, para
+     elementos flotantes: modales, bottom sheets, dropdowns, el FAB. */
+  --shadow-sm: none;
+  --shadow-md: 0 2px 8px rgba(20, 29, 26, 0.06);
+  --shadow-lg: 0 16px 32px rgba(20, 29, 26, 0.1), 0 4px 12px rgba(20, 29, 26, 0.05);
+  --shadow-focus: 0 0 0 3px rgba(15, 106, 92, 0.2);
 
   font: 16px/1.5 var(--sans);
   color-scheme: light dark;
@@ -53,33 +74,42 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Paleta oscura: DESIGN.md solo define el esquema claro. Se deriva siguiendo
+   la misma convención de Material 3 (superficies "mineral" oscuras, acento
+   con los tonos *-fixed-dim/inverse-primary ya presentes en el token block
+   original, que M3 reserva justo para esto). Ajustar a mano si no convence. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --bg-subtle: #1b1c23;
-    --border-color: #2e303a;
-    --card-bg: #1f2028;
-    --card-bg-raised: #24252e;
-    --accent: #6f8ff2;
-    --accent-hover: #86a0f5;
-    --accent-contrast: #0b1020;
-    --accent-soft: #22273c;
+    --text: #a9b4b0;
+    --text-h: #eef5f1;
+    --bg: #101714;
+    --bg-subtle: #16201c;
+    --border-color: #26332d;
+    --card-bg: #1a2420;
+    --card-bg-raised: #1f2b26;
+    --accent: #86d5c3;
+    --accent-hover: #a2f2de;
+    --accent-contrast: #00201a;
+    --accent-soft: rgba(134, 213, 195, 0.16);
 
-    --badge-neutral-bg: #262832;
-    --badge-neutral-fg: #cbd5e1;
-    --badge-ok-bg: #14532d;
-    --badge-ok-fg: #bbf7d0;
-    --badge-warn-bg: #78350f;
-    --badge-warn-fg: #fde68a;
-    --badge-error-bg: #7f1d1d;
-    --badge-error-fg: #fecaca;
+    --secondary: #f3be65;
+    --secondary-container: #4a3400;
+    --tertiary: #9ecaff;
+    --tertiary-container: #16324f;
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
-    --shadow-lg: 0 16px 32px rgba(0, 0, 0, 0.45);
-    --shadow-focus: 0 0 0 3px var(--accent-soft);
+    --badge-neutral-bg: #232f29;
+    --badge-neutral-fg: #c3cec8;
+    --badge-ok-bg: #123829;
+    --badge-ok-fg: #7fe0bb;
+    --badge-warn-bg: #4a3400;
+    --badge-warn-fg: #f3be65;
+    --badge-error-bg: #4a2013;
+    --badge-error-fg: #ef9575;
+
+    --shadow-sm: none;
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 16px 32px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-focus: 0 0 0 3px rgba(134, 213, 195, 0.25);
   }
 }
 
@@ -94,11 +124,31 @@ body,
   margin: 0;
 }
 
-h1,
+h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 32px;
+  line-height: 40px;
+  letter-spacing: -0.02em;
+  color: var(--text-h);
+  margin: 0 0 var(--space-2);
+}
+
+@media (max-width: 639px) {
+  h1 {
+    font-size: 28px;
+    line-height: 36px;
+  }
+}
+
 h2 {
   font-family: var(--sans);
   font-weight: 600;
+  font-size: 18px;
+  line-height: 24px;
+  letter-spacing: normal;
   color: var(--text-h);
+  margin: 0;
 }
 
 a {
@@ -117,7 +167,7 @@ select {
   width: 100%;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: var(--bg);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -144,25 +194,22 @@ select:focus-visible {
   justify-content: center;
   gap: 0.5rem;
   padding: 0.65rem 1.15rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   border: none;
   font-weight: 600;
   cursor: pointer;
   background: var(--accent);
   color: var(--accent-contrast);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
 
 .btn:hover {
   background: var(--accent-hover);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
 }
 
 .btn:active {
-  transform: translateY(0);
-  box-shadow: var(--shadow-sm);
+  transform: scale(0.98);
 }
 
 .btn:focus-visible {
@@ -219,6 +266,15 @@ select:focus-visible {
   color: var(--badge-error-fg);
 }
 
+/* Cifras de dinero: JetBrains Mono con numerales tabulares, para que los
+   decimales queden alineados en listas verticales (ver DESIGN.md §Typography). */
+.figure {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.01em;
+}
+
 /* Layout container: keeps content centered with a sane max width instead
    of stretching cards edge-to-edge on wide screens. */
 .page {
@@ -230,16 +286,19 @@ select:focus-visible {
 .card {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-card);
   box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
 a.card:hover,
 .card.card-interactive:hover {
   box-shadow: var(--shadow-md);
   border-color: var(--accent);
-  transform: translateY(-1px);
+}
+
+.card.card-interactive:active {
+  transform: scale(0.98);
 }
 
 .empty-state {
@@ -251,7 +310,7 @@ a.card:hover,
   color: var(--text);
   background: var(--card-bg);
   border: 1px dashed var(--border-color);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-card);
   padding: var(--space-6) var(--space-4);
 }
 

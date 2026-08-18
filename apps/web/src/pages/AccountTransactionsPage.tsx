@@ -15,7 +15,7 @@ import {
   type Transaction,
   type TransactionType,
 } from '../lib/api'
-import { computeAvailableCredit, formatMoney } from '../lib/money'
+import { computeAvailableCredit, estimateInstallmentAmount, formatMoney } from '../lib/money'
 import './AccountTransactionsPage.css'
 import './LoansPage.css'
 
@@ -40,6 +40,7 @@ function StatementPreviewRow({
   const matchingAccounts = payingAccounts.filter((a) => a.currency === cardCurrency)
   const [accountId, setAccountId] = useState('')
   const [busy, setBusy] = useState(false)
+  const [alreadyInBalance, setAlreadyInBalance] = useState(false)
 
   async function handleCreate() {
     if (!token) return
@@ -52,6 +53,8 @@ function StatementPreviewRow({
         installmentsTotal: item.installmentsTotal,
         installmentAmount: item.installmentAmount,
         installmentsPaid: item.suggestedInstallmentsPaid,
+        purchasedAt: item.purchasedAt,
+        alreadyInBalance,
       })
       onCreated(item)
     } catch (err) {
@@ -84,7 +87,14 @@ function StatementPreviewRow({
           {formatMoney(item.amount, cardCurrency)} · {item.installmentsTotal} cuota
           {item.installmentsTotal > 1 ? 's' : ''} de {formatMoney(item.installmentAmount, cardCurrency)}
           {item.statementInstallmentCurrent && ` · extracto: cuota ${item.statementInstallmentCurrent}`}
+          {item.matchType === 'NEW' && item.purchasedAt && ` · fecha: ${formatShortDate(item.purchasedAt)}`}
         </span>
+        {item.matchType === 'NEW' && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 400, fontSize: '0.78rem' }}>
+            <input type="checkbox" checked={alreadyInBalance} onChange={(e) => setAlreadyInBalance(e.target.checked)} />
+            Ya está en el saldo actual (no registrar movimiento)
+          </label>
+        )}
       </div>
 
       {item.matchType === 'NEW' && (
@@ -150,6 +160,38 @@ function CardPurchaseCard({
   const [amount, setAmount] = useState('')
   const [busy, setBusy] = useState(false)
 
+  const [editing, setEditing] = useState(false)
+  const [editInstallmentAmount, setEditInstallmentAmount] = useState('')
+  const [editInterestRate, setEditInterestRate] = useState('')
+  const [editBusy, setEditBusy] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+
+  function startEditing() {
+    setEditInstallmentAmount(String(purchase.installmentAmount))
+    setEditInterestRate(purchase.interestRate === null ? '' : String(purchase.interestRate))
+    setEditError(null)
+    setEditing(true)
+  }
+
+  async function handleSaveEdit(event: FormEvent) {
+    event.preventDefault()
+    if (!token) return
+    setEditBusy(true)
+    setEditError(null)
+    try {
+      const updated = await api.updateCardPurchase(token, purchase.id, {
+        installmentAmount: Number(editInstallmentAmount),
+        interestRate: editInterestRate ? Number(editInterestRate) : undefined,
+      })
+      onChange(updated)
+      setEditing(false)
+    } catch (err) {
+      setEditError(err instanceof ApiError ? err.message : 'No se pudo corregir la compra')
+    } finally {
+      setEditBusy(false)
+    }
+  }
+
   async function handlePay(event: FormEvent) {
     event.preventDefault()
     if (!token || !accountId) return
@@ -185,12 +227,20 @@ function CardPurchaseCard({
         <div>
           <h3>{purchase.merchant}</h3>
           <span className="loan-meta">
-            Cuota {purchase.installmentsPaid}/{purchase.installmentsTotal} · {formatShortDate(purchase.purchasedAt)}
+            Cuota {purchase.installmentsPaid}/{purchase.installmentsTotal} de{' '}
+            {formatMoney(purchase.installmentAmount, purchase.account.currency)} ·{' '}
+            {formatShortDate(purchase.purchasedAt)}
+            {purchase.interestRate !== null && ` · ${purchase.interestRate}% interés`}
           </span>
         </div>
-        <button className="link-danger" onClick={handleDelete}>
-          Eliminar
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="link" onClick={startEditing}>
+            Editar
+          </button>
+          <button className="link-danger" onClick={handleDelete}>
+            Eliminar
+          </button>
+        </div>
       </div>
       <div className="loan-bar-track">
         <div className="loan-bar-fill" style={{ width: `${Math.min(purchase.percentPaid, 100)}%` }} />
@@ -205,6 +255,41 @@ function CardPurchaseCard({
           {purchase.status === 'PAID_OFF' ? 'Pagada' : 'Activa'}
         </span>
       </div>
+
+      {editing && (
+        <form className="loan-pay" onSubmit={handleSaveEdit}>
+          {editError && (
+            <div className="auth-error field-full" style={{ margin: 0 }}>
+              {editError}
+            </div>
+          )}
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            aria-label="Monto de cada cuota"
+            placeholder="Monto de cada cuota"
+            value={editInstallmentAmount}
+            onChange={(e) => setEditInstallmentAmount(e.target.value)}
+            required
+          />
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            aria-label="% interés mensual"
+            placeholder="% interés (opcional)"
+            value={editInterestRate}
+            onChange={(e) => setEditInterestRate(e.target.value)}
+          />
+          <button className="btn" type="submit" disabled={editBusy}>
+            Guardar
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>
+            Cancelar
+          </button>
+        </form>
+      )}
 
       {purchase.status !== 'PAID_OFF' &&
         (matchingAccounts.length === 0 ? (
@@ -278,6 +363,8 @@ export function AccountTransactionsPage() {
   const [purchaseInstallmentAmount, setPurchaseInstallmentAmount] = useState('')
   const [purchaseInstallmentsPaid, setPurchaseInstallmentsPaid] = useState('')
   const [purchaseDate, setPurchaseDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [purchaseInterestRate, setPurchaseInterestRate] = useState('')
+  const [purchaseAlreadyInBalance, setPurchaseAlreadyInBalance] = useState(false)
   const [creatingPurchase, setCreatingPurchase] = useState(false)
   const [purchaseFormError, setPurchaseFormError] = useState<string | null>(null)
 
@@ -387,6 +474,8 @@ export function AccountTransactionsPage() {
         installmentAmount: Number(purchaseInstallmentAmount),
         installmentsPaid: purchaseInstallmentsPaid ? Number(purchaseInstallmentsPaid) : undefined,
         purchasedAt: new Date(purchaseDate).toISOString(),
+        interestRate: purchaseInterestRate ? Number(purchaseInterestRate) : undefined,
+        alreadyInBalance: purchaseAlreadyInBalance,
       })
       const updatedTxs = await api.getTransactions(token, { accountId })
       setTransactions(updatedTxs)
@@ -397,6 +486,8 @@ export function AccountTransactionsPage() {
       setPurchaseInstallmentAmount('')
       setPurchaseInstallmentsPaid('')
       setPurchaseDate(new Date().toISOString().slice(0, 10))
+      setPurchaseInterestRate('')
+      setPurchaseAlreadyInBalance(false)
       setShowPurchaseForm(false)
     } catch (err) {
       setPurchaseFormError(err instanceof ApiError ? err.message : 'No se pudo registrar la compra')
@@ -722,16 +813,51 @@ export function AccountTransactionsPage() {
                     />
                   </div>
                   <div className="field">
-                    <label htmlFor="purchase-installment-amount">Monto de cada cuota</label>
+                    <label htmlFor="purchase-interest-rate">% interés mensual (opcional)</label>
                     <input
-                      id="purchase-installment-amount"
+                      id="purchase-interest-rate"
                       type="number"
                       step="0.01"
-                      min="0.01"
-                      value={purchaseInstallmentAmount}
-                      onChange={(e) => setPurchaseInstallmentAmount(e.target.value)}
-                      required
+                      min="0"
+                      placeholder="0"
+                      value={purchaseInterestRate}
+                      onChange={(e) => setPurchaseInterestRate(e.target.value)}
                     />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="purchase-installment-amount">Monto de cada cuota</label>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <input
+                        id="purchase-installment-amount"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={purchaseInstallmentAmount}
+                        onChange={(e) => setPurchaseInstallmentAmount(e.target.value)}
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={!purchaseAmount || !purchaseInstallmentsTotal}
+                        onClick={() =>
+                          setPurchaseInstallmentAmount(
+                            String(
+                              estimateInstallmentAmount(
+                                Number(purchaseAmount),
+                                Number(purchaseInterestRate || 0),
+                                Number(purchaseInstallmentsTotal),
+                              ),
+                            ),
+                          )
+                        }
+                      >
+                        Estimar
+                      </button>
+                    </div>
+                    <span style={{ fontSize: '0.8rem' }}>
+                      "Estimar" calcula la cuota a partir del interés — puedes corregirla a mano con el valor real del extracto.
+                    </span>
                   </div>
                   <div className="field">
                     <label htmlFor="purchase-installments-paid">Cuotas ya pagadas (opcional)</label>
@@ -745,6 +871,16 @@ export function AccountTransactionsPage() {
                       onChange={(e) => setPurchaseInstallmentsPaid(e.target.value)}
                     />
                     <span style={{ fontSize: '0.8rem' }}>Úsalo para traer una compra que ya venía en curso.</span>
+                  </div>
+                  <div className="field field-full">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 400 }}>
+                      <input
+                        type="checkbox"
+                        checked={purchaseAlreadyInBalance}
+                        onChange={(e) => setPurchaseAlreadyInBalance(e.target.checked)}
+                      />
+                      Ya está incluida en el saldo actual de la tarjeta (no registrar un movimiento nuevo)
+                    </label>
                   </div>
                   <button className="btn" type="submit" disabled={creatingPurchase}>
                     {creatingPurchase ? 'Guardando…' : 'Registrar compra'}

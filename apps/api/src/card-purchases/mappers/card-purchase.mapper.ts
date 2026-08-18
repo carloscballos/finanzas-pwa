@@ -18,10 +18,14 @@ export class CardPurchaseMapper {
       installmentsTotal: purchase.installmentsTotal,
       installmentsPaid: purchase.installmentsPaid,
       installmentAmount: Number(purchase.installmentAmount),
+      interestRate: purchase.interestRate === null ? null : Number(purchase.interestRate),
       purchasedAt: purchase.purchasedAt,
       account: purchase.account,
       status: purchase.status,
-      percentPaid: amount > 0 ? Math.round(((amount - remainingBalance) / amount) * 100) : 0,
+      // Clamp a 0: si se corrige installmentAmount al alza (interés real
+      // mayor al estimado), remainingBalance puede superar el amount
+      // original — sin esto, percentPaid se iría negativo.
+      percentPaid: amount > 0 ? Math.max(0, Math.round(((amount - remainingBalance) / amount) * 100)) : 0,
       createdAt: purchase.createdAt,
       updatedAt: purchase.updatedAt,
     };

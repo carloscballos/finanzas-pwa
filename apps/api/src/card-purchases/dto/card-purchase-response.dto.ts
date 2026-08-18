@@ -34,6 +34,9 @@ export class CardPurchaseResponseDto {
   @ApiProperty({ example: 100000 })
   installmentAmount: number;
 
+  @ApiPropertyOptional({ example: 2.5, nullable: true, description: '% de interés mensual, solo informativo' })
+  interestRate: number | null;
+
   @ApiProperty({ example: '2026-06-01T00:00:00.000Z' })
   purchasedAt: Date;
 

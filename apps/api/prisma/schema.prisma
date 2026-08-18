@@ -329,8 +329,11 @@ model Loan {
 //   EXPENSE en la cuenta que paga (sale dinero real) e INCOME en la tarjeta
 //   (esa parte de la deuda queda saldada, lo que libera cupo). remainingBalance
 //   baja en la misma proporción.
-// amount/installmentsTotal/installmentAmount/accountId son inmutables tras
-// crear (mismo criterio que Loan).
+// amount/installmentsTotal/accountId son inmutables tras crear (mismo
+// criterio que Loan). installmentAmount/interestRate sí son editables — a
+// diferencia de Loan, donde interestRate es solo informativo, aquí existen
+// justamente para poder corregir la cuota estimada cuando llega el extracto
+// real del banco (ver CardPurchasesService.update).
 model CardPurchase {
   id                String             @id @default(uuid())
   userId            String
@@ -341,6 +344,7 @@ model CardPurchase {
   installmentsTotal Int
   installmentsPaid  Int                @default(0)
   installmentAmount Decimal            @db.Decimal(14, 2)
+  interestRate      Decimal?           @db.Decimal(5, 2)
   purchasedAt       DateTime           @default(now())
   status            CardPurchaseStatus @default(ACTIVE)
   createdAt         DateTime           @default(now())

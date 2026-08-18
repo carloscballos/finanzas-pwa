@@ -28,6 +28,13 @@ export class StatementPreviewItemDto {
   })
   suggestedInstallmentsPaid?: number;
 
+  @ApiPropertyOptional({
+    example: '2026-07-15T00:00:00.000Z',
+    description:
+      'Solo si matchType es NEW: fecha a usar como purchasedAt — la propia de la línea si el extracto la mostraba, si no la fecha de corte del extracto. Puede faltar si no se pudo determinar ninguna.',
+  })
+  purchasedAt?: string;
+
   @ApiPropertyOptional({ format: 'uuid', description: 'Solo si matchType es BEHIND o UP_TO_DATE' })
   purchaseId?: string;
 

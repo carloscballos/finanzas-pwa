@@ -8,6 +8,12 @@ export interface ExtractedStatementPurchase {
   originalAmount: number | null;
   installmentCurrent: number | null;
   installmentTotal: number | null;
+  purchaseDate: string | null;
+}
+
+export interface ExtractedStatement {
+  statementDate: string | null;
+  purchases: ExtractedStatementPurchase[];
 }
 
 // additionalProperties: false requerido en cada objeto (limitación de
@@ -16,6 +22,11 @@ export interface ExtractedStatementPurchase {
 const EXTRACTION_SCHEMA = {
   type: 'object',
   properties: {
+    statementDate: {
+      type: ['string', 'null'],
+      description:
+        'Fecha de corte o período de facturación del extracto, en formato YYYY-MM-DD. Si el extracto muestra un rango, usa la fecha de corte/cierre. null si no aparece en ninguna parte.',
+    },
     purchases: {
       type: 'array',
       items: {
@@ -41,15 +52,34 @@ const EXTRACTION_SCHEMA = {
             type: ['integer', 'null'],
             description: 'Número total de cuotas, ej. 12 en "CUOTA 3/12". null si la compra no es a cuotas (pago único).',
           },
+          purchaseDate: {
+            type: ['string', 'null'],
+            description:
+              'Fecha de esta transacción tal como aparece en su propia línea del extracto, en formato YYYY-MM-DD. null si esa línea no muestra una fecha propia.',
+          },
         },
-        required: ['merchant', 'installmentAmount', 'originalAmount', 'installmentCurrent', 'installmentTotal'],
+        required: [
+          'merchant',
+          'installmentAmount',
+          'originalAmount',
+          'installmentCurrent',
+          'installmentTotal',
+          'purchaseDate',
+        ],
         additionalProperties: false,
       },
     },
   },
-  required: ['purchases'],
+  required: ['statementDate', 'purchases'],
   additionalProperties: false,
 } as const;
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseExtractedDate(value: string | null): string | null {
+  if (!value || !ISO_DATE_RE.test(value)) return null;
+  return Number.isNaN(new Date(value).getTime()) ? null : value;
+}
 
 @Injectable()
 export class StatementExtractionService {
@@ -71,7 +101,7 @@ export class StatementExtractionService {
     return this.client;
   }
 
-  async extractPurchases(pdfBuffer: Buffer): Promise<ExtractedStatementPurchase[]> {
+  async extractPurchases(pdfBuffer: Buffer): Promise<ExtractedStatement> {
     const client = this.getClient();
 
     let response: Anthropic.Message;
@@ -93,7 +123,9 @@ export class StatementExtractionService {
                 text:
                   'Este es un extracto de tarjeta de crédito. Extrae cada compra o cargo que aparezca, ' +
                   'incluyendo las que están a cuotas (busca patrones como "CUOTA 3/12", "3 DE 12", "03/12") ' +
-                  'y las de pago único. No incluyas pagos hechos a la tarjeta, intereses, ni el total del extracto.',
+                  'y las de pago único. No incluyas pagos hechos a la tarjeta, intereses, ni el total del extracto. ' +
+                  'Además extrae la fecha de corte/período del extracto (statementDate), y si cada línea muestra ' +
+                  'su propia fecha de transacción, inclúyela también en purchaseDate.',
               },
             ],
           },
@@ -119,8 +151,14 @@ export class StatementExtractionService {
     }
 
     try {
-      const parsed = JSON.parse(textBlock.text) as { purchases: ExtractedStatementPurchase[] };
-      return parsed.purchases;
+      const parsed = JSON.parse(textBlock.text) as {
+        statementDate: string | null;
+        purchases: ExtractedStatementPurchase[];
+      };
+      return {
+        statementDate: parseExtractedDate(parsed.statementDate),
+        purchases: parsed.purchases.map((p) => ({ ...p, purchaseDate: parseExtractedDate(p.purchaseDate) })),
+      };
     } catch {
       throw new ServiceUnavailableException('No se pudo interpretar el resultado de la extracción — intenta de nuevo');
     }

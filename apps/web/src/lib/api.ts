@@ -206,6 +206,7 @@ export interface CardPurchase {
   installmentsTotal: number
   installmentsPaid: number
   installmentAmount: number
+  interestRate: number | null
   purchasedAt: string
   account: { id: string; name: string; currency: string }
   status: CardPurchaseStatus
@@ -222,6 +223,14 @@ export interface CreateCardPurchaseInput {
   installmentAmount: number
   purchasedAt?: string
   installmentsPaid?: number
+  interestRate?: number
+  alreadyInBalance?: boolean
+}
+
+export interface UpdateCardPurchaseInput {
+  merchant?: string
+  installmentAmount?: number
+  interestRate?: number
 }
 
 export interface PayCardPurchaseInstallmentInput {
@@ -689,6 +698,10 @@ export function createCardPurchase(token: string, input: CreateCardPurchaseInput
   return request<CardPurchase>('/api/v1/card-purchases', { method: 'POST', body: input, token })
 }
 
+export function updateCardPurchase(token: string, id: string, input: UpdateCardPurchaseInput) {
+  return request<CardPurchase>(`/api/v1/card-purchases/${id}`, { method: 'PATCH', body: input, token })
+}
+
 export function payCardPurchaseInstallment(
   token: string,
   id: string,
@@ -714,6 +727,7 @@ export interface StatementPreviewItem {
   installmentAmount: number
   matchType: StatementMatchType
   suggestedInstallmentsPaid?: number
+  purchasedAt?: string
   purchaseId?: string
   currentInstallmentsPaid?: number
   statementInstallmentCurrent?: number

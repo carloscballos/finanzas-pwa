@@ -87,15 +87,37 @@ export class CardPurchasesService {
       installmentsTotal: dto.installmentsTotal,
       installmentsPaid,
       installmentAmount: dto.installmentAmount,
+      interestRate: dto.interestRate,
       purchasedAt: dto.purchasedAt ? new Date(dto.purchasedAt) : new Date(),
       status: remainingBalance <= 0 ? 'PAID_OFF' : 'ACTIVE',
+      bookTransaction: !dto.alreadyInBalance,
     });
     return CardPurchaseMapper.toResponse(created);
   }
 
   async update(userId: string, id: string, dto: UpdateCardPurchaseDto): Promise<CardPurchaseResponseDto> {
-    await this.getOwnedPurchase(userId, id);
-    const updated = await this.cardPurchasesRepository.update(id, dto);
+    const purchase = await this.getOwnedPurchase(userId, id);
+
+    // installmentAmount es editable a propósito (a diferencia de Loan) para
+    // poder corregir la cuota estimada cuando llega el extracto real —
+    // remainingBalance se recalcula sobre lo que falta hoy, sin tocar
+    // ningún movimiento ya registrado ni el saldo de la cuenta.
+    let remainingBalance: number | undefined;
+    let status: 'ACTIVE' | 'PAID_OFF' | undefined;
+    if (dto.installmentAmount !== undefined) {
+      remainingBalance = round2(
+        Math.max(0, (purchase.installmentsTotal - purchase.installmentsPaid) * dto.installmentAmount),
+      );
+      status = remainingBalance <= 0 ? 'PAID_OFF' : 'ACTIVE';
+    }
+
+    const updated = await this.cardPurchasesRepository.update(id, {
+      merchant: dto.merchant,
+      interestRate: dto.interestRate,
+      installmentAmount: dto.installmentAmount,
+      remainingBalance,
+      status,
+    });
     return CardPurchaseMapper.toResponse(updated);
   }
 
@@ -158,7 +180,7 @@ export class CardPurchasesService {
       throw new BadRequestException('Solo se pueden conciliar extractos de tarjetas de crédito');
     }
 
-    const [extracted, existing] = await Promise.all([
+    const [{ statementDate, purchases: extracted }, existing] = await Promise.all([
       this.statementExtractionService.extractPurchases(pdfBuffer),
       this.cardPurchasesRepository.findForAccount(accountId),
     ]);
@@ -175,6 +197,7 @@ export class CardPurchasesService {
       );
 
       if (!match) {
+        const purchasedAtSource = item.purchaseDate ?? statementDate;
         return {
           merchant: item.merchant,
           amount,
@@ -182,6 +205,7 @@ export class CardPurchasesService {
           installmentAmount,
           matchType: StatementMatchType.NEW,
           suggestedInstallmentsPaid: Math.max(0, installmentCurrent - 1),
+          purchasedAt: purchasedAtSource ? new Date(purchasedAtSource).toISOString() : undefined,
         };
       }
 

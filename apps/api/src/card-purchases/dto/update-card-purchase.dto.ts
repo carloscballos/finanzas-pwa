@@ -1,13 +1,28 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Min } from 'class-validator';
 
-// Solo el comercio es editable tras crear — amount/installments/accountId
-// quedan fijos (mismo criterio que Loan): cambiarlos dejaría remainingBalance
-// inconsistente con el plan original.
+// amount/installmentsTotal/accountId quedan fijos tras crear (mismo criterio
+// que Loan): cambiarlos dejaría remainingBalance inconsistente con el plan
+// original. installmentAmount/interestRate sí son editables a propósito —
+// para corregir la cuota estimada cuando llega el extracto real del banco
+// (ver CardPurchasesService.update, que recalcula remainingBalance sin
+// tocar movimientos ya registrados).
 export class UpdateCardPurchaseDto {
   @ApiPropertyOptional({ example: 'Falabella' })
   @IsOptional()
   @IsString()
   @IsNotEmpty()
   merchant?: string;
+
+  @ApiPropertyOptional({ example: 105000, description: 'Corrige el valor de cada cuota pendiente' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  installmentAmount?: number;
+
+  @ApiPropertyOptional({ example: 2.5, description: '% de interés mensual, solo informativo/de referencia' })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  interestRate?: number;
 }

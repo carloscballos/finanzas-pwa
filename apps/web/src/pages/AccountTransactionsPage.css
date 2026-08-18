@@ -80,6 +80,16 @@
   align-items: center;
 }
 
+.link {
+  background: none;
+  border: none;
+  color: var(--accent, inherit);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.25rem 0;
+  text-decoration: underline;
+}
+
 .purchases-grid {
   display: grid;
   grid-template-columns: 1fr;
