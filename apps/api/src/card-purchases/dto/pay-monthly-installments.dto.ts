@@ -13,7 +13,7 @@ export class PayMonthlyInstallmentsDto {
   @ApiPropertyOptional({
     example: 365000,
     description:
-      'Monto total del movimiento a registrar — por defecto, la suma de las cuotas de las compras activas de la tarjeta',
+      'Monto total que realmente sale de la cuenta que paga — puede incluir intereses del mes además del capital. Por defecto, la suma del capital de las cuotas de las compras activas (sin interés). Solo el capital de cada compra se acredita en la tarjeta; si este monto es mayor por incluir interés, esa diferencia no afecta el saldo de la tarjeta.',
   })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })

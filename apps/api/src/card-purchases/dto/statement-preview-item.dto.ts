@@ -16,8 +16,19 @@ export class StatementPreviewItemDto {
   @ApiProperty({ example: 12 })
   installmentsTotal: number;
 
-  @ApiProperty({ example: 100000, description: 'Total a pagar este mes por esta línea (cuota base + interés del mes, si el extracto lo mostraba)' })
+  @ApiProperty({
+    example: 100000,
+    description:
+      'Valor de la cuota SIN interés (capital) — es lo que se guarda como installmentAmount y lo único que amortiza el saldo pendiente. El interés no se suma acá: el banco lo cobra aparte y no puede afectar el saldo de la tarjeta.',
+  })
   installmentAmount: number;
+
+  @ApiPropertyOptional({
+    example: 15000,
+    description:
+      'Interés de esta línea este mes, informativo — el extracto real a pagar es installmentAmount + interestAmount, pero solo installmentAmount se guarda/afecta el saldo de la tarjeta.',
+  })
+  interestAmount?: number;
 
   @ApiPropertyOptional({ example: 2.1, description: '% de interés de esta línea este mes, si el extracto lo mostraba' })
   interestRate?: number;

@@ -236,6 +236,7 @@ export interface UpdateCardPurchaseInput {
 export interface PayCardPurchaseInstallmentInput {
   accountId: string
   amount?: number
+  interestAmount?: number
   occurredAt?: string
 }
 
@@ -741,6 +742,7 @@ export interface StatementPreviewItem {
   amount: number
   installmentsTotal: number
   installmentAmount: number
+  interestAmount?: number
   interestRate?: number
   matchType: StatementMatchType
   suggestedInstallmentsPaid?: number

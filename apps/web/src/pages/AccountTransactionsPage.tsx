@@ -28,7 +28,13 @@ import {
   type TransactionType,
 } from '../lib/api'
 import { ACCOUNT_TYPE_LABELS } from '../lib/accountTypeLabels'
-import { computeAvailableCredit, estimateInstallmentAmount, formatMoney } from '../lib/money'
+import {
+  computeAvailableCredit,
+  estimateCuotaInterest,
+  estimateInstallmentSplit,
+  formatMoney,
+  round2,
+} from '../lib/money'
 import './AccountTransactionsPage.css'
 import './LoansPage.css'
 
@@ -101,7 +107,8 @@ function StatementPreviewRow({
           <div>
             {formatMoney(item.amount, cardCurrency)} · {item.installmentsTotal} cuota
             {item.installmentsTotal > 1 ? 's' : ''} de {formatMoney(item.installmentAmount, cardCurrency)}
-            {item.interestRate !== undefined && ` · ${item.interestRate}% interés`}
+            {!!item.interestAmount && ` + ${formatMoney(item.interestAmount, cardCurrency)} interés este mes`}
+            {item.interestRate !== undefined && ` (${item.interestRate}%)`}
             {item.statementInstallmentCurrent && ` · extracto: cuota ${item.statementInstallmentCurrent}`}
             {item.matchType === 'NEW' && item.purchasedAt && ` · fecha: ${formatShortDate(item.purchasedAt)}`}
           </div>
@@ -175,7 +182,17 @@ function CardPurchaseCard({
   const matchingAccounts = payingAccounts.filter((a) => a.currency === purchase.account.currency)
   const [accountId, setAccountId] = useState('')
   const [amount, setAmount] = useState('')
+  const [interestAmount, setInterestAmount] = useState('')
   const [busy, setBusy] = useState(false)
+
+  // Precarga el interés de esta cuota — % sobre lo que queda pendiente,
+  // igual que lo cobra el banco — cada vez que remainingBalance cambia (al
+  // montar, y tras pagar, para la cuota siguiente). Sigue editable: es un
+  // punto de partida, no un valor fijo, por si el extracto real difiere.
+  useEffect(() => {
+    const estimate = estimateCuotaInterest(purchase.remainingBalance, purchase.interestRate)
+    setInterestAmount(estimate > 0 ? String(estimate) : '')
+  }, [purchase.remainingBalance, purchase.interestRate])
 
   const [editing, setEditing] = useState(false)
   const [editInstallmentAmount, setEditInstallmentAmount] = useState('')
@@ -217,6 +234,7 @@ function CardPurchaseCard({
       const updated = await api.payCardPurchaseInstallment(token, purchase.id, {
         accountId,
         amount: amount ? Number(amount) : undefined,
+        interestAmount: interestAmount ? Number(interestAmount) : undefined,
       })
       onChange(updated)
       setAmount('')
@@ -334,6 +352,16 @@ function CardPurchaseCard({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              aria-label="Interés este mes"
+              placeholder="Interés este mes (opcional)"
+              value={interestAmount}
+              onChange={(e) => setInterestAmount(e.target.value)}
+              title="Precargado con remainingBalance × % interés — corrígelo con el valor real del extracto si difiere"
+            />
             <Button type="submit" disabled={busy || !accountId}>
               Pagar cuota
             </Button>
@@ -383,6 +411,7 @@ export function AccountTransactionsPage() {
   const [purchaseAmount, setPurchaseAmount] = useState('')
   const [purchaseInstallmentsTotal, setPurchaseInstallmentsTotal] = useState('')
   const [purchaseInstallmentAmount, setPurchaseInstallmentAmount] = useState('')
+  const [purchaseEstimatedInterest, setPurchaseEstimatedInterest] = useState('')
   const [purchaseInstallmentsPaid, setPurchaseInstallmentsPaid] = useState('')
   const [purchaseDate, setPurchaseDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [purchaseInterestRate, setPurchaseInterestRate] = useState('')
@@ -484,7 +513,8 @@ export function AccountTransactionsPage() {
 
   function openPayAllForm() {
     setPayAllAccountId('')
-    setPayAllAmount('')
+    const estimatedTotal = round2(activeMonthlyInstallments + activeMonthlyInterestEstimate)
+    setPayAllAmount(estimatedTotal > 0 ? String(estimatedTotal) : '')
     setPayAllDate(new Date().toISOString().slice(0, 10))
     setPayAllError(null)
     setShowPayAllForm(true)
@@ -538,6 +568,7 @@ export function AccountTransactionsPage() {
       setPurchaseAmount('')
       setPurchaseInstallmentsTotal('')
       setPurchaseInstallmentAmount('')
+      setPurchaseEstimatedInterest('')
       setPurchaseInstallmentsPaid('')
       setPurchaseDate(new Date().toISOString().slice(0, 10))
       setPurchaseInterestRate('')
@@ -601,6 +632,10 @@ export function AccountTransactionsPage() {
   const activeCardPurchases = cardPurchases.filter((p) => p.status === 'ACTIVE')
   const paidOffCardPurchases = cardPurchases.filter((p) => p.status === 'PAID_OFF')
   const activeMonthlyInstallments = activeCardPurchases.reduce((sum, p) => sum + p.installmentAmount, 0)
+  const activeMonthlyInterestEstimate = activeCardPurchases.reduce(
+    (sum, p) => sum + estimateCuotaInterest(p.remainingBalance, p.interestRate),
+    0,
+  )
   const payAllMatchingAccounts = allAccounts.filter(
     (a) => a.id !== accountId && account && a.currency === account.currency,
   )
@@ -829,16 +864,21 @@ export function AccountTransactionsPage() {
                         ))}
                       </select>
                     </FormField>
-                    <FormField label="Monto total" htmlFor="payall-amount">
+                    <FormField label="Monto total (capital + interés estimado)" htmlFor="payall-amount">
                       <input
                         id="payall-amount"
                         type="number"
                         step="0.01"
                         min="0.01"
-                        placeholder={`Estimado: ${formatMoney(activeMonthlyInstallments, account.currency)}`}
                         value={payAllAmount}
                         onChange={(e) => setPayAllAmount(e.target.value)}
                       />
+                      <span style={{ fontSize: '0.8rem' }}>
+                        Precargado con capital ({formatMoney(activeMonthlyInstallments, account.currency)}) + interés
+                        estimado ({formatMoney(activeMonthlyInterestEstimate, account.currency)}) — corrígelo con el
+                        valor real del extracto. Solo el capital de cada cuota se descuenta del saldo pendiente de las
+                        compras; el interés no afecta el saldo de la tarjeta.
+                      </span>
                     </FormField>
                     <FormField label="Fecha" htmlFor="payall-date">
                       <input
@@ -941,7 +981,7 @@ export function AccountTransactionsPage() {
                         onChange={(e) => setPurchaseInterestRate(e.target.value)}
                       />
                     </FormField>
-                    <FormField label="Monto de cada cuota" htmlFor="purchase-installment-amount">
+                    <FormField label="Monto de cada cuota (capital, sin interés)" htmlFor="purchase-installment-amount">
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <input
                           id="purchase-installment-amount"
@@ -956,23 +996,37 @@ export function AccountTransactionsPage() {
                           type="button"
                           variant="secondary"
                           disabled={!purchaseAmount || !purchaseInstallmentsTotal}
-                          onClick={() =>
-                            setPurchaseInstallmentAmount(
-                              String(
-                                estimateInstallmentAmount(
-                                  Number(purchaseAmount),
-                                  Number(purchaseInterestRate || 0),
-                                  Number(purchaseInstallmentsTotal),
-                                ),
-                              ),
+                          onClick={() => {
+                            const { capital, interest } = estimateInstallmentSplit(
+                              Number(purchaseAmount),
+                              Number(purchaseInterestRate || 0),
+                              Number(purchaseInstallmentsTotal),
                             )
-                          }
+                            setPurchaseInstallmentAmount(String(capital))
+                            setPurchaseEstimatedInterest(String(interest))
+                          }}
                         >
                           Estimar
                         </Button>
                       </div>
                       <span style={{ fontSize: '0.8rem' }}>
-                        "Estimar" calcula la cuota a partir del interés — puedes corregirla a mano con el valor real del extracto.
+                        El capital es principal/cuotas, igual que en el extracto real — nunca incluye interés, porque
+                        el banco lo cobra aparte y no debe afectar el saldo de la tarjeta.
+                      </span>
+                    </FormField>
+                    <FormField label="Interés estimado de la cuota (opcional, solo referencia)" htmlFor="purchase-estimated-interest">
+                      <input
+                        id="purchase-estimated-interest"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0"
+                        value={purchaseEstimatedInterest}
+                        onChange={(e) => setPurchaseEstimatedInterest(e.target.value)}
+                      />
+                      <span style={{ fontSize: '0.8rem' }}>
+                        No se guarda — es solo para comparar contra el extracto real al pagar la cuota, donde sí puedes
+                        especificar el interés del mes.
                       </span>
                     </FormField>
                     <FormField label="Cuotas ya pagadas (opcional)" htmlFor="purchase-installments-paid">

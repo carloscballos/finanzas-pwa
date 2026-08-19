@@ -169,16 +169,18 @@ export class CardPurchasesService {
     const remaining = Number(purchase.remainingBalance);
     const requested = dto.amount ?? Number(purchase.installmentAmount);
     // La última cuota puede ser menor que installmentAmount — nunca se paga
-    // de más ni queda remainingBalance negativo.
-    const amount = Math.min(requested, remaining);
-    const newRemaining = round2(remaining - amount);
+    // de más ni queda remainingBalance negativo. El interés (si lo hay) no
+    // participa de este cálculo — ver registerInstallmentPayment.
+    const capitalAmount = Math.min(requested, remaining);
+    const newRemaining = round2(remaining - capitalAmount);
 
     const updated = await this.cardPurchasesRepository.registerInstallmentPayment({
       cardPurchaseId: id,
       cardAccountId: purchase.accountId,
       payingAccountId: dto.accountId,
       userId,
-      amount,
+      capitalAmount,
+      interestAmount: dto.interestAmount ?? 0,
       occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
       remainingBalance: newRemaining,
       status: newRemaining <= 0 ? 'PAID_OFF' : 'ACTIVE',
@@ -220,22 +222,26 @@ export class CardPurchasesService {
 
     const installments = active.map((p) => {
       const remaining = Number(p.remainingBalance);
-      const amount = Math.min(Number(p.installmentAmount), remaining);
-      const newRemaining = round2(remaining - amount);
+      const capital = Math.min(Number(p.installmentAmount), remaining);
+      const newRemaining = round2(remaining - capital);
       return {
         cardPurchaseId: p.id,
-        amount,
+        capital,
         remainingBalance: newRemaining,
         status: (newRemaining <= 0 ? 'PAID_OFF' : 'ACTIVE') as 'ACTIVE' | 'PAID_OFF',
       };
     });
-    const estimatedTotal = round2(installments.reduce((sum, i) => sum + i.amount, 0));
+    // capitalTotal es lo único que se acredita en la tarjeta — el interés,
+    // si dto.amount lo incluye, solo sale de la cuenta que paga (ver
+    // registerMonthlyPayment).
+    const capitalTotal = round2(installments.reduce((sum, i) => sum + i.capital, 0));
 
     await this.cardPurchasesRepository.registerMonthlyPayment({
       payingAccountId: dto.payingAccountId,
       cardAccountId: dto.cardAccountId,
       userId,
-      totalAmount: dto.amount ?? estimatedTotal,
+      paidAmount: dto.amount ?? capitalTotal,
+      capitalAmount: capitalTotal,
       occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
       note: `Pago cuotas de tarjeta (${installments.length} compra${installments.length !== 1 ? 's' : ''})`,
       installments,
@@ -273,14 +279,15 @@ export class CardPurchasesService {
     return extracted.map((item): StatementPreviewItemDto => {
       const installmentsTotal = item.installmentTotal ?? 1;
       const installmentCurrent = item.installmentCurrent ?? 1;
-      // Base sin interés — es lo que amortiza el capital, y lo único que
-      // debe usarse para reconstruir el monto original de la compra cuando
-      // el extracto no lo muestra explícito (originalAmount).
-      const baseInstallmentAmount = item.installmentAmount;
-      const amount = item.originalAmount ?? round2(baseInstallmentAmount * installmentsTotal);
-      // Lo que realmente se cobra/paga esta cuota — capital + interés del
-      // mes, cuando el extracto lo separa en su propia columna.
-      const installmentAmount = round2(baseInstallmentAmount + (item.interestAmount ?? 0));
+      // Cuota SIN interés — es lo que amortiza el capital, lo único que debe
+      // guardarse como installmentAmount. El banco cobra el interés aparte
+      // cada mes (no se acumula al capital pendiente), así que no puede
+      // afectar remainingBalance ni, por lo tanto, el saldo de la tarjeta —
+      // eso fue justo el bug: antes se metía el interés aquí y descontaba de
+      // más. Se expone solo informativo en interestAmount.
+      const installmentAmount = item.installmentAmount;
+      const amount = item.originalAmount ?? round2(installmentAmount * installmentsTotal);
+      const interestAmount = item.interestAmount ?? undefined;
       const interestRate = item.interestRatePercent ?? undefined;
 
       const candidates = activeExisting.filter(
@@ -295,6 +302,7 @@ export class CardPurchasesService {
           amount,
           installmentsTotal,
           installmentAmount,
+          interestAmount,
           interestRate,
           matchType: StatementMatchType.NEW,
           suggestedInstallmentsPaid: Math.max(0, installmentCurrent - 1),
@@ -309,6 +317,7 @@ export class CardPurchasesService {
           amount,
           installmentsTotal,
           installmentAmount,
+          interestAmount,
           interestRate,
           matchType: StatementMatchType.UP_TO_DATE,
           purchaseId: match.id,
@@ -321,6 +330,7 @@ export class CardPurchasesService {
         amount,
         installmentsTotal,
         installmentAmount,
+        interestAmount,
         interestRate,
         matchType: StatementMatchType.BEHIND,
         purchaseId: match.id,

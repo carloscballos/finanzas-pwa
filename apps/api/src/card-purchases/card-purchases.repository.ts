@@ -5,6 +5,10 @@ import { CardPurchaseWithAccount } from './mappers/card-purchase.mapper';
 
 const WITH_ACCOUNT = { account: { select: { id: true, name: true, currency: true } } } as const;
 
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 export interface CreateCardPurchaseRecord {
   userId: string;
   accountId: string;
@@ -33,7 +37,12 @@ export interface RegisterInstallmentPaymentInput {
   cardAccountId: string;
   payingAccountId: string;
   userId: string;
-  amount: number;
+  // Capital de esta cuota — es lo único que reduce remainingBalance y lo
+  // único que se acredita en la tarjeta (INCOME). El interés (si lo hay) se
+  // descuenta de la cuenta que paga pero no llega a la tarjeta, porque el
+  // banco lo cobra aparte y nunca se contabilizó como deuda de la compra.
+  capitalAmount: number;
+  interestAmount: number;
   occurredAt: Date;
   remainingBalance: number;
   status: CardPurchaseStatus;
@@ -49,7 +58,11 @@ export interface RegisterMonthlyPaymentInput {
   payingAccountId: string;
   cardAccountId: string;
   userId: string;
-  totalAmount: number;
+  // paidAmount es lo que sale de la cuenta que paga (capital + interés si
+  // aplica); capitalAmount es lo que de verdad se acredita en la tarjeta —
+  // la suma del capital de cada cuota, nunca el interés.
+  paidAmount: number;
+  capitalAmount: number;
   occurredAt: Date;
   note: string;
   installments: MonthlyInstallmentUpdate[];
@@ -132,17 +145,20 @@ export class CardPurchasesRepository {
   }
 
   // Pagar una cuota mueve dinero real: EXPENSE en la cuenta que paga, INCOME
-  // en la tarjeta (esa parte de la deuda queda saldada) — como un Transfer.
+  // en la tarjeta (esa parte de la deuda queda saldada) — como un Transfer,
+  // pero con montos distintos si hay interés: la cuenta que paga pierde
+  // capital+interés, la tarjeta solo se acredita el capital.
   async registerInstallmentPayment(
     input: RegisterInstallmentPaymentInput,
   ): Promise<CardPurchaseWithAccount> {
+    const paidAmount = round2(input.capitalAmount + input.interestAmount);
     const id = await this.prisma.$transaction(async (tx) => {
       await tx.transaction.createMany({
         data: [
           {
             accountId: input.payingAccountId,
             type: 'EXPENSE',
-            amount: input.amount,
+            amount: paidAmount,
             occurredAt: input.occurredAt,
             createdByUserId: input.userId,
             cardPurchaseId: input.cardPurchaseId,
@@ -150,7 +166,7 @@ export class CardPurchasesRepository {
           {
             accountId: input.cardAccountId,
             type: 'INCOME',
-            amount: input.amount,
+            amount: input.capitalAmount,
             occurredAt: input.occurredAt,
             createdByUserId: input.userId,
             cardPurchaseId: input.cardPurchaseId,
@@ -180,12 +196,16 @@ export class CardPurchasesRepository {
   // sigue aplicando individual y atómicamente en la misma transacción de BD.
   async registerMonthlyPayment(input: RegisterMonthlyPaymentInput): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
+      // fromAmount/toAmount distintos — el mismo campo que la app ya usa
+      // para transferencias con conversión de moneda, reutilizado aquí para
+      // que la cuenta que paga pierda el total real (con interés) mientras
+      // la tarjeta solo se acredita el capital de las cuotas.
       const transfer = await tx.transfer.create({
         data: {
           fromAccountId: input.payingAccountId,
           toAccountId: input.cardAccountId,
-          fromAmount: input.totalAmount,
-          toAmount: input.totalAmount,
+          fromAmount: input.paidAmount,
+          toAmount: input.capitalAmount,
           note: input.note,
           occurredAt: input.occurredAt,
           createdByUserId: input.userId,
@@ -197,7 +217,7 @@ export class CardPurchasesRepository {
           {
             accountId: input.payingAccountId,
             type: 'EXPENSE',
-            amount: input.totalAmount,
+            amount: input.paidAmount,
             note: input.note,
             occurredAt: input.occurredAt,
             createdByUserId: input.userId,
@@ -206,7 +226,7 @@ export class CardPurchasesRepository {
           {
             accountId: input.cardAccountId,
             type: 'INCOME',
-            amount: input.totalAmount,
+            amount: input.capitalAmount,
             note: input.note,
             occurredAt: input.occurredAt,
             createdByUserId: input.userId,
