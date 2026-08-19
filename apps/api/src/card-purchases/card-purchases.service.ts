@@ -7,7 +7,7 @@ import { CreateCardPurchaseDto } from './dto/create-card-purchase.dto';
 import { UpdateCardPurchaseDto } from './dto/update-card-purchase.dto';
 import { PayCardPurchaseInstallmentDto } from './dto/pay-card-purchase-installment.dto';
 import { StatementMatchType, StatementPreviewItemDto } from './dto/statement-preview-item.dto';
-import { StatementExtractionService } from './statement-extraction.service';
+import { ExtractedStatementPurchase, StatementExtractionService } from './statement-extraction.service';
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
@@ -33,6 +33,30 @@ function merchantsMatch(a: string, b: string): boolean {
   const nb = normalizeMerchant(b);
   if (!na || !nb) return false;
   return na === nb || na.includes(nb) || nb.includes(na);
+}
+
+function isSameDate(a: Date, isoDate: string): boolean {
+  return a.toISOString().slice(0, 10) === isoDate;
+}
+
+// Comercio + total de cuotas no siempre identifica una sola compra: un banco
+// puede rediferir cada cargo mensual de una misma suscripción como una
+// compra nueva con el mismo installmentsTotal (ej. 4 compras "Claude.Ai
+// Subscription" a 24 cuotas, cada una de un mes distinto). Cuando hay más de
+// un candidato, desempata por fecha de compra original y, si tampoco
+// alcanza, por el monto total — nunca por orden de aparición.
+function findExistingMatch(
+  candidates: CardPurchaseWithAccount[],
+  item: ExtractedStatementPurchase,
+  amount: number,
+): CardPurchaseWithAccount | undefined {
+  if (candidates.length <= 1) return candidates[0];
+
+  if (item.purchaseDate) {
+    const byDate = candidates.find((p) => isSameDate(p.purchasedAt, item.purchaseDate!));
+    if (byDate) return byDate;
+  }
+  return candidates.find((p) => Math.abs(Number(p.amount) - amount) < 0.01) ?? candidates[0];
 }
 
 @Injectable()
@@ -192,9 +216,10 @@ export class CardPurchasesService {
       const installmentAmount = item.installmentAmount;
       const amount = item.originalAmount ?? round2(installmentAmount * installmentsTotal);
 
-      const match = activeExisting.find(
+      const candidates = activeExisting.filter(
         (p) => merchantsMatch(p.merchant, item.merchant) && p.installmentsTotal === installmentsTotal,
       );
+      const match = findExistingMatch(candidates, item, amount);
 
       if (!match) {
         const purchasedAtSource = item.purchaseDate ?? statementDate;
