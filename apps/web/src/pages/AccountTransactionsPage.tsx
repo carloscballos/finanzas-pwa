@@ -67,6 +67,7 @@ function StatementPreviewRow({
         installmentAmount: item.installmentAmount,
         installmentsPaid: item.suggestedInstallmentsPaid,
         purchasedAt: item.purchasedAt,
+        interestRate: item.interestRate,
         alreadyInBalance,
       })
       onCreated(item)
@@ -100,6 +101,7 @@ function StatementPreviewRow({
           <div>
             {formatMoney(item.amount, cardCurrency)} · {item.installmentsTotal} cuota
             {item.installmentsTotal > 1 ? 's' : ''} de {formatMoney(item.installmentAmount, cardCurrency)}
+            {item.interestRate !== undefined && ` · ${item.interestRate}% interés`}
             {item.statementInstallmentCurrent && ` · extracto: cuota ${item.statementInstallmentCurrent}`}
             {item.matchType === 'NEW' && item.purchasedAt && ` · fecha: ${formatShortDate(item.purchasedAt)}`}
           </div>
@@ -368,6 +370,14 @@ export function AccountTransactionsPage() {
   const [statementError, setStatementError] = useState<string | null>(null)
   const statementInputRef = useRef<HTMLInputElement>(null)
 
+  const [showPayAllForm, setShowPayAllForm] = useState(false)
+  const [payAllAccountId, setPayAllAccountId] = useState('')
+  const [payAllAmount, setPayAllAmount] = useState('')
+  const [payAllDate, setPayAllDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [payingAllBusy, setPayingAllBusy] = useState(false)
+  const [payAllError, setPayAllError] = useState<string | null>(null)
+  const [paidOffExpanded, setPaidOffExpanded] = useState(false)
+
   const [showPurchaseForm, setShowPurchaseForm] = useState(false)
   const [purchaseMerchant, setPurchaseMerchant] = useState('')
   const [purchaseAmount, setPurchaseAmount] = useState('')
@@ -472,6 +482,38 @@ export function AccountTransactionsPage() {
     await refreshAll()
   }
 
+  function openPayAllForm() {
+    setPayAllAccountId('')
+    setPayAllAmount('')
+    setPayAllDate(new Date().toISOString().slice(0, 10))
+    setPayAllError(null)
+    setShowPayAllForm(true)
+  }
+
+  // Un solo movimiento por el total (no uno por compra) — el backend crea
+  // una Transfer real entre las dos cuentas y, en la misma transacción de
+  // BD, avanza installmentsPaid/remainingBalance de cada compra activa.
+  async function handlePayAllInstallments(event: FormEvent) {
+    event.preventDefault()
+    if (!token || !accountId || !payAllAccountId) return
+    setPayingAllBusy(true)
+    setPayAllError(null)
+    try {
+      await api.payMonthlyInstallments(token, {
+        cardAccountId: accountId,
+        payingAccountId: payAllAccountId,
+        amount: payAllAmount ? Number(payAllAmount) : undefined,
+        occurredAt: new Date(payAllDate).toISOString(),
+      })
+      await refreshAll()
+      setShowPayAllForm(false)
+    } catch (err) {
+      setPayAllError(err instanceof ApiError ? err.message : 'No se pudo pagar la cuota del mes')
+    } finally {
+      setPayingAllBusy(false)
+    }
+  }
+
   async function handleCreatePurchase(event: FormEvent) {
     event.preventDefault()
     if (!token || !accountId) return
@@ -555,6 +597,13 @@ export function AccountTransactionsPage() {
   const previewRate = needsRate ? Number(transferRate) || null : 1
   const previewToAmount =
     transferAmount && previewRate ? Number(transferAmount) * previewRate : null
+
+  const activeCardPurchases = cardPurchases.filter((p) => p.status === 'ACTIVE')
+  const paidOffCardPurchases = cardPurchases.filter((p) => p.status === 'PAID_OFF')
+  const activeMonthlyInstallments = activeCardPurchases.reduce((sum, p) => sum + p.installmentAmount, 0)
+  const payAllMatchingAccounts = allAccounts.filter(
+    (a) => a.id !== accountId && account && a.currency === account.currency,
+  )
 
   const categoriesForType = categories.filter((c) => c.type === type)
 
@@ -745,6 +794,71 @@ export function AccountTransactionsPage() {
                 </div>
               </div>
 
+              {activeMonthlyInstallments > 0 && (
+                <div
+                  className="account-credit-info"
+                  style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}
+                >
+                  <span>Cuota estimada este mes: {formatMoney(activeMonthlyInstallments, account.currency)}</span>
+                  {payAllMatchingAccounts.length === 0 ? (
+                    <span className="statement-row-meta">Sin cuenta en {account.currency} para pagar.</span>
+                  ) : !showPayAllForm ? (
+                    <Button onClick={openPayAllForm}>Pagar cuota del mes</Button>
+                  ) : null}
+                </div>
+              )}
+
+              {showPayAllForm && (
+                <Card className="ui-form-card">
+                  <Form onSubmit={handlePayAllInstallments}>
+                    <FormError>{payAllError}</FormError>
+                    <FormField label="Cuenta" htmlFor="payall-account">
+                      <select
+                        id="payall-account"
+                        value={payAllAccountId}
+                        onChange={(e) => setPayAllAccountId(e.target.value)}
+                        required
+                      >
+                        <option value="" disabled>
+                          Elige una
+                        </option>
+                        {payAllMatchingAccounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
+                    <FormField label="Monto total" htmlFor="payall-amount">
+                      <input
+                        id="payall-amount"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        placeholder={`Estimado: ${formatMoney(activeMonthlyInstallments, account.currency)}`}
+                        value={payAllAmount}
+                        onChange={(e) => setPayAllAmount(e.target.value)}
+                      />
+                    </FormField>
+                    <FormField label="Fecha" htmlFor="payall-date">
+                      <input
+                        id="payall-date"
+                        type="date"
+                        value={payAllDate}
+                        onChange={(e) => setPayAllDate(e.target.value)}
+                        required
+                      />
+                    </FormField>
+                    <Button type="submit" disabled={payingAllBusy || !payAllAccountId}>
+                      {payingAllBusy ? 'Pagando…' : 'Registrar pago'}
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => setShowPayAllForm(false)}>
+                      Cancelar
+                    </Button>
+                  </Form>
+                </Card>
+              )}
+
               {statementError && (
                 <div className="auth-error" style={{ marginBottom: '1rem' }}>
                   {statementError}
@@ -890,11 +1004,11 @@ export function AccountTransactionsPage() {
                 </Card>
               )}
 
-              {cardPurchases.length === 0 ? (
-                <EmptyState>Todavía no hay compras a cuotas registradas.</EmptyState>
+              {activeCardPurchases.length === 0 ? (
+                <EmptyState>Todavía no hay compras a cuotas activas.</EmptyState>
               ) : (
                 <CardGrid minWidth={280}>
-                  {cardPurchases.map((purchase) => (
+                  {activeCardPurchases.map((purchase) => (
                     <CardPurchaseCard
                       key={purchase.id}
                       purchase={purchase}
@@ -904,6 +1018,28 @@ export function AccountTransactionsPage() {
                     />
                   ))}
                 </CardGrid>
+              )}
+
+              {paidOffCardPurchases.length > 0 && (
+                <Card className="members-section" style={{ marginTop: '1rem' }}>
+                  <div className="members-section-header" onClick={() => setPaidOffExpanded((v) => !v)}>
+                    <h2>Compras pagadas ({paidOffCardPurchases.length})</h2>
+                    <span>{paidOffExpanded ? '▲' : '▼'}</span>
+                  </div>
+                  {paidOffExpanded && (
+                    <CardGrid minWidth={280}>
+                      {paidOffCardPurchases.map((purchase) => (
+                        <CardPurchaseCard
+                          key={purchase.id}
+                          purchase={purchase}
+                          payingAccounts={allAccounts.filter((a) => a.id !== accountId)}
+                          onChange={updatePurchase}
+                          onDeleted={removePurchase}
+                        />
+                      ))}
+                    </CardGrid>
+                  )}
+                </Card>
               )}
             </section>
           )}

@@ -318,6 +318,13 @@ export function HomePage() {
                       <>
                         +<Money amount={f.projectedMonthlyIncome} currency={f.currency} /> / -
                         <Money amount={f.projectedMonthlyExpense} currency={f.currency} />
+                        {f.projectedMonthlyCardInstallments > 0 && (
+                          <>
+                            {' '}
+                            (incl. <Money amount={f.projectedMonthlyCardInstallments} currency={f.currency} /> en
+                            cuotas de tarjeta de crédito)
+                          </>
+                        )}
                       </>
                     }
                   />

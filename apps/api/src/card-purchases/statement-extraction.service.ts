@@ -5,6 +5,8 @@ import Anthropic, { APIError } from '@anthropic-ai/sdk';
 export interface ExtractedStatementPurchase {
   merchant: string;
   installmentAmount: number;
+  interestAmount: number | null;
+  interestRatePercent: number | null;
   originalAmount: number | null;
   installmentCurrent: number | null;
   installmentTotal: number | null;
@@ -38,7 +40,18 @@ const EXTRACTION_SCHEMA = {
           },
           installmentAmount: {
             type: 'number',
-            description: 'Monto de esta línea en el extracto (el valor de la cuota si es una compra a cuotas, o el monto total si es un pago único)',
+            description:
+              'Monto BASE de la cuota de este mes, sin intereses (ej. columna "Valor del mes" o "Valor de la cuota" — el capital que amortiza, no lo que se cobra en total). Si es un pago único, el monto total.',
+          },
+          interestAmount: {
+            type: ['number', 'null'],
+            description:
+              'Interés cobrado este mes sobre esta línea, en pesos, si el extracto lo muestra en su propia columna (ej. "Interés del mes"). null si no aplica o no aparece por separado.',
+          },
+          interestRatePercent: {
+            type: ['number', 'null'],
+            description:
+              'Tasa de interés de esta línea este mes, como número (ej. 1.85 para "1.85%"), si el extracto la muestra. null si no aparece.',
           },
           originalAmount: {
             type: ['number', 'null'],
@@ -61,6 +74,8 @@ const EXTRACTION_SCHEMA = {
         required: [
           'merchant',
           'installmentAmount',
+          'interestAmount',
+          'interestRatePercent',
           'originalAmount',
           'installmentCurrent',
           'installmentTotal',
@@ -123,9 +138,12 @@ export class StatementExtractionService {
                 text:
                   'Este es un extracto de tarjeta de crédito. Extrae cada compra o cargo que aparezca, ' +
                   'incluyendo las que están a cuotas (busca patrones como "CUOTA 3/12", "3 DE 12", "03/12") ' +
-                  'y las de pago único. No incluyas pagos hechos a la tarjeta, intereses, ni el total del extracto. ' +
-                  'Además extrae la fecha de corte/período del extracto (statementDate), y si cada línea muestra ' +
-                  'su propia fecha de transacción, inclúyela también en purchaseDate.',
+                  'y las de pago único. No incluyas pagos hechos a la tarjeta, ni el total del extracto — sí incluye ' +
+                  'el interés propio de cada línea si el extracto lo muestra en su propia columna junto a esa compra ' +
+                  '(ej. "Interés del mes", "% interés"), en interestAmount/interestRatePercent, separado del valor ' +
+                  'base de la cuota (installmentAmount). Además extrae la fecha de corte/período del extracto ' +
+                  '(statementDate), y si cada línea muestra su propia fecha de transacción, inclúyela también en ' +
+                  'purchaseDate.',
               },
             ],
           },

@@ -370,6 +370,7 @@ export interface ForecastSummary {
   currency: string
   projectedMonthlyIncome: number
   projectedMonthlyExpense: number
+  projectedMonthlyCardInstallments: number
   projectedMonthlyNet: number
 }
 
@@ -718,6 +719,21 @@ export function deleteCardPurchase(token: string, id: string) {
   return request<void>(`/api/v1/card-purchases/${id}`, { method: 'DELETE', token })
 }
 
+export interface PayMonthlyInstallmentsInput {
+  cardAccountId: string
+  payingAccountId: string
+  amount?: number
+  occurredAt?: string
+}
+
+export function payMonthlyInstallments(token: string, input: PayMonthlyInstallmentsInput) {
+  return request<CardPurchase[]>('/api/v1/card-purchases/pay-monthly-installments', {
+    method: 'POST',
+    body: input,
+    token,
+  })
+}
+
 export type StatementMatchType = 'NEW' | 'BEHIND' | 'UP_TO_DATE'
 
 export interface StatementPreviewItem {
@@ -725,6 +741,7 @@ export interface StatementPreviewItem {
   amount: number
   installmentsTotal: number
   installmentAmount: number
+  interestRate?: number
   matchType: StatementMatchType
   suggestedInstallmentsPaid?: number
   purchasedAt?: string

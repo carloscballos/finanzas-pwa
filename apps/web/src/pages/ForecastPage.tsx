@@ -303,9 +303,15 @@ export function ForecastPage() {
                       <Money amount={s.projectedMonthlyIncome} currency={s.currency} tone="positive" />
                     </div>
                     <div className="summary-row">
-                      <span>Gasto recurrente</span>
+                      <span>Gasto proyectado</span>
                       <Money amount={s.projectedMonthlyExpense} currency={s.currency} tone="negative" />
                     </div>
+                    {s.projectedMonthlyCardInstallments > 0 && (
+                      <div className="summary-row">
+                        <span>· de las cuales, cuotas de tarjeta de crédito</span>
+                        <Money amount={s.projectedMonthlyCardInstallments} currency={s.currency} tone="negative" />
+                      </div>
+                    )}
                     <div className="summary-row net">
                       <span>Neto mensual</span>
                       <Money amount={s.projectedMonthlyNet} currency={s.currency} tone="flow" />

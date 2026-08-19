@@ -16,8 +16,11 @@ export class StatementPreviewItemDto {
   @ApiProperty({ example: 12 })
   installmentsTotal: number;
 
-  @ApiProperty({ example: 100000 })
+  @ApiProperty({ example: 100000, description: 'Total a pagar este mes por esta línea (cuota base + interés del mes, si el extracto lo mostraba)' })
   installmentAmount: number;
+
+  @ApiPropertyOptional({ example: 2.1, description: '% de interés de esta línea este mes, si el extracto lo mostraba' })
+  interestRate?: number;
 
   @ApiProperty({ enum: StatementMatchType, example: StatementMatchType.NEW })
   matchType: StatementMatchType;

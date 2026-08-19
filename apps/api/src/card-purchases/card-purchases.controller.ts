@@ -21,6 +21,7 @@ import { CardPurchasesService } from './card-purchases.service';
 import { CreateCardPurchaseDto } from './dto/create-card-purchase.dto';
 import { UpdateCardPurchaseDto } from './dto/update-card-purchase.dto';
 import { PayCardPurchaseInstallmentDto } from './dto/pay-card-purchase-installment.dto';
+import { PayMonthlyInstallmentsDto } from './dto/pay-monthly-installments.dto';
 import { ListCardPurchasesQueryDto } from './dto/list-card-purchases-query.dto';
 import { CardPurchaseResponseDto } from './dto/card-purchase-response.dto';
 import { StatementPreviewItemDto } from './dto/statement-preview-item.dto';
@@ -99,6 +100,25 @@ export class CardPurchasesController {
     @Body() dto: PayCardPurchaseInstallmentDto,
   ): Promise<CardPurchaseResponseDto> {
     return this.cardPurchasesService.payInstallment(user.id, id, dto);
+  }
+
+  @Post('pay-monthly-installments')
+  @ApiOperation({
+    summary:
+      'Pagar una cuota de cada compra activa de una tarjeta con un solo movimiento (un cargo, no uno por compra)',
+  })
+  @ApiResponse({ status: 201, type: [CardPurchaseResponseDto] })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Datos inválidos, la cuenta de pago es la misma tarjeta, no coincide en moneda, o no hay compras activas',
+  })
+  @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
+  payMonthlyInstallments(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: PayMonthlyInstallmentsDto,
+  ): Promise<CardPurchaseResponseDto[]> {
+    return this.cardPurchasesService.payMonthlyInstallments(user.id, dto);
   }
 
   @Post('extract-statement')

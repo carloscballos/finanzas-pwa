@@ -9,5 +9,6 @@ import { StatementExtractionService } from './statement-extraction.service';
   imports: [AccountsModule],
   controllers: [CardPurchasesController],
   providers: [CardPurchasesService, CardPurchasesRepository, StatementExtractionService],
+  exports: [CardPurchasesService],
 })
 export class CardPurchasesModule {}

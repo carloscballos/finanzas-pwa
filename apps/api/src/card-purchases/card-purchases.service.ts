@@ -6,6 +6,7 @@ import { CardPurchaseResponseDto } from './dto/card-purchase-response.dto';
 import { CreateCardPurchaseDto } from './dto/create-card-purchase.dto';
 import { UpdateCardPurchaseDto } from './dto/update-card-purchase.dto';
 import { PayCardPurchaseInstallmentDto } from './dto/pay-card-purchase-installment.dto';
+import { PayMonthlyInstallmentsDto } from './dto/pay-monthly-installments.dto';
 import { StatementMatchType, StatementPreviewItemDto } from './dto/statement-preview-item.dto';
 import { ExtractedStatementPurchase, StatementExtractionService } from './statement-extraction.service';
 
@@ -185,6 +186,65 @@ export class CardPurchasesService {
     return CardPurchaseMapper.toResponse(updated);
   }
 
+  // Paga una cuota de cada compra activa de la tarjeta con un solo
+  // movimiento (una Transfer real, no un par de Transaction por compra) —
+  // así el extracto bancario, que muestra un solo cargo por el total, se
+  // refleja igual en la app. El total registrado es editable (dto.amount)
+  // para que coincida con lo que realmente se pagó; el avance de cada
+  // compra siempre usa su propia cuota (capada a lo que le falte), sin
+  // importar el total que se haya escrito.
+  async payMonthlyInstallments(
+    userId: string,
+    dto: PayMonthlyInstallmentsDto,
+  ): Promise<CardPurchaseResponseDto[]> {
+    const cardAccount = await this.accountsService.getAccessibleAccount(userId, dto.cardAccountId);
+    if (cardAccount.type !== 'CREDIT_CARD') {
+      throw new BadRequestException('Solo se pueden pagar cuotas de una tarjeta de crédito');
+    }
+    if (dto.payingAccountId === dto.cardAccountId) {
+      throw new BadRequestException('La cuenta de pago debe ser distinta a la tarjeta');
+    }
+
+    const payingAccount = await this.accountsService.getAccessibleAccount(userId, dto.payingAccountId);
+    if (payingAccount.currency !== cardAccount.currency) {
+      throw new BadRequestException(
+        `La cuenta debe estar en ${cardAccount.currency} — la tarjeta está en esa moneda`,
+      );
+    }
+
+    const existing = await this.cardPurchasesRepository.findForAccount(dto.cardAccountId);
+    const active = existing.filter((p) => p.status === 'ACTIVE');
+    if (active.length === 0) {
+      throw new BadRequestException('No hay compras activas para pagar');
+    }
+
+    const installments = active.map((p) => {
+      const remaining = Number(p.remainingBalance);
+      const amount = Math.min(Number(p.installmentAmount), remaining);
+      const newRemaining = round2(remaining - amount);
+      return {
+        cardPurchaseId: p.id,
+        amount,
+        remainingBalance: newRemaining,
+        status: (newRemaining <= 0 ? 'PAID_OFF' : 'ACTIVE') as 'ACTIVE' | 'PAID_OFF',
+      };
+    });
+    const estimatedTotal = round2(installments.reduce((sum, i) => sum + i.amount, 0));
+
+    await this.cardPurchasesRepository.registerMonthlyPayment({
+      payingAccountId: dto.payingAccountId,
+      cardAccountId: dto.cardAccountId,
+      userId,
+      totalAmount: dto.amount ?? estimatedTotal,
+      occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
+      note: `Pago cuotas de tarjeta (${installments.length} compra${installments.length !== 1 ? 's' : ''})`,
+      installments,
+    });
+
+    const updated = await this.cardPurchasesRepository.findForAccount(dto.cardAccountId);
+    return CardPurchaseMapper.toResponseList(updated);
+  }
+
   async remove(userId: string, id: string): Promise<void> {
     await this.getOwnedPurchase(userId, id);
     await this.cardPurchasesRepository.delete(id);
@@ -213,8 +273,15 @@ export class CardPurchasesService {
     return extracted.map((item): StatementPreviewItemDto => {
       const installmentsTotal = item.installmentTotal ?? 1;
       const installmentCurrent = item.installmentCurrent ?? 1;
-      const installmentAmount = item.installmentAmount;
-      const amount = item.originalAmount ?? round2(installmentAmount * installmentsTotal);
+      // Base sin interés — es lo que amortiza el capital, y lo único que
+      // debe usarse para reconstruir el monto original de la compra cuando
+      // el extracto no lo muestra explícito (originalAmount).
+      const baseInstallmentAmount = item.installmentAmount;
+      const amount = item.originalAmount ?? round2(baseInstallmentAmount * installmentsTotal);
+      // Lo que realmente se cobra/paga esta cuota — capital + interés del
+      // mes, cuando el extracto lo separa en su propia columna.
+      const installmentAmount = round2(baseInstallmentAmount + (item.interestAmount ?? 0));
+      const interestRate = item.interestRatePercent ?? undefined;
 
       const candidates = activeExisting.filter(
         (p) => merchantsMatch(p.merchant, item.merchant) && p.installmentsTotal === installmentsTotal,
@@ -228,6 +295,7 @@ export class CardPurchasesService {
           amount,
           installmentsTotal,
           installmentAmount,
+          interestRate,
           matchType: StatementMatchType.NEW,
           suggestedInstallmentsPaid: Math.max(0, installmentCurrent - 1),
           purchasedAt: purchasedAtSource ? new Date(purchasedAtSource).toISOString() : undefined,
@@ -241,6 +309,7 @@ export class CardPurchasesService {
           amount,
           installmentsTotal,
           installmentAmount,
+          interestRate,
           matchType: StatementMatchType.UP_TO_DATE,
           purchaseId: match.id,
           currentInstallmentsPaid: match.installmentsPaid,
@@ -252,6 +321,7 @@ export class CardPurchasesService {
         amount,
         installmentsTotal,
         installmentAmount,
+        interestRate,
         matchType: StatementMatchType.BEHIND,
         purchaseId: match.id,
         currentInstallmentsPaid: match.installmentsPaid,
@@ -259,6 +329,20 @@ export class CardPurchasesService {
         cuotasBehind,
       };
     });
+  }
+
+  // Usado por ForecastService para sumar la cuota mensual esperada de
+  // compras a cuotas dentro de la proyección de gastos — por moneda, porque
+  // el usuario puede tener tarjetas en COP y USD a la vez.
+  async getActiveMonthlyInstallmentTotals(userId: string): Promise<{ currency: string; total: number }[]> {
+    const purchases = await this.cardPurchasesRepository.findAllForUser(userId);
+    const byCurrency = new Map<string, number>();
+    for (const p of purchases) {
+      if (p.status !== 'ACTIVE') continue;
+      const currency = p.account.currency;
+      byCurrency.set(currency, round2((byCurrency.get(currency) ?? 0) + Number(p.installmentAmount)));
+    }
+    return Array.from(byCurrency.entries()).map(([currency, total]) => ({ currency, total }));
   }
 
   private async getOwnedPurchase(userId: string, id: string): Promise<CardPurchaseWithAccount> {

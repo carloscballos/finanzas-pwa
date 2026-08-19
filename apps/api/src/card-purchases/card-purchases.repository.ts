@@ -39,6 +39,22 @@ export interface RegisterInstallmentPaymentInput {
   status: CardPurchaseStatus;
 }
 
+export interface MonthlyInstallmentUpdate {
+  cardPurchaseId: string;
+  remainingBalance: number;
+  status: CardPurchaseStatus;
+}
+
+export interface RegisterMonthlyPaymentInput {
+  payingAccountId: string;
+  cardAccountId: string;
+  userId: string;
+  totalAmount: number;
+  occurredAt: Date;
+  note: string;
+  installments: MonthlyInstallmentUpdate[];
+}
+
 @Injectable()
 export class CardPurchasesRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -154,6 +170,62 @@ export class CardPurchasesRepository {
     });
 
     return (await this.findById(id))!;
+  }
+
+  // Un solo movimiento (como una Transfer real: dos Transaction con
+  // transferId compartido) por todas las cuotas del mes, en vez de un par
+  // de Transaction por cada compra — así el extracto bancario real (un solo
+  // cargo) se refleja igual en la app, visible en los movimientos de ambas
+  // cuentas. El avance de cada compra (installmentsPaid/remainingBalance) se
+  // sigue aplicando individual y atómicamente en la misma transacción de BD.
+  async registerMonthlyPayment(input: RegisterMonthlyPaymentInput): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const transfer = await tx.transfer.create({
+        data: {
+          fromAccountId: input.payingAccountId,
+          toAccountId: input.cardAccountId,
+          fromAmount: input.totalAmount,
+          toAmount: input.totalAmount,
+          note: input.note,
+          occurredAt: input.occurredAt,
+          createdByUserId: input.userId,
+        },
+      });
+
+      await tx.transaction.createMany({
+        data: [
+          {
+            accountId: input.payingAccountId,
+            type: 'EXPENSE',
+            amount: input.totalAmount,
+            note: input.note,
+            occurredAt: input.occurredAt,
+            createdByUserId: input.userId,
+            transferId: transfer.id,
+          },
+          {
+            accountId: input.cardAccountId,
+            type: 'INCOME',
+            amount: input.totalAmount,
+            note: input.note,
+            occurredAt: input.occurredAt,
+            createdByUserId: input.userId,
+            transferId: transfer.id,
+          },
+        ],
+      });
+
+      for (const installment of input.installments) {
+        await tx.cardPurchase.update({
+          where: { id: installment.cardPurchaseId },
+          data: {
+            remainingBalance: installment.remainingBalance,
+            installmentsPaid: { increment: 1 },
+            status: installment.status,
+          },
+        });
+      }
+    });
   }
 
   async delete(id: string): Promise<void> {
