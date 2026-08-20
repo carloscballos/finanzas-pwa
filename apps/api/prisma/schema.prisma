@@ -345,6 +345,13 @@ model CardPurchase {
   installmentsPaid  Int                @default(0)
   installmentAmount Decimal            @db.Decimal(14, 2)
   interestRate      Decimal?           @db.Decimal(5, 2)
+  // Interés real que el extracto más reciente mostró para la cuota
+  // pendiente — sourced del banco, no estimado (ver estimateCuotaInterest en
+  // money.ts, que es solo el respaldo cuando no hay este dato). Se precarga
+  // al pagar en vez de la fórmula, y se limpia a null tras cada pago porque
+  // solo aplica a la cuota que ya se pagó — vuelve a fijarse cuando se
+  // importa/concilia un extracto nuevo.
+  lastStatementInterestAmount Decimal? @db.Decimal(14, 2)
   purchasedAt       DateTime           @default(now())
   status            CardPurchaseStatus @default(ACTIVE)
   createdAt         DateTime           @default(now())

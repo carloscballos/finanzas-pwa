@@ -19,6 +19,8 @@ export class CardPurchaseMapper {
       installmentsPaid: purchase.installmentsPaid,
       installmentAmount: Number(purchase.installmentAmount),
       interestRate: purchase.interestRate === null ? null : Number(purchase.interestRate),
+      lastStatementInterestAmount:
+        purchase.lastStatementInterestAmount === null ? null : Number(purchase.lastStatementInterestAmount),
       purchasedAt: purchase.purchasedAt,
       account: purchase.account,
       status: purchase.status,

@@ -74,6 +74,7 @@ function StatementPreviewRow({
         installmentsPaid: item.suggestedInstallmentsPaid,
         purchasedAt: item.purchasedAt,
         interestRate: item.interestRate,
+        lastStatementInterestAmount: item.interestAmount,
         alreadyInBalance,
       })
       onCreated(item)
@@ -88,8 +89,18 @@ function StatementPreviewRow({
     if (!token || !item.purchaseId || !item.cuotasBehind || !accountId) return
     setBusy(true)
     try {
+      // El extracto solo describe con precisión la cuota MÁS RECIENTE (la
+      // que generó este BEHIND) — el interés real solo se aplica en el
+      // último pago del loop. Las cuotas atrasadas intermedias quedan en $0
+      // explícito en vez de adivinar: no tenemos su saldo/tasa histórica
+      // para estimarlas, y fabricar un número parecería más preciso de lo
+      // que es.
       for (let i = 0; i < item.cuotasBehind; i++) {
-        await api.payCardPurchaseInstallment(token, item.purchaseId, { accountId })
+        const isLast = i === item.cuotasBehind - 1
+        await api.payCardPurchaseInstallment(token, item.purchaseId, {
+          accountId,
+          interestAmount: isLast ? item.interestAmount : 0,
+        })
       }
       onCaughtUp(item)
     } catch (err) {
@@ -185,14 +196,23 @@ function CardPurchaseCard({
   const [interestAmount, setInterestAmount] = useState('')
   const [busy, setBusy] = useState(false)
 
-  // Precarga el interés de esta cuota — % sobre lo que queda pendiente,
-  // igual que lo cobra el banco — cada vez que remainingBalance cambia (al
-  // montar, y tras pagar, para la cuota siguiente). Sigue editable: es un
-  // punto de partida, no un valor fijo, por si el extracto real difiere.
+  // Precarga el interés de esta cuota — de preferencia el valor real del
+  // último extracto conciliado (lastStatementInterestAmount), y solo si no
+  // hay uno, un estimado por fórmula (% sobre lo pendiente). Se recalcula
+  // cada vez que la compra cambia (al montar, y tras pagar, para la
+  // siguiente cuota). Sigue editable: el real es exacto, pero el estimado es
+  // un punto de partida por si el extracto real difiere.
   useEffect(() => {
-    const estimate = estimateCuotaInterest(purchase.remainingBalance, purchase.interestRate)
-    setInterestAmount(estimate > 0 ? String(estimate) : '')
-  }, [purchase.remainingBalance, purchase.interestRate])
+    const value =
+      purchase.lastStatementInterestAmount ??
+      estimateCuotaInterest(purchase.remainingBalance, purchase.interestRate, purchase.installmentsPaid)
+    setInterestAmount(value > 0 ? String(value) : '')
+  }, [
+    purchase.remainingBalance,
+    purchase.interestRate,
+    purchase.installmentsPaid,
+    purchase.lastStatementInterestAmount,
+  ])
 
   const [editing, setEditing] = useState(false)
   const [editInstallmentAmount, setEditInstallmentAmount] = useState('')
@@ -394,6 +414,7 @@ export function AccountTransactionsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [statementPreview, setStatementPreview] = useState<StatementPreviewItem[] | null>(null)
+  const [statementReconciliation, setStatementReconciliation] = useState<api.StatementReconciliation | null>(null)
   const [statementLoading, setStatementLoading] = useState(false)
   const [statementError, setStatementError] = useState<string | null>(null)
   const statementInputRef = useRef<HTMLInputElement>(null)
@@ -492,9 +513,11 @@ export function AccountTransactionsPage() {
     setStatementError(null)
     setStatementLoading(true)
     setStatementPreview(null)
+    setStatementReconciliation(null)
     try {
       const preview = await api.previewCardStatement(token, accountId, file)
-      setStatementPreview(preview)
+      setStatementPreview(preview.items)
+      setStatementReconciliation(preview.reconciliation)
     } catch (err) {
       setStatementError(err instanceof ApiError ? err.message : 'No se pudo leer el extracto')
     } finally {
@@ -633,7 +656,9 @@ export function AccountTransactionsPage() {
   const paidOffCardPurchases = cardPurchases.filter((p) => p.status === 'PAID_OFF')
   const activeMonthlyInstallments = activeCardPurchases.reduce((sum, p) => sum + p.installmentAmount, 0)
   const activeMonthlyInterestEstimate = activeCardPurchases.reduce(
-    (sum, p) => sum + estimateCuotaInterest(p.remainingBalance, p.interestRate),
+    (sum, p) =>
+      sum +
+      (p.lastStatementInterestAmount ?? estimateCuotaInterest(p.remainingBalance, p.interestRate, p.installmentsPaid)),
     0,
   )
   const payAllMatchingAccounts = allAccounts.filter(
@@ -905,6 +930,38 @@ export function AccountTransactionsPage() {
                 </div>
               )}
 
+              {statementReconciliation && (
+                <Card style={{ marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <Badge tone={statementReconciliation.ok ? 'ok' : 'error'}>
+                      {statementReconciliation.ok ? 'El extracto cuadra' : 'El extracto no cuadra'}
+                    </Badge>
+                  </div>
+                  {!statementReconciliation.ok && (
+                    <p style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+                      La suma de lo que se leyó no coincide con los totales impresos en el extracto — puede faltar o
+                      sobrar una línea. Revisa antes de aceptar las compras de abajo.
+                    </p>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    {statementReconciliation.checks.map((check) => (
+                      <div
+                        key={check.code}
+                        style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', fontSize: '0.85rem' }}
+                      >
+                        <span>
+                          {check.ok ? '✓' : '✕'} {check.label}
+                        </span>
+                        <span>
+                          {formatMoney(check.calculated, account.currency)} vs {formatMoney(check.reported, account.currency)}
+                          {!check.ok && ` · dif. ${formatMoney(check.difference, account.currency)}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
               {statementPreview && (
                 <div className="statement-preview">
                   {statementPreview.length === 0 ? (
@@ -1001,9 +1058,10 @@ export function AccountTransactionsPage() {
                               Number(purchaseAmount),
                               Number(purchaseInterestRate || 0),
                               Number(purchaseInstallmentsTotal),
+                              Number(purchaseInstallmentsPaid || 0),
                             )
                             setPurchaseInstallmentAmount(String(capital))
-                            setPurchaseEstimatedInterest(String(interest))
+                            setPurchaseEstimatedInterest(interest > 0 ? String(interest) : '')
                           }}
                         >
                           Estimar

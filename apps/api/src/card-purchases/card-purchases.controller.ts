@@ -24,7 +24,7 @@ import { PayCardPurchaseInstallmentDto } from './dto/pay-card-purchase-installme
 import { PayMonthlyInstallmentsDto } from './dto/pay-monthly-installments.dto';
 import { ListCardPurchasesQueryDto } from './dto/list-card-purchases-query.dto';
 import { CardPurchaseResponseDto } from './dto/card-purchase-response.dto';
-import { StatementPreviewItemDto } from './dto/statement-preview-item.dto';
+import { StatementPreviewResponseDto } from './dto/statement-preview-response.dto';
 
 const MAX_STATEMENT_SIZE_BYTES = 15 * 1024 * 1024;
 
@@ -138,7 +138,7 @@ export class CardPurchasesController {
     summary:
       'Subir un extracto PDF de tarjeta de crédito y previsualizar las compras detectadas — no crea ni modifica nada, solo analiza',
   })
-  @ApiResponse({ status: 201, type: [StatementPreviewItemDto] })
+  @ApiResponse({ status: 201, type: StatementPreviewResponseDto })
   @ApiResponse({ status: 400, description: 'Falta el archivo, no es un PDF, o la cuenta no es una tarjeta de crédito' })
   @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
   @ApiResponse({ status: 503, description: 'El servicio de extracción no está disponible' })
@@ -146,7 +146,7 @@ export class CardPurchasesController {
     @CurrentUser() user: AuthenticatedUser,
     @Body('accountId', ParseUUIDPipe) accountId: string,
     @UploadedFile() file: Express.Multer.File,
-  ): Promise<StatementPreviewItemDto[]> {
+  ): Promise<StatementPreviewResponseDto> {
     if (!file) {
       throw new BadRequestException('Debes subir un archivo PDF');
     }

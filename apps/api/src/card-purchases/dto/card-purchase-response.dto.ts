@@ -37,6 +37,14 @@ export class CardPurchaseResponseDto {
   @ApiPropertyOptional({ example: 2.5, nullable: true, description: '% de interés mensual, solo informativo' })
   interestRate: number | null;
 
+  @ApiPropertyOptional({
+    example: 15000,
+    nullable: true,
+    description:
+      'Interés real que el extracto más reciente mostró para la cuota pendiente — se usa para precargar el pago en vez de estimarlo. null si no hay uno vigente (ya se pagó esa cuota, o la compra no vino de un extracto).',
+  })
+  lastStatementInterestAmount: number | null;
+
   @ApiProperty({ example: '2026-06-01T00:00:00.000Z' })
   purchasedAt: Date;
 

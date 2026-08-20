@@ -207,6 +207,7 @@ export interface CardPurchase {
   installmentsPaid: number
   installmentAmount: number
   interestRate: number | null
+  lastStatementInterestAmount: number | null
   purchasedAt: string
   account: { id: string; name: string; currency: string }
   status: CardPurchaseStatus
@@ -224,6 +225,7 @@ export interface CreateCardPurchaseInput {
   purchasedAt?: string
   installmentsPaid?: number
   interestRate?: number
+  lastStatementInterestAmount?: number
   alreadyInBalance?: boolean
 }
 
@@ -231,6 +233,7 @@ export interface UpdateCardPurchaseInput {
   merchant?: string
   installmentAmount?: number
   interestRate?: number
+  lastStatementInterestAmount?: number
 }
 
 export interface PayCardPurchaseInstallmentInput {
@@ -753,12 +756,31 @@ export interface StatementPreviewItem {
   cuotasBehind?: number
 }
 
+export interface ReconciliationCheck {
+  code: string
+  label: string
+  calculated: number
+  reported: number
+  difference: number
+  ok: boolean
+}
+
+export interface StatementReconciliation {
+  ok: boolean
+  checks: ReconciliationCheck[]
+}
+
+export interface StatementPreviewResponse {
+  items: StatementPreviewItem[]
+  reconciliation: StatementReconciliation | null
+}
+
 // Multipart — no pasa por request(), que siempre manda JSON.
 export async function previewCardStatement(
   token: string,
   accountId: string,
   file: File,
-): Promise<StatementPreviewItem[]> {
+): Promise<StatementPreviewResponse> {
   const formData = new FormData()
   formData.append('accountId', accountId)
   formData.append('file', file)

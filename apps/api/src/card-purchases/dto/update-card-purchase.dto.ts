@@ -25,4 +25,14 @@ export class UpdateCardPurchaseDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   interestRate?: number;
+
+  @ApiPropertyOptional({
+    example: 15000,
+    description:
+      'Interés real que un extracto recién conciliado mostró para la cuota pendiente — se usa para precargar el pago en vez de estimarlo con la tasa.',
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  lastStatementInterestAmount?: number;
 }

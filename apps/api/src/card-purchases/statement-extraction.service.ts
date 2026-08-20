@@ -13,9 +13,23 @@ export interface ExtractedStatementPurchase {
   purchaseDate: string | null;
 }
 
+// Totales del resumen del extracto (no de una compra individual) — se usan
+// para auto-validar la extracción: si la suma de las líneas no cuadra con
+// estos totales impresos, algo se leyó mal (ver reconcileExtraction en
+// card-purchases.service.ts). Todos opcionales porque no todos los formatos
+// de extracto muestran los cinco.
+export interface ExtractedStatementTotals {
+  capitalThisMonth: number | null;
+  interestThisMonth: number | null;
+  conversionCharges: number | null;
+  minimumPayment: number | null;
+  remainingDebt: number | null;
+}
+
 export interface ExtractedStatement {
   statementDate: string | null;
   purchases: ExtractedStatementPurchase[];
+  totals: ExtractedStatementTotals | null;
 }
 
 // additionalProperties: false requerido en cada objeto (limitación de
@@ -84,8 +98,39 @@ const EXTRACTION_SCHEMA = {
         additionalProperties: false,
       },
     },
+    totals: {
+      type: ['object', 'null'],
+      description:
+        'Totales del RESUMEN del extracto (no de una compra individual) — la sección que suele estar al inicio, con el desglose de cuánto se debe este corte. null solo si el extracto no tiene ninguna sección de resumen con estos totales.',
+      properties: {
+        capitalThisMonth: {
+          type: ['number', 'null'],
+          description:
+            'Capital/deuda a pagar este mes (ej. "Deuda a pagar este mes", "Capital del mes") — suma de las compras/avances elegidos a pagar este corte, SIN intereses ni cargos. null si no aparece.',
+        },
+        interestThisMonth: {
+          type: ['number', 'null'],
+          description: 'Intereses totales de este corte (ej. "Intereses"), como línea del resumen. null si no aparece.',
+        },
+        conversionCharges: {
+          type: ['number', 'null'],
+          description: 'Cargos por conversión de moneda de este corte (ej. "Cargos por conversión"). null si no aparece.',
+        },
+        minimumPayment: {
+          type: ['number', 'null'],
+          description: 'Pago mínimo de este corte (ej. "Pago mínimo", "Pago hasta el..."). null si no aparece.',
+        },
+        remainingDebt: {
+          type: ['number', 'null'],
+          description:
+            'Deuda restante/futura que NO vence este corte (ej. "Deuda restante") — cuotas de diferidos que aún no toca pagar. null si no aparece.',
+        },
+      },
+      required: ['capitalThisMonth', 'interestThisMonth', 'conversionCharges', 'minimumPayment', 'remainingDebt'],
+      additionalProperties: false,
+    },
   },
-  required: ['statementDate', 'purchases'],
+  required: ['statementDate', 'purchases', 'totals'],
   additionalProperties: false,
 } as const;
 
@@ -141,9 +186,16 @@ export class StatementExtractionService {
                   'y las de pago único. No incluyas pagos hechos a la tarjeta, ni el total del extracto — sí incluye ' +
                   'el interés propio de cada línea si el extracto lo muestra en su propia columna junto a esa compra ' +
                   '(ej. "Interés del mes", "% interés"), en interestAmount/interestRatePercent, separado del valor ' +
-                  'base de la cuota (installmentAmount). Además extrae la fecha de corte/período del extracto ' +
+                  'base de la cuota (installmentAmount). No generes una línea de compra aparte para comisiones o ' +
+                  'cargos que el extracto muestre como una nota o sub-línea DEBAJO de una compra (ej. "↪ Comisión ' +
+                  'por cambio de moneda", "↪ A capital/intereses/cargos" de un pago) — esos montos pertenecen a la ' +
+                  'compra o pago de arriba, no son compras nuevas; ignóralos, no los sumes a installmentAmount ni ' +
+                  'los reportes como una línea propia. Además extrae la fecha de corte/período del extracto ' +
                   '(statementDate), y si cada línea muestra su propia fecha de transacción, inclúyela también en ' +
-                  'purchaseDate.',
+                  'purchaseDate. Por último, busca la sección de RESUMEN del extracto (usualmente al inicio, con ' +
+                  'el desglose de "deuda a pagar este mes", "intereses", "cargos por conversión", "pago mínimo", ' +
+                  '"deuda restante" o equivalentes) y repórtala en totals — estos son los totales impresos por el ' +
+                  'banco, se usan para verificar que la suma de las líneas de detalle cuadre exactamente.',
               },
             ],
           },
@@ -172,10 +224,12 @@ export class StatementExtractionService {
       const parsed = JSON.parse(textBlock.text) as {
         statementDate: string | null;
         purchases: ExtractedStatementPurchase[];
+        totals: ExtractedStatementTotals | null;
       };
       return {
         statementDate: parseExtractedDate(parsed.statementDate),
         purchases: parsed.purchases.map((p) => ({ ...p, purchaseDate: parseExtractedDate(p.purchaseDate) })),
+        totals: parsed.totals,
       };
     } catch {
       throw new ServiceUnavailableException('No se pudo interpretar el resultado de la extracción — intenta de nuevo');

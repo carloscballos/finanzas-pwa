@@ -19,6 +19,7 @@ export interface CreateCardPurchaseRecord {
   installmentsPaid: number;
   installmentAmount: number;
   interestRate?: number;
+  lastStatementInterestAmount?: number;
   purchasedAt: Date;
   status: CardPurchaseStatus;
   bookTransaction: boolean;
@@ -30,6 +31,7 @@ export interface UpdateCardPurchaseRecord {
   installmentAmount?: number;
   remainingBalance?: number;
   status?: CardPurchaseStatus;
+  lastStatementInterestAmount?: number;
 }
 
 export interface RegisterInstallmentPaymentInput {
@@ -112,6 +114,7 @@ export class CardPurchasesRepository {
           installmentsPaid: data.installmentsPaid,
           installmentAmount: data.installmentAmount,
           interestRate: data.interestRate,
+          lastStatementInterestAmount: data.lastStatementInterestAmount,
           purchasedAt: data.purchasedAt,
           status: data.status,
         },
@@ -180,6 +183,10 @@ export class CardPurchasesRepository {
           remainingBalance: input.remainingBalance,
           installmentsPaid: { increment: 1 },
           status: input.status,
+          // Consumido: ya se usó (o no había) para esta cuota. La próxima
+          // solo tiene un valor real si se importa/concilia un extracto
+          // nuevo — mientras tanto, el pago cae de vuelta al estimado.
+          lastStatementInterestAmount: null,
         },
       });
       return purchase.id;
@@ -242,6 +249,7 @@ export class CardPurchasesRepository {
             remainingBalance: installment.remainingBalance,
             installmentsPaid: { increment: 1 },
             status: installment.status,
+            lastStatementInterestAmount: null,
           },
         });
       }

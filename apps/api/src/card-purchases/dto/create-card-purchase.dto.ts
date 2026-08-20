@@ -58,6 +58,16 @@ export class CreateCardPurchaseDto {
   interestRate?: number;
 
   @ApiPropertyOptional({
+    example: 15000,
+    description:
+      'Interés real que el extracto mostró para la cuota pendiente al importar esta compra — se usa para precargar el pago en vez de estimarlo con la tasa.',
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  lastStatementInterestAmount?: number;
+
+  @ApiPropertyOptional({
     example: false,
     description:
       'Si es true, no se registra el movimiento inicial en la tarjeta — se asume que esta deuda ya estaba contemplada en el saldo actual de la cuenta (ej. saldo inicial al crearla) y solo se quiere llevar el historial de cuotas. Pagar cuotas después sí afecta el saldo normalmente. Default false.',

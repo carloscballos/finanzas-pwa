@@ -8,10 +8,65 @@ import { UpdateCardPurchaseDto } from './dto/update-card-purchase.dto';
 import { PayCardPurchaseInstallmentDto } from './dto/pay-card-purchase-installment.dto';
 import { PayMonthlyInstallmentsDto } from './dto/pay-monthly-installments.dto';
 import { StatementMatchType, StatementPreviewItemDto } from './dto/statement-preview-item.dto';
-import { ExtractedStatementPurchase, StatementExtractionService } from './statement-extraction.service';
+import { StatementPreviewResponseDto } from './dto/statement-preview-response.dto';
+import { ReconciliationCheckDto, StatementReconciliationDto } from './dto/statement-reconciliation.dto';
+import {
+  ExtractedStatement,
+  ExtractedStatementPurchase,
+  StatementExtractionService,
+} from './statement-extraction.service';
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+// Tolerancia por acumulación de redondeos (cada cuota redondea a 2
+// decimales) — un descuadre mayor a esto apunta a una línea mal leída, no a
+// redondeo. Ver DESIGN doc de tarjetas de crédito compartido por el usuario.
+const RECONCILIATION_TOLERANCE = 2;
+
+// Verifica que la suma de las líneas extraídas cuadre con los totales que el
+// propio extracto imprime en su resumen — si la IA se comió o infló una
+// línea (como pasó con una comisión leída como compra), esto lo señala en el
+// momento en vez de que el usuario lo note meses después comparando a mano.
+function reconcileExtraction(extracted: ExtractedStatement): StatementReconciliationDto | null {
+  const totals = extracted.totals;
+  if (!totals) return null;
+
+  const items = extracted.purchases;
+  const capitalSum = round2(items.reduce((sum, p) => sum + p.installmentAmount, 0));
+  const interestSum = round2(items.reduce((sum, p) => sum + (p.interestAmount ?? 0), 0));
+  const totalDueSum = round2(
+    items.reduce((sum, p) => sum + p.installmentAmount + (p.interestAmount ?? 0), 0),
+  );
+  const remainingDebtSum = round2(
+    items.reduce((sum, p) => {
+      const installmentsTotal = p.installmentTotal ?? 1;
+      const installmentCurrent = p.installmentCurrent ?? 1;
+      const futureInstallments = Math.max(0, installmentsTotal - installmentCurrent);
+      return sum + futureInstallments * p.installmentAmount;
+    }, 0),
+  );
+
+  const checks: ReconciliationCheckDto[] = [];
+  const addCheck = (code: string, label: string, calculated: number, reported: number | null) => {
+    if (reported === null) return;
+    const difference = round2(calculated - reported);
+    checks.push({ code, label, calculated, reported, difference, ok: Math.abs(difference) <= RECONCILIATION_TOLERANCE });
+  };
+
+  addCheck('capital', 'Deuda a pagar este mes (capital)', capitalSum, totals.capitalThisMonth);
+  addCheck('interest', 'Intereses del mes', interestSum, totals.interestThisMonth);
+  addCheck(
+    'minimumPayment',
+    'Pago mínimo (capital + interés + cargos de conversión)',
+    round2(totalDueSum + (totals.conversionCharges ?? 0)),
+    totals.minimumPayment,
+  );
+  addCheck('remainingDebt', 'Deuda restante (cuotas futuras)', remainingDebtSum, totals.remainingDebt);
+
+  if (checks.length === 0) return null;
+  return { ok: checks.every((c) => c.ok), checks };
 }
 
 // Comparación tolerante: mismo comercio puede aparecer con mayúsculas,
@@ -113,6 +168,7 @@ export class CardPurchasesService {
       installmentsPaid,
       installmentAmount: dto.installmentAmount,
       interestRate: dto.interestRate,
+      lastStatementInterestAmount: dto.lastStatementInterestAmount,
       purchasedAt: dto.purchasedAt ? new Date(dto.purchasedAt) : new Date(),
       status: remainingBalance <= 0 ? 'PAID_OFF' : 'ACTIVE',
       bookTransaction: !dto.alreadyInBalance,
@@ -142,6 +198,7 @@ export class CardPurchasesService {
       installmentAmount: dto.installmentAmount,
       remainingBalance,
       status,
+      lastStatementInterestAmount: dto.lastStatementInterestAmount,
     });
     return CardPurchaseMapper.toResponse(updated);
   }
@@ -180,7 +237,11 @@ export class CardPurchasesService {
       payingAccountId: dto.accountId,
       userId,
       capitalAmount,
-      interestAmount: dto.interestAmount ?? 0,
+      // Si no se especifica, se usa el interés real del último extracto
+      // conciliado para esta cuota (si lo hay) en vez de dejarlo en 0 — así
+      // "Ponerme al día" y pagos sin tocar el campo ya quedan exactos con el
+      // banco, sin depender de que el usuario lo escriba a mano cada vez.
+      interestAmount: dto.interestAmount ?? Number(purchase.lastStatementInterestAmount ?? 0),
       occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
       remainingBalance: newRemaining,
       status: newRemaining <= 0 ? 'PAID_OFF' : 'ACTIVE',
@@ -235,12 +296,18 @@ export class CardPurchasesService {
     // si dto.amount lo incluye, solo sale de la cuenta que paga (ver
     // registerMonthlyPayment).
     const capitalTotal = round2(installments.reduce((sum, i) => sum + i.capital, 0));
+    // Igual que en payInstallment: si no se especifica un monto, se suma el
+    // interés real del último extracto conciliado de cada compra (cuando lo
+    // hay) en vez de asumir 0.
+    const interestTotal = round2(
+      active.reduce((sum, p) => sum + Number(p.lastStatementInterestAmount ?? 0), 0),
+    );
 
     await this.cardPurchasesRepository.registerMonthlyPayment({
       payingAccountId: dto.payingAccountId,
       cardAccountId: dto.cardAccountId,
       userId,
-      paidAmount: dto.amount ?? capitalTotal,
+      paidAmount: dto.amount ?? round2(capitalTotal + interestTotal),
       capitalAmount: capitalTotal,
       occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
       note: `Pago cuotas de tarjeta (${installments.length} compra${installments.length !== 1 ? 's' : ''})`,
@@ -264,19 +331,20 @@ export class CardPurchasesService {
     userId: string,
     accountId: string,
     pdfBuffer: Buffer,
-  ): Promise<StatementPreviewItemDto[]> {
+  ): Promise<StatementPreviewResponseDto> {
     const account = await this.accountsService.getAccessibleAccount(userId, accountId);
     if (account.type !== 'CREDIT_CARD') {
       throw new BadRequestException('Solo se pueden conciliar extractos de tarjetas de crédito');
     }
 
-    const [{ statementDate, purchases: extracted }, existing] = await Promise.all([
+    const [extraction, existing] = await Promise.all([
       this.statementExtractionService.extractPurchases(pdfBuffer),
       this.cardPurchasesRepository.findForAccount(accountId),
     ]);
+    const { statementDate, purchases: extracted } = extraction;
     const activeExisting = existing.filter((p) => p.status === 'ACTIVE');
 
-    return extracted.map((item): StatementPreviewItemDto => {
+    const items = extracted.map((item): StatementPreviewItemDto => {
       const installmentsTotal = item.installmentTotal ?? 1;
       const installmentCurrent = item.installmentCurrent ?? 1;
       // Cuota SIN interés — es lo que amortiza el capital, lo único que debe
@@ -339,6 +407,8 @@ export class CardPurchasesService {
         cuotasBehind,
       };
     });
+
+    return { items, reconciliation: reconcileExtraction(extraction) };
   }
 
   // Usado por ForecastService para sumar la cuota mensual esperada de
