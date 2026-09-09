@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsUUID, NotEquals } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsISO8601, IsNumber, IsOptional, IsUUID, NotEquals } from 'class-validator';
 
 export class ContributeGoalDto {
   @ApiProperty({
@@ -17,4 +17,12 @@ export class ContributeGoalDto {
   })
   @IsUUID()
   accountId: string;
+
+  @ApiPropertyOptional({
+    description: 'Fecha del aporte/retiro (default: ahora)',
+    example: '2026-08-10T18:00:00.000Z',
+  })
+  @IsOptional()
+  @IsISO8601()
+  occurredAt?: string;
 }

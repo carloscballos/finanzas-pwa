@@ -31,6 +31,7 @@ function GoalCard({
   const [amount, setAmount] = useState('')
   const matchingAccounts = accounts.filter((a) => a.currency === goal.currency)
   const [accountId, setAccountId] = useState('')
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [busy, setBusy] = useState(false)
 
   async function handleContribute(event: FormEvent) {
@@ -38,9 +39,14 @@ function GoalCard({
     if (!token || !amount || !accountId) return
     setBusy(true)
     try {
-      const updated = await api.contributeToGoal(token, goal.id, { amount: Number(amount), accountId })
+      const updated = await api.contributeToGoal(token, goal.id, {
+        amount: Number(amount),
+        accountId,
+        occurredAt: new Date(date).toISOString(),
+      })
       onChange(updated)
       setAmount('')
+      setDate(new Date().toISOString().slice(0, 10))
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'No se pudo registrar el aporte')
     } finally {
@@ -116,6 +122,7 @@ function GoalCard({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
+          <input type="date" aria-label="Fecha del aporte" value={date} onChange={(e) => setDate(e.target.value)} required />
           <Button type="submit" disabled={busy || !amount || !accountId}>
             Registrar
           </Button>

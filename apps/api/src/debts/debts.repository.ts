@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { DebtStatus } from '@prisma/client';
+import { DebtPaymentStatus, DebtStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { DebtWithParties } from './mappers/debt.mapper';
 
 const WITH_PARTIES = {
   creditor: { select: { id: true, name: true, email: true } },
   debtor: { select: { id: true, name: true, email: true } },
+  payments: { orderBy: { createdAt: 'desc' } },
 } as const;
 
 export interface CreateDebtRecord {
@@ -15,6 +16,14 @@ export interface CreateDebtRecord {
   amount: number;
   currency?: string;
   description?: string;
+}
+
+export interface CreateDebtPaymentRecord {
+  debtId: string;
+  amount: number;
+  note?: string;
+  occurredAt: Date;
+  createdByUserId: string;
 }
 
 @Injectable()
@@ -34,18 +43,47 @@ export class DebtsRepository {
   }
 
   create(data: CreateDebtRecord): Promise<DebtWithParties> {
-    return this.prisma.debt.create({ data, include: WITH_PARTIES });
+    return this.prisma.debt.create({
+      data: { ...data, remainingBalance: data.amount },
+      include: WITH_PARTIES,
+    });
   }
 
-  setStatus(
-    id: string,
-    data: {
-      status: DebtStatus;
-      markedPaidByUserId?: string | null;
-      settledAt?: Date | null;
-    },
+  async createPayment(data: CreateDebtPaymentRecord): Promise<void> {
+    await this.prisma.debtPayment.create({ data });
+  }
+
+  // Transacción interactiva: al confirmar un abono se descuenta
+  // remainingBalance y, si llega a 0, se liquida la deuda directamente — la
+  // confirmación del abono ya fue el visto bueno de la otra parte, no hace
+  // falta un segundo paso de confirmación a nivel de deuda.
+  async resolvePayment(
+    debtId: string,
+    paymentId: string,
+    status: DebtPaymentStatus,
+    decrementAmount?: number,
   ): Promise<DebtWithParties> {
-    return this.prisma.debt.update({ where: { id }, data, include: WITH_PARTIES });
+    return this.prisma.$transaction(async (tx) => {
+      await tx.debtPayment.update({
+        where: { id: paymentId },
+        data: { status, respondedAt: new Date() },
+      });
+
+      if (status === DebtPaymentStatus.CONFIRMED && decrementAmount) {
+        const debt = await tx.debt.update({
+          where: { id: debtId },
+          data: { remainingBalance: { decrement: decrementAmount } },
+        });
+        if (Number(debt.remainingBalance) <= 0) {
+          await tx.debt.update({
+            where: { id: debtId },
+            data: { status: DebtStatus.SETTLED, settledAt: new Date(), remainingBalance: 0 },
+          });
+        }
+      }
+
+      return tx.debt.findUniqueOrThrow({ where: { id: debtId }, include: WITH_PARTIES });
+    });
   }
 
   async delete(id: string): Promise<void> {

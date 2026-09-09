@@ -8,6 +8,8 @@ import { TransactionResponseDto } from './dto/transaction-response.dto';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { ListTransactionsQueryDto } from './dto/list-transactions-query.dto';
+import { ExtractedReceiptResponseDto } from './dto/extracted-receipt-response.dto';
+import { ReceiptExtractionService, type ReceiptMediaType } from './receipt-extraction.service';
 
 @Injectable()
 export class TransactionsService {
@@ -15,6 +17,7 @@ export class TransactionsService {
     private readonly transactionsRepository: TransactionsRepository,
     private readonly accountsService: AccountsService,
     private readonly categoriesService: CategoriesService,
+    private readonly receiptExtractionService: ReceiptExtractionService,
   ) {}
 
   async findAll(
@@ -78,6 +81,31 @@ export class TransactionsService {
     const existing = await this.getAccessibleTransaction(userId, id);
     this.assertEditable(existing);
     await this.transactionsRepository.delete(id);
+  }
+
+  // Puramente de lectura — no crea ni modifica nada. Solo sugiere valores
+  // para que el usuario los revise (y edite si hace falta) antes de guardar
+  // el movimiento con el POST normal.
+  async extractReceipt(
+    userId: string,
+    imageBuffer: Buffer,
+    mediaType: ReceiptMediaType,
+  ): Promise<ExtractedReceiptResponseDto> {
+    const categories = (await this.categoriesService.findAllForUser(userId)).filter(
+      (c) => c.type === TransactionType.EXPENSE,
+    );
+
+    const extracted = await this.receiptExtractionService.extractReceipt(imageBuffer, mediaType, categories);
+    const suggestedCategory = extracted.categoryIndex !== null ? categories[extracted.categoryIndex] : null;
+
+    return {
+      merchant: extracted.merchant,
+      amount: extracted.amount,
+      occurredAt: extracted.purchaseDate,
+      suggestedCategory: suggestedCategory
+        ? { id: suggestedCategory.id, name: suggestedCategory.name, emoji: suggestedCategory.emoji }
+        : null,
+    };
   }
 
   private async getAccessibleTransaction(

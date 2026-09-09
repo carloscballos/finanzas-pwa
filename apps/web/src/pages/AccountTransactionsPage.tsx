@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeftRight, FileUp, Receipt, ShoppingBag } from 'lucide-react'
+import { ArrowLeftRight, Camera, FileUp, Receipt, ShoppingBag } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { AccountMembers } from '../components/AccountMembers'
 import { Badge } from '../components/ui/Badge'
@@ -194,6 +194,7 @@ function CardPurchaseCard({
   const [accountId, setAccountId] = useState('')
   const [amount, setAmount] = useState('')
   const [interestAmount, setInterestAmount] = useState('')
+  const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [busy, setBusy] = useState(false)
 
   // Precarga el interés de esta cuota — de preferencia el valor real del
@@ -255,9 +256,11 @@ function CardPurchaseCard({
         accountId,
         amount: amount ? Number(amount) : undefined,
         interestAmount: interestAmount ? Number(interestAmount) : undefined,
+        occurredAt: new Date(payDate).toISOString(),
       })
       onChange(updated)
       setAmount('')
+      setPayDate(new Date().toISOString().slice(0, 10))
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'No se pudo registrar el pago')
     } finally {
@@ -382,6 +385,13 @@ function CardPurchaseCard({
               onChange={(e) => setInterestAmount(e.target.value)}
               title="Precargado con remainingBalance × % interés — corrígelo con el valor real del extracto si difiere"
             />
+            <input
+              type="date"
+              aria-label="Fecha del pago"
+              value={payDate}
+              onChange={(e) => setPayDate(e.target.value)}
+              required
+            />
             <Button type="submit" disabled={busy || !accountId}>
               Pagar cuota
             </Button>
@@ -445,10 +455,13 @@ export function AccountTransactionsPage() {
   const [categoryId, setCategoryId] = useState('')
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   const [templateFrequency, setTemplateFrequency] = useState<RecurrenceFrequency>('MONTHLY')
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [receiptLoading, setReceiptLoading] = useState(false)
+  const receiptInputRef = useRef<HTMLInputElement>(null)
 
   const [showTransferForm, setShowTransferForm] = useState(false)
   const [toAccountId, setToAccountId] = useState('')
@@ -672,6 +685,29 @@ export function AccountTransactionsPage() {
     setCategoryId('')
   }
 
+  // Solo sugiere: pre-llena el form de "Nuevo movimiento" con lo que la IA
+  // leyó de la foto, pero no crea nada — el usuario revisa/edita y decide si
+  // le da a "Registrar movimiento" como con cualquier otro movimiento.
+  async function handleReceiptFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!token || !file) return
+    setReceiptLoading(true)
+    try {
+      const extracted = await api.extractReceipt(token, file)
+      setType('EXPENSE')
+      setCategoryId(extracted.suggestedCategory?.id ?? '')
+      setAmount(extracted.amount ? String(extracted.amount) : '')
+      setNote(extracted.merchant)
+      setDate(extracted.occurredAt ?? new Date().toISOString().slice(0, 10))
+      if (!showForm) toggleForm()
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'No se pudo leer la factura')
+    } finally {
+      setReceiptLoading(false)
+    }
+  }
+
   async function handleCreate(event: FormEvent) {
     event.preventDefault()
     if (!token || !accountId) return
@@ -688,6 +724,7 @@ export function AccountTransactionsPage() {
         type,
         amount: Number(amount),
         note: note || undefined,
+        occurredAt: new Date(date).toISOString(),
       })
       setTransactions((prev) => [tx, ...prev])
       const updatedAccount = await api.getAccount(token, accountId)
@@ -713,6 +750,7 @@ export function AccountTransactionsPage() {
       setAmount('')
       setNote('')
       setCategoryId('')
+      setDate(new Date().toISOString().slice(0, 10))
       setSaveAsTemplate(false)
       closeForm()
     } catch (err) {
@@ -814,6 +852,17 @@ export function AccountTransactionsPage() {
               )}
             </div>
             <div className="tx-header-actions">
+              <input
+                ref={receiptInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                capture="environment"
+                style={{ display: 'none' }}
+                onChange={handleReceiptFile}
+              />
+              <Button variant="secondary" disabled={receiptLoading} onClick={() => receiptInputRef.current?.click()}>
+                {receiptLoading ? 'Leyendo…' : <><Camera size={16} /> Escanear factura</>}
+              </Button>
               <Button
                 variant="secondary"
                 className={showTransferForm ? '' : 'toolbar-create-btn'}
@@ -1277,6 +1326,9 @@ export function AccountTransactionsPage() {
                     onChange={(e) => setAmount(e.target.value)}
                     required
                   />
+                </FormField>
+                <FormField label="Fecha" htmlFor="tx-date">
+                  <input id="tx-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
                 </FormField>
                 <FormField label="Nota (opcional)" htmlFor="tx-note" full>
                   <input id="tx-note" value={note} onChange={(e) => setNote(e.target.value)} />

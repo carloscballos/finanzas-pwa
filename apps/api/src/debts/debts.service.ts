@@ -1,9 +1,11 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { DebtPaymentStatus, DebtStatus } from '@prisma/client';
 import { UsersService } from '../users/users.service';
 import { DebtsRepository } from './debts.repository';
 import { DebtMapper, DebtWithParties } from './mappers/debt.mapper';
 import { DebtResponseDto } from './dto/debt-response.dto';
 import { CreateDebtDto, DebtDirection } from './dto/create-debt.dto';
+import { CreateDebtPaymentDto } from './dto/create-debt-payment.dto';
 
 @Injectable()
 export class DebtsService {
@@ -45,35 +47,60 @@ export class DebtsService {
     return DebtMapper.toResponse(created, userId);
   }
 
-  async markPaid(userId: string, id: string): Promise<DebtResponseDto> {
+  // amount omitido = abonar el saldo pendiente completo (equivale a lo que
+  // antes era "marcar como pagada", pero pasando por la misma confirmación
+  // por-abono que cualquier otro pago parcial).
+  async registerPayment(userId: string, id: string, dto: CreateDebtPaymentDto): Promise<DebtResponseDto> {
     const debt = await this.getAccessibleDebt(userId, id);
-    if (debt.status !== 'PENDING') {
-      throw new ConflictException('Esta deuda ya fue marcada como pagada o ya está liquidada');
+    if (debt.status === DebtStatus.SETTLED) {
+      throw new ConflictException('Esta deuda ya está liquidada');
     }
-    const updated = await this.debtsRepository.setStatus(id, {
-      status: 'PAID_PENDING_CONFIRMATION',
-      markedPaidByUserId: userId,
+
+    const remaining = Number(debt.remainingBalance);
+    const amount = dto.amount ?? remaining;
+    if (amount > remaining) {
+      throw new BadRequestException('El abono no puede superar el saldo pendiente');
+    }
+
+    await this.debtsRepository.createPayment({
+      debtId: id,
+      amount,
+      note: dto.note,
+      occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
+      createdByUserId: userId,
     });
+
+    const updated = await this.debtsRepository.findById(id);
+    return DebtMapper.toResponse(updated!, userId);
+  }
+
+  async confirmPayment(userId: string, id: string, paymentId: string): Promise<DebtResponseDto> {
+    const debt = await this.getAccessibleDebt(userId, id);
+    if (debt.status === DebtStatus.SETTLED) {
+      throw new ConflictException('Esta deuda ya está liquidada');
+    }
+    const payment = this.getPendingPayment(debt, paymentId);
+    if (payment.createdByUserId === userId) {
+      throw new ForbiddenException('No puedes confirmar tu propio abono; debe hacerlo la otra persona');
+    }
+
+    const updated = await this.debtsRepository.resolvePayment(
+      id,
+      paymentId,
+      DebtPaymentStatus.CONFIRMED,
+      Number(payment.amount),
+    );
     return DebtMapper.toResponse(updated, userId);
   }
 
-  async confirm(userId: string, id: string): Promise<DebtResponseDto> {
+  async rejectPayment(userId: string, id: string, paymentId: string): Promise<DebtResponseDto> {
     const debt = await this.getAccessibleDebt(userId, id);
-    this.assertPendingConfirmationByOther(debt, userId);
-    const updated = await this.debtsRepository.setStatus(id, {
-      status: 'SETTLED',
-      settledAt: new Date(),
-    });
-    return DebtMapper.toResponse(updated, userId);
-  }
+    const payment = this.getPendingPayment(debt, paymentId);
+    if (payment.createdByUserId === userId) {
+      throw new ForbiddenException('No puedes rechazar tu propio abono; debe hacerlo la otra persona');
+    }
 
-  async reject(userId: string, id: string): Promise<DebtResponseDto> {
-    const debt = await this.getAccessibleDebt(userId, id);
-    this.assertPendingConfirmationByOther(debt, userId);
-    const updated = await this.debtsRepository.setStatus(id, {
-      status: 'PENDING',
-      markedPaidByUserId: null,
-    });
+    const updated = await this.debtsRepository.resolvePayment(id, paymentId, DebtPaymentStatus.REJECTED);
     return DebtMapper.toResponse(updated, userId);
   }
 
@@ -82,8 +109,8 @@ export class DebtsService {
     if (debt.createdByUserId !== userId) {
       throw new ForbiddenException('Solo quien creó la deuda puede eliminarla');
     }
-    if (debt.status !== 'PENDING') {
-      throw new ConflictException('No puedes eliminar una deuda que ya está en proceso de pago o liquidada');
+    if (debt.status !== DebtStatus.PENDING) {
+      throw new ConflictException('No puedes eliminar una deuda que ya está liquidada');
     }
     await this.debtsRepository.delete(id);
   }
@@ -98,12 +125,14 @@ export class DebtsService {
     return debt;
   }
 
-  private assertPendingConfirmationByOther(debt: DebtWithParties, userId: string): void {
-    if (debt.status !== 'PAID_PENDING_CONFIRMATION') {
-      throw new ConflictException('Esta deuda no está esperando confirmación de pago');
+  private getPendingPayment(debt: DebtWithParties, paymentId: string) {
+    const payment = debt.payments.find((p) => p.id === paymentId);
+    if (!payment) {
+      throw new NotFoundException(`Abono ${paymentId} no encontrado`);
     }
-    if (debt.markedPaidByUserId === userId) {
-      throw new ForbiddenException('No puedes confirmar tu propio aviso de pago; debe hacerlo la otra persona');
+    if (payment.status !== DebtPaymentStatus.PENDING_CONFIRMATION) {
+      throw new ConflictException('Este abono ya fue confirmado o rechazado');
     }
+    return payment;
   }
 }

@@ -244,18 +244,31 @@ export interface PayCardPurchaseInstallmentInput {
 }
 
 export type DebtDirection = 'THEY_OWE_ME' | 'I_OWE_THEM'
-export type DebtStatus = 'PENDING' | 'PAID_PENDING_CONFIRMATION' | 'SETTLED'
+export type DebtStatus = 'PENDING' | 'SETTLED'
+export type DebtPaymentStatus = 'PENDING_CONFIRMATION' | 'CONFIRMED' | 'REJECTED'
+
+export interface DebtPayment {
+  id: string
+  amount: number
+  note: string | null
+  occurredAt: string
+  status: DebtPaymentStatus
+  createdByMe: boolean
+  createdAt: string
+}
 
 export interface Debt {
   id: string
   counterparty: { id: string; name: string; email: string }
   direction: DebtDirection
   amount: number
+  remainingBalance: number
+  percentPaid: number
   currency: string
   description: string | null
   status: DebtStatus
-  markedPaidByMe: boolean
   createdByMe: boolean
+  payments: DebtPayment[]
   createdAt: string
   updatedAt: string
   settledAt: string | null
@@ -267,6 +280,12 @@ export interface CreateDebtInput {
   amount: number
   currency?: string
   description?: string
+}
+
+export interface CreateDebtPaymentInput {
+  amount?: number
+  occurredAt?: string
+  note?: string
 }
 
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELED'
@@ -508,7 +527,7 @@ export function createGoal(token: string, input: CreateGoalInput) {
 export function contributeToGoal(
   token: string,
   id: string,
-  input: { amount: number; accountId: string },
+  input: { amount: number; accountId: string; occurredAt?: string },
 ) {
   return request<Goal>(`/api/v1/goals/${id}/contributions`, {
     method: 'POST',
@@ -529,16 +548,16 @@ export function createDebt(token: string, input: CreateDebtInput) {
   return request<Debt>('/api/v1/debts', { method: 'POST', body: input, token })
 }
 
-export function markDebtPaid(token: string, id: string) {
-  return request<Debt>(`/api/v1/debts/${id}/mark-paid`, { method: 'POST', token })
+export function registerDebtPayment(token: string, id: string, input: CreateDebtPaymentInput = {}) {
+  return request<Debt>(`/api/v1/debts/${id}/payments`, { method: 'POST', body: input, token })
 }
 
-export function confirmDebt(token: string, id: string) {
-  return request<Debt>(`/api/v1/debts/${id}/confirm`, { method: 'POST', token })
+export function confirmDebtPayment(token: string, id: string, paymentId: string) {
+  return request<Debt>(`/api/v1/debts/${id}/payments/${paymentId}/confirm`, { method: 'POST', token })
 }
 
-export function rejectDebt(token: string, id: string) {
-  return request<Debt>(`/api/v1/debts/${id}/reject`, { method: 'POST', token })
+export function rejectDebtPayment(token: string, id: string, paymentId: string) {
+  return request<Debt>(`/api/v1/debts/${id}/payments/${paymentId}/reject`, { method: 'POST', token })
 }
 
 export function deleteDebt(token: string, id: string) {
@@ -785,6 +804,30 @@ export async function previewCardStatement(
   formData.append('accountId', accountId)
   formData.append('file', file)
   const res = await fetch(`${API_URL}/api/v1/card-purchases/extract-statement`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  })
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null)
+    const message = payload?.message ?? `Error ${res.status}`
+    throw new ApiError(res.status, Array.isArray(message) ? message.join(', ') : message)
+  }
+  return res.json()
+}
+
+export interface ExtractedReceipt {
+  merchant: string
+  amount: number | null
+  occurredAt: string | null
+  suggestedCategory: { id: string; name: string; emoji: string | null } | null
+}
+
+// Multipart — no pasa por request(), que siempre manda JSON.
+export async function extractReceipt(token: string, file: File): Promise<ExtractedReceipt> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await fetch(`${API_URL}/api/v1/transactions/extract-receipt`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: formData,

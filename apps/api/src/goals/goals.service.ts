@@ -79,7 +79,7 @@ export class GoalsService {
       accountId: dto.accountId,
       userId,
       amount: dto.amount,
-      occurredAt: new Date(),
+      occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
     });
     return GoalMapper.toResponse(updated);
   }

@@ -8,19 +8,31 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Form, FormField, FormError } from '../components/ui/Form'
 import { Money } from '../components/ui/Money'
+import { ProgressBar } from '../components/ui/ProgressBar'
 import { SectionHeader } from '../components/ui/SectionHeader'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
-import { ApiError, type Debt, type DebtDirection } from '../lib/api'
+import { ApiError, type Debt, type DebtDirection, type DebtPayment } from '../lib/api'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
+import { formatMoney } from '../lib/money'
+import './LoansPage.css'
 import './DebtsPage.css'
+
+function formatShortDate(iso: string) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(iso))
+}
 
 function statusBadge(debt: Debt): { label: string; tone: BadgeTone } {
   if (debt.status === 'SETTLED') return { label: 'Liquidada', tone: 'ok' }
-  if (debt.status === 'PAID_PENDING_CONFIRMATION') return { label: 'Esperando confirmación', tone: 'warn' }
   return { label: 'Pendiente', tone: 'neutral' }
+}
+
+function paymentBadge(payment: DebtPayment): { label: string; tone: BadgeTone } {
+  if (payment.status === 'CONFIRMED') return { label: 'Confirmado', tone: 'ok' }
+  if (payment.status === 'REJECTED') return { label: 'Rechazado', tone: 'error' }
+  return { label: 'Esperando confirmación', tone: 'warn' }
 }
 
 function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Debt) => void; onDeleted: (id: string) => void }) {
@@ -29,22 +41,13 @@ function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Deb
   const badge = statusBadge(debt)
   const owed = debt.direction === 'THEY_OWE_ME'
 
-  async function run(action: (t: string, id: string) => Promise<Debt>) {
-    if (!token) return
-    setBusy(true)
-    try {
-      const updated = await action(token, debt.id)
-      onChange(updated)
-    } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'No se pudo actualizar la deuda')
-    } finally {
-      setBusy(false)
-    }
-  }
+  const [amount, setAmount] = useState('')
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [note, setNote] = useState('')
 
   async function handleDelete() {
     if (!token) return
-    if (!confirm('¿Eliminar esta deuda pendiente?')) return
+    if (!confirm('¿Eliminar esta deuda pendiente? También se eliminan sus abonos registrados.')) return
     try {
       await api.deleteDebt(token, debt.id)
       onDeleted(debt.id)
@@ -53,54 +56,144 @@ function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Deb
     }
   }
 
+  async function handleRegisterPayment(event: FormEvent) {
+    event.preventDefault()
+    if (!token) return
+    setBusy(true)
+    try {
+      const updated = await api.registerDebtPayment(token, debt.id, {
+        amount: amount ? Number(amount) : undefined,
+        occurredAt: new Date(date).toISOString(),
+        note: note || undefined,
+      })
+      onChange(updated)
+      setAmount('')
+      setNote('')
+      setDate(new Date().toISOString().slice(0, 10))
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'No se pudo registrar el abono')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleConfirmPayment(paymentId: string) {
+    if (!token) return
+    setBusy(true)
+    try {
+      const updated = await api.confirmDebtPayment(token, debt.id, paymentId)
+      onChange(updated)
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'No se pudo confirmar el abono')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRejectPayment(paymentId: string) {
+    if (!token) return
+    setBusy(true)
+    try {
+      const updated = await api.rejectDebtPayment(token, debt.id, paymentId)
+      onChange(updated)
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'No se pudo rechazar el abono')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <Card>
-      <div className="debt-card-header">
+      <div className="loan-card-header">
         <div>
           <div className="debt-party">
             {owed ? `${debt.counterparty.name} te debe` : `Le debes a ${debt.counterparty.name}`}
           </div>
           {debt.description && <div className="debt-description">{debt.description}</div>}
         </div>
-        <Money amount={debt.amount} currency={debt.currency} tone={owed ? 'positive' : 'negative'} size="lg" />
+        <Money amount={debt.remainingBalance} currency={debt.currency} tone={owed ? 'positive' : 'negative'} size="lg" />
+      </div>
+
+      <ProgressBar value={debt.percentPaid} tone="accent" />
+      <div className="loan-amounts">
+        <span>
+          Original <Money amount={debt.amount} currency={debt.currency} />
+        </span>
+        <span>{debt.percentPaid}% abonado</span>
       </div>
 
       <div className="debt-actions">
         <Badge tone={badge.tone}>{badge.label}</Badge>
-
-        {debt.status === 'PENDING' && (
-          <>
-            <Button variant="secondary" disabled={busy} onClick={() => run(api.markDebtPaid)}>
-              Marcar como pagada
-            </Button>
-            {debt.createdByMe && (
-              <button className="link-danger" onClick={handleDelete}>
-                Eliminar
-              </button>
-            )}
-          </>
+        {debt.status === 'PENDING' && debt.createdByMe && (
+          <button className="link-danger" onClick={handleDelete}>
+            Eliminar
+          </button>
         )}
-
-        {debt.status === 'PAID_PENDING_CONFIRMATION' &&
-          (debt.markedPaidByMe ? (
-            <span className="debt-waiting">Esperando que {debt.counterparty.name} confirme</span>
-          ) : (
-            <>
-              <Button disabled={busy} onClick={() => run(api.confirmDebt)}>
-                Confirmar pago
-              </Button>
-              <Button variant="secondary" disabled={busy} onClick={() => run(api.rejectDebt)}>
-                Rechazar
-              </Button>
-            </>
-          ))}
-
         {debt.status === 'SETTLED' && debt.settledAt && (
           <span className="debt-settled">
             Liquidada el {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(debt.settledAt))}
           </span>
         )}
       </div>
+
+      {debt.status === 'PENDING' && (
+        <form className="loan-pay" onSubmit={handleRegisterPayment}>
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            placeholder={`Monto (saldo pendiente: ${formatMoney(debt.remainingBalance, debt.currency)})`}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+          <input type="date" aria-label="Fecha del abono" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <input
+            aria-label="Nota (opcional)"
+            placeholder="Nota (opcional)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <Button type="submit" disabled={busy}>
+            Registrar abono
+          </Button>
+        </form>
+      )}
+
+      {debt.payments.length > 0 && (
+        <div className="debt-payments">
+          {debt.payments.map((payment) => {
+            const pBadge = paymentBadge(payment)
+            const resolved = payment.status !== 'PENDING_CONFIRMATION'
+            return (
+              <div key={payment.id} className={`debt-payment-row${resolved ? ' is-resolved' : ''}`}>
+                <div className="debt-payment-info">
+                  <span>
+                    <Money amount={payment.amount} currency={debt.currency} /> · {formatShortDate(payment.occurredAt)}
+                  </span>
+                  {payment.note && <span className="debt-payment-note">{payment.note}</span>}
+                </div>
+                <div className="debt-payment-row-actions">
+                  {payment.status === 'PENDING_CONFIRMATION' && !payment.createdByMe ? (
+                    <>
+                      <Button disabled={busy} onClick={() => handleConfirmPayment(payment.id)}>
+                        Confirmar
+                      </Button>
+                      <Button variant="secondary" disabled={busy} onClick={() => handleRejectPayment(payment.id)}>
+                        Rechazar
+                      </Button>
+                    </>
+                  ) : payment.status === 'PENDING_CONFIRMATION' ? (
+                    <span className="debt-waiting">Esperando confirmación de {debt.counterparty.name}</span>
+                  ) : (
+                    <Badge tone={pBadge.tone}>{pBadge.label}</Badge>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </Card>
   )
 }

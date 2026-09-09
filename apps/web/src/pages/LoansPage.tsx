@@ -33,6 +33,7 @@ function LoanCard({
   const matchingAccounts = accounts.filter((a) => a.currency === loan.currency)
   const [accountId, setAccountId] = useState(loan.account?.id ?? '')
   const [amount, setAmount] = useState('')
+  const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [busy, setBusy] = useState(false)
 
   async function handlePay(event: FormEvent) {
@@ -43,9 +44,11 @@ function LoanCard({
       const updated = await api.payLoanInstallment(token, loan.id, {
         accountId,
         amount: amount ? Number(amount) : undefined,
+        occurredAt: new Date(payDate).toISOString(),
       })
       onChange(updated)
       setAmount('')
+      setPayDate(new Date().toISOString().slice(0, 10))
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'No se pudo registrar el pago')
     } finally {
@@ -124,6 +127,13 @@ function LoanCard({
               placeholder={`Monto (cuota ${formatMoney(loan.installmentAmount, loan.currency)})`}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+            />
+            <input
+              type="date"
+              aria-label="Fecha del pago"
+              value={payDate}
+              onChange={(e) => setPayDate(e.target.value)}
+              required
             />
             <Button type="submit" disabled={busy || !accountId}>
               Pagar cuota

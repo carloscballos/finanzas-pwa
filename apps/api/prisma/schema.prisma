@@ -34,14 +34,23 @@ enum BudgetPeriod {
   MONTHLY
 }
 
-// PENDING: recién creada.
-// PAID_PENDING_CONFIRMATION: alguna de las dos partes la marcó como pagada;
-//   espera que la OTRA parte confirme o rechace.
-// SETTLED: confirmada por la contraparte, ya no aparece como pendiente.
+// PENDING: recién creada o con abonos parciales confirmados (remainingBalance
+//   > 0). SETTLED: remainingBalance llegó a 0 vía un abono confirmado por la
+//   contraparte (ver DebtPayment) — no hay paso intermedio de confirmación a
+//   nivel de deuda, cada abono ya pasa por su propia confirmación.
 enum DebtStatus {
   PENDING
-  PAID_PENDING_CONFIRMATION
   SETTLED
+}
+
+// PENDING_CONFIRMATION: quien lo registró espera que la OTRA parte lo
+//   confirme o rechace (mismo principio de confianza que antes tenía la
+//   deuda completa). CONFIRMED: descuenta remainingBalance de la deuda.
+//   REJECTED: no afecta remainingBalance.
+enum DebtPaymentStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+  REJECTED
 }
 
 enum AccountInvitationStatus {
@@ -105,6 +114,7 @@ model User {
   createdTransfers      Transfer[]
   loans                 Loan[]
   cardPurchases         CardPurchase[]
+  debtPayments          DebtPayment[]
 
   @@map("users")
 }
@@ -368,24 +378,47 @@ model CardPurchase {
 // simplemente que creditorId/debtorId son ambos usuarios reales, así que
 // aparece en el listado de los dos sin necesidad de un flujo de invitación.
 model Debt {
-  id                 String     @id @default(uuid())
-  creditorId         String
-  debtorId           String
-  createdByUserId    String
-  amount             Decimal    @db.Decimal(14, 2)
-  currency           String     @default("COP")
-  description        String?
-  status             DebtStatus @default(PENDING)
-  markedPaidByUserId String?
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
-  settledAt          DateTime?
+  id               String     @id @default(uuid())
+  creditorId       String
+  debtorId         String
+  createdByUserId  String
+  amount           Decimal    @db.Decimal(14, 2)
+  // Lo que sigue pendiente hoy — arranca igual a `amount` y baja con cada
+  // DebtPayment CONFIRMED. Al llegar a 0, status pasa a SETTLED.
+  remainingBalance Decimal    @db.Decimal(14, 2)
+  currency         String     @default("COP")
+  description      String?
+  status           DebtStatus @default(PENDING)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  settledAt        DateTime?
 
-  creditor  User @relation("CreditorDebts", fields: [creditorId], references: [id], onDelete: Cascade)
-  debtor    User @relation("DebtorDebts", fields: [debtorId], references: [id], onDelete: Cascade)
-  createdBy User @relation("CreatedDebts", fields: [createdByUserId], references: [id])
+  creditor  User          @relation("CreditorDebts", fields: [creditorId], references: [id], onDelete: Cascade)
+  debtor    User          @relation("DebtorDebts", fields: [debtorId], references: [id], onDelete: Cascade)
+  createdBy User          @relation("CreatedDebts", fields: [createdByUserId], references: [id])
+  payments  DebtPayment[]
 
   @@map("debts")
+}
+
+// Abono (parcial o total) a una deuda. Igual que la deuda misma, cada abono
+// necesita el visto bueno de la otra parte antes de contar — evita que
+// cualquiera de los dos reduzca unilateralmente lo que debe/le deben.
+model DebtPayment {
+  id              String            @id @default(uuid())
+  debtId          String
+  amount          Decimal           @db.Decimal(14, 2)
+  note            String?
+  occurredAt      DateTime          @default(now())
+  createdByUserId String
+  status          DebtPaymentStatus @default(PENDING_CONFIRMATION)
+  createdAt       DateTime          @default(now())
+  respondedAt     DateTime?
+
+  debt      Debt @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  createdBy User @relation(fields: [createdByUserId], references: [id])
+
+  @@map("debt_payments")
 }
 
 // Invitación a unirse a una cuenta compartida. El email solo se usa para
