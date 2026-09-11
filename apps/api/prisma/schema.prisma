@@ -144,6 +144,7 @@ model Account {
   transfersTo           Transfer[]             @relation("TransferTo")
   loans                 Loan[]
   cardPurchases         CardPurchase[]
+  debtPayments          DebtPayment[]
 
   @@map("accounts")
 }
@@ -205,6 +206,10 @@ model Transaction {
   // Ver CardPurchase: al comprar (EXPENSE en la tarjeta) y al pagar una
   // cuota (EXPENSE en la cuenta pagadora + INCOME en la tarjeta).
   cardPurchaseId          String?
+  // Ver DebtPayment: al confirmarse un abono (o de inmediato si la
+  // contraparte no tiene cuenta en la app) mueve dinero real en la cuenta de
+  // quien lo registró.
+  debtId                  String?
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
 
@@ -216,6 +221,7 @@ model Transaction {
   goal                 SavingsGoal?          @relation(fields: [goalId], references: [id], onDelete: Cascade)
   loan                 Loan?                 @relation(fields: [loanId], references: [id], onDelete: Cascade)
   cardPurchase         CardPurchase?         @relation(fields: [cardPurchaseId], references: [id], onDelete: Cascade)
+  debt                 Debt?                 @relation(fields: [debtId], references: [id], onDelete: Cascade)
 
   @@map("transactions")
 }
@@ -379,8 +385,15 @@ model CardPurchase {
 // aparece en el listado de los dos sin necesidad de un flujo de invitación.
 model Debt {
   id               String     @id @default(uuid())
-  creditorId       String
-  debtorId         String
+  // Uno de los dos (el que NO es el usuario actual) puede ser null cuando la
+  // contraparte no tiene cuenta en la app — en ese caso counterpartyName
+  // (obligatorio) y counterpartyEmail (opcional, solo referencia para un
+  // futuro flujo de invitación/recordatorio por correo) guardan sus datos
+  // como texto libre en vez de una FK a User.
+  creditorId       String?
+  debtorId         String?
+  counterpartyName  String?
+  counterpartyEmail String?
   createdByUserId  String
   amount           Decimal    @db.Decimal(14, 2)
   // Lo que sigue pendiente hoy — arranca igual a `amount` y baja con cada
@@ -393,10 +406,11 @@ model Debt {
   updatedAt        DateTime   @updatedAt
   settledAt        DateTime?
 
-  creditor  User          @relation("CreditorDebts", fields: [creditorId], references: [id], onDelete: Cascade)
-  debtor    User          @relation("DebtorDebts", fields: [debtorId], references: [id], onDelete: Cascade)
+  creditor  User?         @relation("CreditorDebts", fields: [creditorId], references: [id], onDelete: Cascade)
+  debtor    User?         @relation("DebtorDebts", fields: [debtorId], references: [id], onDelete: Cascade)
   createdBy User          @relation("CreatedDebts", fields: [createdByUserId], references: [id])
   payments  DebtPayment[]
+  transactions Transaction[]
 
   @@map("debts")
 }
@@ -407,6 +421,14 @@ model Debt {
 model DebtPayment {
   id              String            @id @default(uuid())
   debtId          String
+  // Cuenta de quien registra el abono (no de la contraparte — cada quien
+  // lleva sus propias cuentas, igual que Goals/Loans). Al confirmarse (o de
+  // inmediato si la contraparte no tiene cuenta en la app, ver
+  // DebtsService), genera un Transaction real aquí: INCOME si quien registró
+  // es el acreedor (recibió el pago), EXPENSE si es el deudor (pagó).
+  // Nullable solo por abonos creados antes de esta feature — el DTO exige
+  // este campo para cualquier abono nuevo.
+  accountId       String?
   amount          Decimal           @db.Decimal(14, 2)
   note            String?
   occurredAt      DateTime          @default(now())
@@ -415,8 +437,9 @@ model DebtPayment {
   createdAt       DateTime          @default(now())
   respondedAt     DateTime?
 
-  debt      Debt @relation(fields: [debtId], references: [id], onDelete: Cascade)
-  createdBy User @relation(fields: [createdByUserId], references: [id])
+  debt      Debt     @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdBy User     @relation(fields: [createdByUserId], references: [id])
 
   @@map("debt_payments")
 }

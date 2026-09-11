@@ -92,6 +92,7 @@ export class LoansService {
     // de más ni queda remainingBalance negativo.
     const amount = Math.min(requested, remaining);
     const newRemaining = round2(remaining - amount);
+    await this.accountsService.assertSufficientFunds(userId, dto.accountId, amount);
 
     const updated = await this.loansRepository.registerPayment({
       loanId: id,

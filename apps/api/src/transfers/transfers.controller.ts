@@ -27,7 +27,10 @@ export class TransfersController {
   @Post()
   @ApiOperation({ summary: 'Transferir dinero entre dos cuentas donde eres miembro' })
   @ApiResponse({ status: 201, type: TransferResponseDto })
-  @ApiResponse({ status: 400, description: 'Datos inválidos, cuentas iguales, o falta tasa de cambio' })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos, cuentas iguales, falta tasa de cambio, o la cuenta origen no tiene saldo/cupo suficiente',
+  })
   @ApiResponse({ status: 404, description: 'Alguna de las cuentas no existe o no tienes acceso' })
   create(
     @CurrentUser() user: AuthenticatedUser,

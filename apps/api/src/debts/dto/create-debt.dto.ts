@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsEmail, IsEnum, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
 import { CurrencyCode } from '../../common/currency';
 
 export enum DebtDirection {
@@ -8,9 +8,22 @@ export enum DebtDirection {
 }
 
 export class CreateDebtDto {
-  @ApiProperty({ example: 'beto@example.com', description: 'Email de la otra persona (ya debe tener cuenta)' })
+  // Nombre de la otra persona — siempre requerido. Si counterpartyEmail
+  // resuelve a un usuario registrado, se ignora (se usa el nombre real de su
+  // cuenta); si no, es el único dato con el que se identifica a esa persona.
+  @ApiProperty({ example: 'Beto Ruiz', description: 'Nombre de la otra persona' })
+  @IsString()
+  @MinLength(1)
+  counterpartyName: string;
+
+  @ApiPropertyOptional({
+    example: 'beto@example.com',
+    description:
+      'Email de la otra persona (opcional). Si corresponde a un usuario registrado, la deuda queda vinculada a su cuenta (con confirmación de abonos); si no, la deuda igual se crea, solo como referencia para el futuro (ej. un recordatorio por correo).',
+  })
+  @IsOptional()
   @IsEmail()
-  counterpartyEmail: string;
+  counterpartyEmail?: string;
 
   @ApiProperty({ enum: DebtDirection, example: DebtDirection.THEY_OWE_ME })
   @IsEnum(DebtDirection)

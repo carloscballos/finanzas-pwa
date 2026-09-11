@@ -1,4 +1,5 @@
-import { formatMoney } from '../../lib/money'
+import { formatMoneyMaybeHidden } from '../../lib/money'
+import { usePrivacy } from '../../context/PrivacyContext'
 import './Money.css'
 
 export type MoneyTone =
@@ -21,6 +22,7 @@ interface MoneyProps {
 }
 
 export function Money({ amount, currency, tone = 'neutral', size = 'md', showSign = false, className = '' }: MoneyProps) {
+  const { hideValues } = usePrivacy()
   let toneClass = ''
   if (tone === 'balance' && amount < 0) toneClass = 'ui-money-negative'
   if (tone === 'flow') toneClass = amount > 0 ? 'ui-money-positive' : amount < 0 ? 'ui-money-negative' : ''
@@ -43,7 +45,7 @@ export function Money({ amount, currency, tone = 'neutral', size = 'md', showSig
   return (
     <span className={`figure ${sizeClass} ${toneClass} ${className}`.trim()}>
       {sign}
-      {formatMoney(amount, currency)}
+      {formatMoneyMaybeHidden(amount, currency, hideValues)}
     </span>
   )
 }

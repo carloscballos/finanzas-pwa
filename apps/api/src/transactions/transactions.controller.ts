@@ -61,7 +61,11 @@ export class TransactionsController {
   @Post()
   @ApiOperation({ summary: 'Registrar un movimiento (ingreso o gasto)' })
   @ApiResponse({ status: 201, type: TransactionResponseDto })
-  @ApiResponse({ status: 400, description: 'Datos inválidos o tipo inconsistente con la categoría' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Datos inválidos, tipo inconsistente con la categoría, o (si es un gasto) la cuenta no tiene saldo/cupo suficiente',
+  })
   @ApiResponse({ status: 404, description: 'Cuenta o categoría no encontrada' })
   create(
     @CurrentUser() user: AuthenticatedUser,
@@ -101,7 +105,11 @@ export class TransactionsController {
   @ApiOperation({ summary: 'Actualizar un movimiento' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 200, type: TransactionResponseDto })
-  @ApiResponse({ status: 400, description: 'Datos inválidos o tipo inconsistente con la categoría' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Datos inválidos, tipo inconsistente con la categoría, o (si es un gasto) la cuenta no tiene saldo/cupo suficiente',
+  })
   @ApiResponse({ status: 404, description: 'Movimiento, cuenta o categoría no encontrada' })
   update(
     @CurrentUser() user: AuthenticatedUser,

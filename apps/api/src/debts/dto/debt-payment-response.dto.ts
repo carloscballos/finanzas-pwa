@@ -5,6 +5,9 @@ export class DebtPaymentResponseDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
+  @ApiPropertyOptional({ format: 'uuid', description: 'Cuenta del creador del abono (null en abonos de antes de esta funcionalidad)' })
+  accountId: string | null;
+
   @ApiProperty({ example: 200 })
   amount: number;
 

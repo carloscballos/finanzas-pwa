@@ -74,7 +74,8 @@ export class LoansController {
   @ApiResponse({ status: 201, type: LoanResponseDto })
   @ApiResponse({
     status: 400,
-    description: 'Datos inválidos, o la cuenta no coincide con la moneda del préstamo',
+    description:
+      'Datos inválidos, la cuenta no coincide con la moneda del préstamo, o no tiene saldo suficiente para la cuota',
   })
   @ApiResponse({ status: 404, description: 'Préstamo o cuenta no encontrada' })
   @ApiResponse({ status: 409, description: 'El préstamo ya está pagado por completo' })

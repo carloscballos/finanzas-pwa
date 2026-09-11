@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Account, type Goal } from '../lib/api'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
+import { sanitizeDecimalInput } from '../lib/money'
 import './GoalsPage.css'
 
 function GoalCard({
@@ -120,7 +121,7 @@ function GoalCard({
             step="0.01"
             placeholder="Monto (+ aportar, - retirar)"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value, 2, true))}
           />
           <input type="date" aria-label="Fecha del aporte" value={date} onChange={(e) => setDate(e.target.value)} required />
           <Button type="submit" disabled={busy || !amount || !accountId}>
@@ -222,7 +223,7 @@ export function GoalsPage() {
                 step="0.01"
                 min="0.01"
                 value={targetAmount}
-                onChange={(e) => setTargetAmount(e.target.value)}
+                onChange={(e) => setTargetAmount(sanitizeDecimalInput(e.target.value))}
                 required
               />
             </FormField>

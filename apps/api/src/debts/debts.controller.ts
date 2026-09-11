@@ -33,10 +33,12 @@ export class DebtsController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Crear una deuda con otro usuario (por email)' })
+  @ApiOperation({
+    summary:
+      'Crear una deuda con otra persona — el email es opcional; si no se da o no corresponde a un usuario registrado, la deuda igual se crea con el nombre como referencia',
+  })
   @ApiResponse({ status: 201, type: DebtResponseDto })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
-  @ApiResponse({ status: 404, description: 'No existe un usuario con ese email' })
   create(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateDebtDto,
@@ -51,7 +53,11 @@ export class DebtsController {
   })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 201, type: DebtResponseDto })
-  @ApiResponse({ status: 400, description: 'Monto inválido o mayor al saldo pendiente' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Monto inválido o mayor al saldo pendiente, la cuenta no coincide en moneda, o (si eres el deudor) no tiene saldo suficiente',
+  })
   @ApiResponse({ status: 404, description: 'Deuda no encontrada' })
   @ApiResponse({ status: 409, description: 'La deuda ya está liquidada' })
   registerPayment(

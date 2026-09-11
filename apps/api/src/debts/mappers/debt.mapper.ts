@@ -6,21 +6,23 @@ import { DebtDirection } from '../dto/create-debt.dto';
 type UserSummary = { id: string; name: string; email: string };
 
 export type DebtWithParties = Debt & {
-  creditor: UserSummary;
-  debtor: UserSummary;
+  creditor: UserSummary | null;
+  debtor: UserSummary | null;
   payments: DebtPayment[];
 };
 
 export class DebtMapper {
   static toResponse(debt: DebtWithParties, viewerId: string): DebtResponseDto {
     const isCreditor = debt.creditorId === viewerId;
-    const counterparty = isCreditor ? debt.debtor : debt.creditor;
+    const counterpartyUser = isCreditor ? debt.debtor : debt.creditor;
     const amount = Number(debt.amount);
     const remainingBalance = Number(debt.remainingBalance);
 
     return {
       id: debt.id,
-      counterparty,
+      counterparty: counterpartyUser
+        ? { id: counterpartyUser.id, name: counterpartyUser.name, email: counterpartyUser.email, isRegistered: true }
+        : { id: null, name: debt.counterpartyName ?? '(sin nombre)', email: debt.counterpartyEmail, isRegistered: false },
       direction: isCreditor ? DebtDirection.THEY_OWE_ME : DebtDirection.I_OWE_THEM,
       amount,
       remainingBalance,
@@ -43,6 +45,7 @@ export class DebtMapper {
   static paymentToResponse(payment: DebtPayment, viewerId: string): DebtPaymentResponseDto {
     return {
       id: payment.id,
+      accountId: payment.accountId,
       amount: Number(payment.amount),
       note: payment.note,
       occurredAt: payment.occurredAt,

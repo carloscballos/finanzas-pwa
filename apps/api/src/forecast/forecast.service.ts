@@ -5,7 +5,7 @@ import { CardPurchasesService } from '../card-purchases/card-purchases.service';
 import { ForecastRepository } from './forecast.repository';
 import { ForecastSummaryDto } from './dto/forecast-summary.dto';
 import { BudgetSuggestionDto } from './dto/budget-suggestion.dto';
-import { getTrailingWindow } from './trailing-window.util';
+import { countMonthsOfHistory, getTrailingWindow } from './trailing-window.util';
 
 const MONTHS_OF_HISTORY = 3;
 const WEEKS_PER_MONTH = 52 / 12;
@@ -70,10 +70,16 @@ export class ForecastService {
 
   async getBudgetSuggestions(userId: string): Promise<BudgetSuggestionDto[]> {
     const window = getTrailingWindow(MONTHS_OF_HISTORY);
-    const [transactions, budgets] = await Promise.all([
+    const [transactions, budgets, earliestTransaction] = await Promise.all([
       this.forecastRepository.findExpenseTransactionsInWindow(userId, window.start, window.end),
       this.forecastRepository.findBudgetsForUser(userId),
+      this.forecastRepository.findEarliestTransactionDate(userId),
     ]);
+
+    // Sin ningún mes completo de historial no hay promedio que calcular —
+    // mejor no sugerir nada que sugerir a partir de un mes a medias.
+    const monthsOfHistory = countMonthsOfHistory(window, earliestTransaction);
+    if (monthsOfHistory === 0) return [];
 
     interface Accumulator {
       categoryId: string;
@@ -105,7 +111,8 @@ export class ForecastService {
         return {
           category: { id: s.categoryId, name: s.categoryName, emoji: s.categoryEmoji },
           currency: s.currency,
-          averageMonthlySpend: round2(s.total / MONTHS_OF_HISTORY),
+          averageMonthlySpend: round2(s.total / monthsOfHistory),
+          monthsOfHistory,
           existingBudget: existingBudget
             ? {
                 id: existingBudget.id,

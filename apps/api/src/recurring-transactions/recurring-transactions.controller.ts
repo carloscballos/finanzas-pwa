@@ -78,6 +78,10 @@ export class RecurringTransactionsController {
   })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 201, type: TransactionResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos, o (si la plantilla es un gasto) la cuenta no tiene saldo/cupo suficiente',
+  })
   @ApiResponse({ status: 404, description: 'No encontrado' })
   apply(
     @CurrentUser() user: AuthenticatedUser,

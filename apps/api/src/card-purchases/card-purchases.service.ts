@@ -157,6 +157,12 @@ export class CardPurchasesService {
     const remainingBalance = round2(
       Math.max(0, dto.amount - installmentsPaid * dto.installmentAmount),
     );
+    // Lo que se carga a la tarjeta tiene que caber en el cupo (si tiene
+    // creditLimit), igual que el banco no dejaría pasar la compra. Con
+    // alreadyInBalance no se registra movimiento, así que no hay qué validar.
+    if (!dto.alreadyInBalance && remainingBalance > 0) {
+      await this.accountsService.assertSufficientFunds(userId, dto.accountId, remainingBalance);
+    }
 
     const created = await this.cardPurchasesRepository.create({
       userId,
@@ -230,6 +236,17 @@ export class CardPurchasesService {
     // participa de este cálculo — ver registerInstallmentPayment.
     const capitalAmount = Math.min(requested, remaining);
     const newRemaining = round2(remaining - capitalAmount);
+    // Si no se especifica, se usa el interés real del último extracto
+    // conciliado para esta cuota (si lo hay) en vez de dejarlo en 0 — así
+    // "Ponerme al día" y pagos sin tocar el campo ya quedan exactos con el
+    // banco, sin depender de que el usuario lo escriba a mano cada vez.
+    const interestAmount = dto.interestAmount ?? Number(purchase.lastStatementInterestAmount ?? 0);
+    // Capital + interés es lo que de verdad sale de la cuenta que paga.
+    await this.accountsService.assertSufficientFunds(
+      userId,
+      dto.accountId,
+      round2(capitalAmount + interestAmount),
+    );
 
     const updated = await this.cardPurchasesRepository.registerInstallmentPayment({
       cardPurchaseId: id,
@@ -237,11 +254,7 @@ export class CardPurchasesService {
       payingAccountId: dto.accountId,
       userId,
       capitalAmount,
-      // Si no se especifica, se usa el interés real del último extracto
-      // conciliado para esta cuota (si lo hay) en vez de dejarlo en 0 — así
-      // "Ponerme al día" y pagos sin tocar el campo ya quedan exactos con el
-      // banco, sin depender de que el usuario lo escriba a mano cada vez.
-      interestAmount: dto.interestAmount ?? Number(purchase.lastStatementInterestAmount ?? 0),
+      interestAmount,
       occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
       remainingBalance: newRemaining,
       status: newRemaining <= 0 ? 'PAID_OFF' : 'ACTIVE',
@@ -303,11 +316,14 @@ export class CardPurchasesService {
       active.reduce((sum, p) => sum + Number(p.lastStatementInterestAmount ?? 0), 0),
     );
 
+    const paidAmount = dto.amount ?? round2(capitalTotal + interestTotal);
+    await this.accountsService.assertSufficientFunds(userId, dto.payingAccountId, paidAmount);
+
     await this.cardPurchasesRepository.registerMonthlyPayment({
       payingAccountId: dto.payingAccountId,
       cardAccountId: dto.cardAccountId,
       userId,
-      paidAmount: dto.amount ?? round2(capitalTotal + interestTotal),
+      paidAmount,
       capitalAmount: capitalTotal,
       occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
       note: `Pago cuotas de tarjeta (${installments.length} compra${installments.length !== 1 ? 's' : ''})`,

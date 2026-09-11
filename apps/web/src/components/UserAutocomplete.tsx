@@ -11,11 +11,16 @@ export function UserAutocomplete({
   value,
   onChange,
   placeholder,
+  required = true,
+  onSelect,
 }: {
   id?: string
   value: string
   onChange: (email: string) => void
   placeholder?: string
+  required?: boolean
+  /** Se dispara al elegir un resultado de la lista — útil para autocompletar otros campos (ej. el nombre) con datos de un usuario ya registrado. */
+  onSelect?: (result: UserSearchResult) => void
 }) {
   const { token } = useAuth()
   const [results, setResults] = useState<UserSearchResult[]>([])
@@ -49,7 +54,7 @@ export function UserAutocomplete({
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder}
         autoComplete="off"
-        required
+        required={required}
       />
       {open && results.length > 0 && (
         <ul className="user-autocomplete-list">
@@ -58,6 +63,7 @@ export function UserAutocomplete({
               key={r.id}
               onMouseDown={() => {
                 onChange(r.email)
+                onSelect?.(r)
                 setOpen(false)
               }}
             >

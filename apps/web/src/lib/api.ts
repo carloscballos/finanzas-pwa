@@ -94,6 +94,8 @@ export interface Transaction {
   loan: { id: string; name: string } | null
   cardPurchaseId: string | null
   cardPurchase: { id: string; merchant: string } | null
+  debtId: string | null
+  debt: { id: string; counterpartyName: string } | null
   createdAt: string
   updatedAt: string
 }
@@ -128,6 +130,11 @@ export interface CreateBudgetInput {
   categoryId: string
   limitAmount: number
   currency?: string
+  period?: BudgetPeriod
+}
+
+export interface UpdateBudgetInput {
+  limitAmount?: number
   period?: BudgetPeriod
 }
 
@@ -249,6 +256,7 @@ export type DebtPaymentStatus = 'PENDING_CONFIRMATION' | 'CONFIRMED' | 'REJECTED
 
 export interface DebtPayment {
   id: string
+  accountId: string | null
   amount: number
   note: string | null
   occurredAt: string
@@ -259,7 +267,7 @@ export interface DebtPayment {
 
 export interface Debt {
   id: string
-  counterparty: { id: string; name: string; email: string }
+  counterparty: { id: string | null; name: string; email: string | null; isRegistered: boolean }
   direction: DebtDirection
   amount: number
   remainingBalance: number
@@ -275,7 +283,8 @@ export interface Debt {
 }
 
 export interface CreateDebtInput {
-  counterpartyEmail: string
+  counterpartyName: string
+  counterpartyEmail?: string
   direction: DebtDirection
   amount: number
   currency?: string
@@ -283,6 +292,7 @@ export interface CreateDebtInput {
 }
 
 export interface CreateDebtPaymentInput {
+  accountId: string
   amount?: number
   occurredAt?: string
   note?: string
@@ -401,6 +411,7 @@ export interface BudgetSuggestion {
   category: { id: string; name: string; emoji: string | null }
   currency: string
   averageMonthlySpend: number
+  monthsOfHistory: number
   existingBudget: { id: string; limitAmount: number; period: BudgetPeriod } | null
 }
 
@@ -512,6 +523,10 @@ export function createBudget(token: string, input: CreateBudgetInput) {
   return request<Budget>('/api/v1/budgets', { method: 'POST', body: input, token })
 }
 
+export function updateBudget(token: string, id: string, input: UpdateBudgetInput) {
+  return request<Budget>(`/api/v1/budgets/${id}`, { method: 'PATCH', body: input, token })
+}
+
 export function deleteBudget(token: string, id: string) {
   return request<void>(`/api/v1/budgets/${id}`, { method: 'DELETE', token })
 }
@@ -548,7 +563,7 @@ export function createDebt(token: string, input: CreateDebtInput) {
   return request<Debt>('/api/v1/debts', { method: 'POST', body: input, token })
 }
 
-export function registerDebtPayment(token: string, id: string, input: CreateDebtPaymentInput = {}) {
+export function registerDebtPayment(token: string, id: string, input: CreateDebtPaymentInput) {
   return request<Debt>(`/api/v1/debts/${id}/payments`, { method: 'POST', body: input, token })
 }
 

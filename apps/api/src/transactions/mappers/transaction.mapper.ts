@@ -12,6 +12,13 @@ export type TransactionWithRelations = Transaction & {
   goal: { id: string; name: string } | null;
   loan: { id: string; name: string } | null;
   cardPurchase: { id: string; merchant: string } | null;
+  debt: {
+    id: string;
+    counterpartyName: string | null;
+    creditorId: string | null;
+    creditor: { name: string } | null;
+    debtor: { name: string } | null;
+  } | null;
 };
 
 export class TransactionMapper {
@@ -41,6 +48,22 @@ export class TransactionMapper {
       loan: transaction.loan,
       cardPurchaseId: transaction.cardPurchaseId,
       cardPurchase: transaction.cardPurchase,
+      debtId: transaction.debtId,
+      // La contraparte de una transacción de deuda es siempre relativa a
+      // quien la registró (transaction.createdByUserId) — esta Transaction
+      // solo existe en la cuenta de esa persona, así que "la otra parte" es
+      // inequívoca sin necesitar el id del viewer actual.
+      debt: transaction.debt
+        ? {
+            id: transaction.debt.id,
+            counterpartyName:
+              (transaction.debt.creditorId === transaction.createdByUserId
+                ? transaction.debt.debtor?.name
+                : transaction.debt.creditor?.name) ??
+              transaction.debt.counterpartyName ??
+              '',
+          }
+        : null,
       createdAt: transaction.createdAt,
       updatedAt: transaction.updatedAt,
     };

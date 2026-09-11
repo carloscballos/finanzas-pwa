@@ -4,10 +4,45 @@ export function round2(value: number): number {
 
 export function formatMoney(amount: number, currency: string): string {
   try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
   } catch {
     return `${amount.toFixed(2)} ${currency}`
   }
+}
+
+// Usado por el toggle "ocultar valores" (ver PrivacyContext) — reemplaza
+// cualquier monto formateado por un placeholder fijo, sin importar cuántos
+// dígitos tendría el número real (evita filtrar la magnitud del monto).
+export const HIDDEN_MONEY_PLACEHOLDER = '••••••'
+
+export function formatMoneyMaybeHidden(amount: number, currency: string, hidden: boolean): string {
+  return hidden ? HIDDEN_MONEY_PLACEHOLDER : formatMoney(amount, currency)
+}
+
+// Sanea el valor de un input numérico controlado mientras se escribe: solo
+// dígitos y un único punto decimal, truncado a `decimals` posiciones (2 para
+// montos de dinero, 0 para inputs de conteo como número de cuotas). A
+// diferencia de `step` en un <input type="number"> (que no bloquea nada
+// mientras se escribe, solo marca :invalid), esto sí impide escribir un
+// tercer decimal. `allowNegative` es para los pocos campos donde el signo
+// tiene significado propio (ej. aportar/retirar de una meta).
+export function sanitizeDecimalInput(raw: string, decimals = 2, allowNegative = false): string {
+  const negative = allowNegative && raw.trim().startsWith('-')
+  const sign = negative ? '-' : ''
+  if (decimals <= 0) {
+    return sign + raw.replace(/[^0-9]/g, '')
+  }
+  const cleaned = raw.replace(/[^0-9.]/g, '')
+  const firstDot = cleaned.indexOf('.')
+  if (firstDot === -1) return sign + cleaned
+  const integerPart = cleaned.slice(0, firstDot)
+  const fractionPart = cleaned.slice(firstDot + 1).replace(/\./g, '').slice(0, decimals)
+  return `${sign}${integerPart}.${fractionPart}`
 }
 
 // Nunca debería superar creditLimit ni bajar de 0 — se recorta como defensa

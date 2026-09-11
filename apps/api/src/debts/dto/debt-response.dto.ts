@@ -4,14 +4,17 @@ import { DebtDirection } from './create-debt.dto';
 import { DebtPaymentResponseDto } from './debt-payment-response.dto';
 
 class DebtCounterpartyDto {
-  @ApiProperty({ format: 'uuid' })
-  id: string;
+  @ApiPropertyOptional({ format: 'uuid', description: 'null si la persona no tiene cuenta en la app' })
+  id: string | null;
 
   @ApiProperty({ example: 'Beto Ruiz' })
   name: string;
 
-  @ApiProperty({ example: 'beto@example.com' })
-  email: string;
+  @ApiPropertyOptional({ example: 'beto@example.com' })
+  email: string | null;
+
+  @ApiProperty({ example: true, description: 'false si esta persona no tiene cuenta registrada en la app' })
+  isRegistered: boolean;
 }
 
 export class DebtResponseDto {

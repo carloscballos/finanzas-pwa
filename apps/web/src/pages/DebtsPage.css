@@ -50,6 +50,19 @@
 
 .debt-party {
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.debt-unregistered {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  padding: 0.1rem 0.5rem;
 }
 
 .debt-description {

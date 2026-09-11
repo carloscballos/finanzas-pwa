@@ -33,8 +33,11 @@ import {
   estimateCuotaInterest,
   estimateInstallmentSplit,
   formatMoney,
+  formatMoneyMaybeHidden,
   round2,
+  sanitizeDecimalInput,
 } from '../lib/money'
+import { usePrivacy } from '../context/PrivacyContext'
 import './AccountTransactionsPage.css'
 import './LoansPage.css'
 
@@ -190,6 +193,7 @@ function CardPurchaseCard({
   onDeleted: (id: string) => void
 }) {
   const { token } = useAuth()
+  const { hideValues } = usePrivacy()
   const matchingAccounts = payingAccounts.filter((a) => a.currency === purchase.account.currency)
   const [accountId, setAccountId] = useState('')
   const [amount, setAmount] = useState('')
@@ -286,7 +290,7 @@ function CardPurchaseCard({
           <h3>{purchase.merchant}</h3>
           <span className="loan-meta">
             Cuota {purchase.installmentsPaid}/{purchase.installmentsTotal} de{' '}
-            {formatMoney(purchase.installmentAmount, purchase.account.currency)} ·{' '}
+            {formatMoneyMaybeHidden(purchase.installmentAmount, purchase.account.currency, hideValues)} ·{' '}
             {formatShortDate(purchase.purchasedAt)}
             {purchase.interestRate !== null && ` · ${purchase.interestRate}% interés`}
           </span>
@@ -326,7 +330,7 @@ function CardPurchaseCard({
             aria-label="Monto de cada cuota"
             placeholder="Monto de cada cuota"
             value={editInstallmentAmount}
-            onChange={(e) => setEditInstallmentAmount(e.target.value)}
+            onChange={(e) => setEditInstallmentAmount(sanitizeDecimalInput(e.target.value))}
             required
           />
           <input
@@ -336,7 +340,7 @@ function CardPurchaseCard({
             aria-label="% interés mensual"
             placeholder="% interés (opcional)"
             value={editInterestRate}
-            onChange={(e) => setEditInterestRate(e.target.value)}
+            onChange={(e) => setEditInterestRate(sanitizeDecimalInput(e.target.value))}
           />
           <Button type="submit" disabled={editBusy}>
             Guardar
@@ -371,9 +375,9 @@ function CardPurchaseCard({
               type="number"
               step="0.01"
               min="0.01"
-              placeholder={`Monto (cuota ${formatMoney(purchase.installmentAmount, purchase.account.currency)})`}
+              placeholder={`Monto (cuota ${formatMoneyMaybeHidden(purchase.installmentAmount, purchase.account.currency, hideValues)})`}
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value))}
             />
             <input
               type="number"
@@ -382,7 +386,7 @@ function CardPurchaseCard({
               aria-label="Interés este mes"
               placeholder="Interés este mes (opcional)"
               value={interestAmount}
-              onChange={(e) => setInterestAmount(e.target.value)}
+              onChange={(e) => setInterestAmount(sanitizeDecimalInput(e.target.value))}
               title="Precargado con remainingBalance × % interés — corrígelo con el valor real del extracto si difiere"
             />
             <input
@@ -403,17 +407,26 @@ function CardPurchaseCard({
 
 // Multiplicador fromCurrency -> toCurrency a partir de la tasa USD/COP,
 // solo para previsualizar en el formulario — el backend recalcula/valida la
-// tasa real al crear la transferencia.
-function previewMultiplier(fromCurrency: string, toCurrency: string, usdToCop: number): number | null {
+// tasa real al crear la transferencia. `usdCopRate` es siempre "cuántos COP
+// vale 1 USD" (lo que el usuario ve y edita, sin importar la dirección de la
+// transferencia) — este helper lo convierte al multiplicador
+// fromCurrency→toCurrency que de verdad se usa para calcular toAmount. Antes
+// se guardaba directo el multiplicador (1/tasa al ir de COP a USD, un número
+// como 0.00024) y se mostraba tal cual en el input — confuso.
+function multiplierFromUsdCopRate(fromCurrency: string, toCurrency: string, usdCopRate: number): number | null {
   if (fromCurrency === toCurrency) return 1
-  if (fromCurrency === 'USD' && toCurrency === 'COP') return usdToCop
-  if (fromCurrency === 'COP' && toCurrency === 'USD') return 1 / usdToCop
+  if (fromCurrency === 'USD' && toCurrency === 'COP') return usdCopRate
+  // El backend valida el multiplicador con máximo 6 decimales — 1/tasa da un
+  // float con muchos más (ej. 1/3101 = 0.000322476...), así que hay que
+  // redondear antes de mandarlo, no solo al mostrarlo.
+  if (fromCurrency === 'COP' && toCurrency === 'USD') return usdCopRate > 0 ? Math.round(1e6 / usdCopRate) / 1e6 : null
   return null
 }
 
 export function AccountTransactionsPage() {
   const { accountId } = useParams<{ accountId: string }>()
   const { token } = useAuth()
+  const { hideValues } = usePrivacy()
 
   const [account, setAccount] = useState<Account | null>(null)
   const [allAccounts, setAllAccounts] = useState<Account[]>([])
@@ -469,7 +482,9 @@ export function AccountTransactionsPage() {
   const [transferNote, setTransferNote] = useState('')
   const [transferDate, setTransferDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [autoRate, setAutoRate] = useState<api.ExchangeRate | null>(null)
-  const [transferRate, setTransferRate] = useState('')
+  // Siempre "cuántos COP vale 1 USD" — nunca el multiplicador crudo de la
+  // transferencia (ver multiplierFromUsdCopRate).
+  const [usdCopRate, setUsdCopRate] = useState('')
   const [transferring, setTransferring] = useState(false)
   const [transferError, setTransferError] = useState<string | null>(null)
 
@@ -656,12 +671,17 @@ export function AccountTransactionsPage() {
   }, [token, needsRate])
 
   useEffect(() => {
-    if (!needsRate || !autoRate || !account || !toAccount) return
-    const multiplier = previewMultiplier(account.currency, toAccount.currency, autoRate.rate)
-    if (multiplier !== null) setTransferRate(String(Math.round(multiplier * 1e6) / 1e6))
+    if (!needsRate || !autoRate) return
+    // autoRate.rate YA es "1 USD en COP" — se precarga tal cual, sin
+    // importar en qué dirección va la transferencia.
+    setUsdCopRate(String(round2(autoRate.rate)))
   }, [autoRate, needsRate])
 
-  const previewRate = needsRate ? Number(transferRate) || null : 1
+  const previewRate = needsRate
+    ? account && toAccount
+      ? multiplierFromUsdCopRate(account.currency, toAccount.currency, Number(usdCopRate) || 0)
+      : null
+    : 1
   const previewToAmount =
     transferAmount && previewRate ? Number(transferAmount) * previewRate : null
 
@@ -793,7 +813,10 @@ export function AccountTransactionsPage() {
         fromAccountId: accountId,
         toAccountId,
         fromAmount: Number(transferAmount),
-        exchangeRate: needsRate && transferRate ? Number(transferRate) : undefined,
+        exchangeRate:
+          needsRate && account && toAccount && usdCopRate
+            ? (multiplierFromUsdCopRate(account.currency, toAccount.currency, Number(usdCopRate)) ?? undefined)
+            : undefined,
         note: transferNote || undefined,
         occurredAt: new Date(transferDate).toISOString(),
       })
@@ -806,7 +829,7 @@ export function AccountTransactionsPage() {
       setToAccountId('')
       setTransferAmount('')
       setTransferNote('')
-      setTransferRate('')
+      setUsdCopRate('')
       setShowTransferForm(false)
     } catch (err) {
       setTransferError(err instanceof ApiError ? err.message : 'No se pudo hacer la transferencia')
@@ -845,8 +868,8 @@ export function AccountTransactionsPage() {
               <Money amount={account.currentBalance} currency={account.currency} tone="balance" size="lg" />
               {account.type === 'CREDIT_CARD' && account.creditLimit !== null && (
                 <div className="account-credit-info">
-                  Disponible: {formatMoney(computeAvailableCredit(account.creditLimit, account.currentBalance), account.currency)} de{' '}
-                  {formatMoney(account.creditLimit, account.currency)}
+                  Disponible: {formatMoneyMaybeHidden(computeAvailableCredit(account.creditLimit, account.currentBalance), account.currency, hideValues)} de{' '}
+                  {formatMoneyMaybeHidden(account.creditLimit, account.currency, hideValues)}
                   {account.paymentDueDay && ` · Paga el día ${account.paymentDueDay}`}
                 </div>
               )}
@@ -908,7 +931,7 @@ export function AccountTransactionsPage() {
                   className="account-credit-info"
                   style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}
                 >
-                  <span>Cuota estimada este mes: {formatMoney(activeMonthlyInstallments, account.currency)}</span>
+                  <span>Cuota estimada este mes: {formatMoneyMaybeHidden(activeMonthlyInstallments, account.currency, hideValues)}</span>
                   {payAllMatchingAccounts.length === 0 ? (
                     <span className="statement-row-meta">Sin cuenta en {account.currency} para pagar.</span>
                   ) : !showPayAllForm ? (
@@ -945,11 +968,11 @@ export function AccountTransactionsPage() {
                         step="0.01"
                         min="0.01"
                         value={payAllAmount}
-                        onChange={(e) => setPayAllAmount(e.target.value)}
+                        onChange={(e) => setPayAllAmount(sanitizeDecimalInput(e.target.value))}
                       />
                       <span style={{ fontSize: '0.8rem' }}>
-                        Precargado con capital ({formatMoney(activeMonthlyInstallments, account.currency)}) + interés
-                        estimado ({formatMoney(activeMonthlyInterestEstimate, account.currency)}) — corrígelo con el
+                        Precargado con capital ({formatMoneyMaybeHidden(activeMonthlyInstallments, account.currency, hideValues)}) + interés
+                        estimado ({formatMoneyMaybeHidden(activeMonthlyInterestEstimate, account.currency, hideValues)}) — corrígelo con el
                         valor real del extracto. Solo el capital de cada cuota se descuenta del saldo pendiente de las
                         compras; el interés no afecta el saldo de la tarjeta.
                       </span>
@@ -1052,7 +1075,7 @@ export function AccountTransactionsPage() {
                         step="0.01"
                         min="0.01"
                         value={purchaseAmount}
-                        onChange={(e) => setPurchaseAmount(e.target.value)}
+                        onChange={(e) => setPurchaseAmount(sanitizeDecimalInput(e.target.value))}
                         required
                       />
                     </FormField>
@@ -1072,7 +1095,7 @@ export function AccountTransactionsPage() {
                         min="1"
                         step="1"
                         value={purchaseInstallmentsTotal}
-                        onChange={(e) => setPurchaseInstallmentsTotal(e.target.value)}
+                        onChange={(e) => setPurchaseInstallmentsTotal(sanitizeDecimalInput(e.target.value, 0))}
                         required
                       />
                     </FormField>
@@ -1084,7 +1107,7 @@ export function AccountTransactionsPage() {
                         min="0"
                         placeholder="0"
                         value={purchaseInterestRate}
-                        onChange={(e) => setPurchaseInterestRate(e.target.value)}
+                        onChange={(e) => setPurchaseInterestRate(sanitizeDecimalInput(e.target.value))}
                       />
                     </FormField>
                     <FormField label="Monto de cada cuota (capital, sin interés)" htmlFor="purchase-installment-amount">
@@ -1095,7 +1118,7 @@ export function AccountTransactionsPage() {
                           step="0.01"
                           min="0.01"
                           value={purchaseInstallmentAmount}
-                          onChange={(e) => setPurchaseInstallmentAmount(e.target.value)}
+                          onChange={(e) => setPurchaseInstallmentAmount(sanitizeDecimalInput(e.target.value))}
                           required
                         />
                         <Button
@@ -1129,7 +1152,7 @@ export function AccountTransactionsPage() {
                         min="0"
                         placeholder="0"
                         value={purchaseEstimatedInterest}
-                        onChange={(e) => setPurchaseEstimatedInterest(e.target.value)}
+                        onChange={(e) => setPurchaseEstimatedInterest(sanitizeDecimalInput(e.target.value))}
                       />
                       <span style={{ fontSize: '0.8rem' }}>
                         No se guarda — es solo para comparar contra el extracto real al pagar la cuota, donde sí puedes
@@ -1144,7 +1167,7 @@ export function AccountTransactionsPage() {
                         step="1"
                         placeholder="0"
                         value={purchaseInstallmentsPaid}
-                        onChange={(e) => setPurchaseInstallmentsPaid(e.target.value)}
+                        onChange={(e) => setPurchaseInstallmentsPaid(sanitizeDecimalInput(e.target.value, 0))}
                       />
                       <span style={{ fontSize: '0.8rem' }}>Úsalo para traer una compra que ya venía en curso.</span>
                     </FormField>
@@ -1215,7 +1238,7 @@ export function AccountTransactionsPage() {
                     value={toAccountId}
                     onChange={(e) => {
                       setToAccountId(e.target.value)
-                      setTransferRate('')
+                      setUsdCopRate('')
                     }}
                     required
                   >
@@ -1238,7 +1261,7 @@ export function AccountTransactionsPage() {
                     step="0.01"
                     min="0.01"
                     value={transferAmount}
-                    onChange={(e) => setTransferAmount(e.target.value)}
+                    onChange={(e) => setTransferAmount(sanitizeDecimalInput(e.target.value))}
                     required
                   />
                 </FormField>
@@ -1252,14 +1275,14 @@ export function AccountTransactionsPage() {
                   />
                 </FormField>
                 {needsRate && (
-                  <FormField label={`Tasa (${account.currency} → ${toAccount?.currency})`} htmlFor="transfer-rate">
+                  <FormField label="Valor de 1 USD (en COP)" htmlFor="transfer-rate">
                     <input
                       id="transfer-rate"
                       type="number"
-                      step="0.000001"
-                      min="0.000001"
-                      value={transferRate}
-                      onChange={(e) => setTransferRate(e.target.value)}
+                      step="0.01"
+                      min="0.01"
+                      value={usdCopRate}
+                      onChange={(e) => setUsdCopRate(sanitizeDecimalInput(e.target.value))}
                       placeholder={autoRate ? undefined : 'Sin tasa automática — ingrésala'}
                       required
                     />
@@ -1267,7 +1290,8 @@ export function AccountTransactionsPage() {
                 )}
                 {toAccount && previewToAmount !== null && (
                   <div className="ui-field-full transfer-preview">
-                    Recibe en {toAccount.name}: <strong>{formatMoney(previewToAmount, toAccount.currency)}</strong>
+                    Recibe en {toAccount.name}:{' '}
+                    <strong>{formatMoneyMaybeHidden(previewToAmount, toAccount.currency, hideValues)}</strong>
                     {needsRate && autoRate && (
                       <span className="tx-row-meta"> · TRM oficial del {autoRate.date.slice(0, 10)}</span>
                     )}
@@ -1323,7 +1347,7 @@ export function AccountTransactionsPage() {
                     step="0.01"
                     min="0.01"
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value))}
                     required
                   />
                 </FormField>
@@ -1363,7 +1387,11 @@ export function AccountTransactionsPage() {
           <div className="tx-list">
             {transactions.map((tx) => {
               const isTransfer = !!tx.transferId
-              const isLinked = isTransfer || !!tx.goal || !!tx.loan || !!tx.cardPurchase
+              // Las patas de meta/préstamo/compra/deuda solo se editan/eliminan
+              // desde donde se originaron (no hay endpoint para borrarlas
+              // sueltas) — una transferencia sí tiene su propio DELETE
+              // (/transfers/:id, borra sus dos patas), así que no se bloquea.
+              const isLockedElsewhere = !!tx.goal || !!tx.loan || !!tx.cardPurchase || !!tx.debt
               const emoji = isTransfer
                 ? '⇄'
                 : tx.goal
@@ -1372,7 +1400,9 @@ export function AccountTransactionsPage() {
                     ? '🏦'
                     : tx.cardPurchase
                       ? '🛍️'
-                      : tx.category?.emoji
+                      : tx.debt
+                        ? '🤝'
+                        : tx.category?.emoji
 
               return (
                 <ListRow
@@ -1387,7 +1417,9 @@ export function AccountTransactionsPage() {
                           ? `Préstamo: ${tx.loan.name}`
                           : tx.cardPurchase
                             ? `Compra: ${tx.cardPurchase.merchant}`
-                            : tx.category?.name
+                            : tx.debt
+                              ? `Deuda: ${tx.debt.counterpartyName}`
+                              : tx.category?.name
                   }
                   subtitle={
                     (tx.note || account.memberCount > 1) && (
@@ -1409,7 +1441,7 @@ export function AccountTransactionsPage() {
                     </>
                   }
                   actions={
-                    isLinked ? (
+                    isLockedElsewhere ? (
                       <span className="tx-row-locked" title="Edítalo desde donde se originó">
                         🔒
                       </span>

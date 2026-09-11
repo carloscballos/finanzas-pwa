@@ -47,6 +47,9 @@ export class TransactionsService {
     await this.accountsService.getAccessibleAccount(userId, dto.accountId);
     const category = await this.categoriesService.getOwnedCategory(userId, dto.categoryId);
     this.assertTypeMatches(dto.type, category.type);
+    if (dto.type === TransactionType.EXPENSE) {
+      await this.accountsService.assertSufficientFunds(userId, dto.accountId, dto.amount);
+    }
 
     const created = await this.transactionsRepository.create(userId, dto);
     return TransactionMapper.toResponse(created);
@@ -72,6 +75,23 @@ export class TransactionsService {
         ? await this.categoriesService.getOwnedCategory(userId, dto.categoryId ?? existing.categoryId!)
         : existing.category!;
     this.assertTypeMatches(type, category.type);
+
+    if (type === TransactionType.EXPENSE) {
+      const targetAccountId = dto.accountId ?? existing.accountId;
+      // Si el movimiento sigue en la misma cuenta, ya está contado en su
+      // saldo — se descuenta su efecto actual para no compararlo contra sí
+      // mismo (subir un gasto de 50 a 60 solo necesita 10 más de saldo).
+      const editedEffect =
+        targetAccountId === existing.accountId
+          ? (existing.type === TransactionType.INCOME ? 1 : -1) * Number(existing.amount)
+          : 0;
+      await this.accountsService.assertSufficientFunds(
+        userId,
+        targetAccountId,
+        dto.amount ?? Number(existing.amount),
+        editedEffect,
+      );
+    }
 
     const updated = await this.transactionsRepository.update(id, dto);
     return TransactionMapper.toResponse(updated);
@@ -151,6 +171,11 @@ export class TransactionsService {
     if (transaction.cardPurchaseId) {
       throw new BadRequestException(
         'Este movimiento es una compra a cuotas o el pago de una cuota — regístralo desde la compra',
+      );
+    }
+    if (transaction.debtId) {
+      throw new BadRequestException(
+        'Este movimiento es el abono de una deuda — regístralo desde la deuda',
       );
     }
   }

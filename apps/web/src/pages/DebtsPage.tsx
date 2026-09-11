@@ -14,9 +14,10 @@ import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
-import { ApiError, type Debt, type DebtDirection, type DebtPayment } from '../lib/api'
+import { ApiError, type Account, type Debt, type DebtDirection, type DebtPayment } from '../lib/api'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
-import { formatMoney } from '../lib/money'
+import { formatMoneyMaybeHidden, sanitizeDecimalInput } from '../lib/money'
+import { usePrivacy } from '../context/PrivacyContext'
 import './LoansPage.css'
 import './DebtsPage.css'
 
@@ -35,12 +36,25 @@ function paymentBadge(payment: DebtPayment): { label: string; tone: BadgeTone } 
   return { label: 'Esperando confirmación', tone: 'warn' }
 }
 
-function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Debt) => void; onDeleted: (id: string) => void }) {
+function DebtCard({
+  debt,
+  payingAccounts,
+  onChange,
+  onDeleted,
+}: {
+  debt: Debt
+  payingAccounts: Account[]
+  onChange: (d: Debt) => void
+  onDeleted: (id: string) => void
+}) {
   const { token } = useAuth()
+  const { hideValues } = usePrivacy()
   const [busy, setBusy] = useState(false)
   const badge = statusBadge(debt)
   const owed = debt.direction === 'THEY_OWE_ME'
+  const matchingAccounts = payingAccounts.filter((a) => a.currency === debt.currency)
 
+  const [accountId, setAccountId] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [note, setNote] = useState('')
@@ -58,15 +72,17 @@ function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Deb
 
   async function handleRegisterPayment(event: FormEvent) {
     event.preventDefault()
-    if (!token) return
+    if (!token || !accountId) return
     setBusy(true)
     try {
       const updated = await api.registerDebtPayment(token, debt.id, {
+        accountId,
         amount: amount ? Number(amount) : undefined,
         occurredAt: new Date(date).toISOString(),
         note: note || undefined,
       })
       onChange(updated)
+      setAccountId('')
       setAmount('')
       setNote('')
       setDate(new Date().toISOString().slice(0, 10))
@@ -109,6 +125,11 @@ function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Deb
         <div>
           <div className="debt-party">
             {owed ? `${debt.counterparty.name} te debe` : `Le debes a ${debt.counterparty.name}`}
+            {!debt.counterparty.isRegistered && (
+              <span className="debt-unregistered" title="Esta persona no tiene cuenta en la app — sus abonos se confirman solos">
+                sin cuenta
+              </span>
+            )}
           </div>
           {debt.description && <div className="debt-description">{debt.description}</div>}
         </div>
@@ -137,28 +158,41 @@ function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Deb
         )}
       </div>
 
-      {debt.status === 'PENDING' && (
-        <form className="loan-pay" onSubmit={handleRegisterPayment}>
-          <input
-            type="number"
-            step="0.01"
-            min="0.01"
-            placeholder={`Monto (saldo pendiente: ${formatMoney(debt.remainingBalance, debt.currency)})`}
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-          <input type="date" aria-label="Fecha del abono" value={date} onChange={(e) => setDate(e.target.value)} required />
-          <input
-            aria-label="Nota (opcional)"
-            placeholder="Nota (opcional)"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-          <Button type="submit" disabled={busy}>
-            Registrar abono
-          </Button>
-        </form>
-      )}
+      {debt.status === 'PENDING' &&
+        (matchingAccounts.length === 0 ? (
+          <p className="loan-no-account">No tienes ninguna cuenta en {debt.currency} para registrar el abono.</p>
+        ) : (
+          <form className="loan-pay" onSubmit={handleRegisterPayment}>
+            <select aria-label="Tu cuenta" value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
+              <option value="" disabled>
+                Tu cuenta
+              </option>
+              {matchingAccounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              placeholder={`Monto (saldo pendiente: ${formatMoneyMaybeHidden(debt.remainingBalance, debt.currency, hideValues)})`}
+              value={amount}
+              onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value))}
+            />
+            <input type="date" aria-label="Fecha del abono" value={date} onChange={(e) => setDate(e.target.value)} required />
+            <input
+              aria-label="Nota (opcional)"
+              placeholder="Nota (opcional)"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+            <Button type="submit" disabled={busy}>
+              Registrar abono
+            </Button>
+          </form>
+        ))}
 
       {debt.payments.length > 0 && (
         <div className="debt-payments">
@@ -201,10 +235,12 @@ function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Deb
 export function DebtsPage() {
   const { token } = useAuth()
   const [debts, setDebts] = useState<Debt[]>([])
+  const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const { open: showForm, toggle: toggleForm, close: closeForm } = useCreateFormToggle()
+  const [counterpartyName, setCounterpartyName] = useState('')
   const [counterpartyEmail, setCounterpartyEmail] = useState('')
   const [direction, setDirection] = useState<DebtDirection>('THEY_OWE_ME')
   const [amount, setAmount] = useState('')
@@ -215,9 +251,11 @@ export function DebtsPage() {
 
   useEffect(() => {
     if (!token) return
-    api
-      .getDebts(token)
-      .then(setDebts)
+    Promise.all([api.getDebts(token), api.getAccounts(token)])
+      .then(([d, a]) => {
+        setDebts(d)
+        setAccounts(a)
+      })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Error al cargar deudas'))
       .finally(() => setLoading(false))
   }, [token])
@@ -229,13 +267,15 @@ export function DebtsPage() {
     setCreating(true)
     try {
       const debt = await api.createDebt(token, {
-        counterpartyEmail,
+        counterpartyName,
+        counterpartyEmail: counterpartyEmail || undefined,
         direction,
         amount: Number(amount),
         currency,
         description: description || undefined,
       })
       setDebts((prev) => [debt, ...prev])
+      setCounterpartyName('')
       setCounterpartyEmail('')
       setAmount('')
       setCurrency(DEFAULT_CURRENCY)
@@ -278,13 +318,28 @@ export function DebtsPage() {
                 ]}
               />
             </div>
-            <FormField label="Email de la otra persona" htmlFor="debt-email" full>
+            <FormField label="Nombre de la otra persona" htmlFor="debt-name">
+              <input
+                id="debt-name"
+                value={counterpartyName}
+                onChange={(e) => setCounterpartyName(e.target.value)}
+                placeholder="Beto Ruiz"
+                required
+              />
+            </FormField>
+            <FormField label="Email (opcional)" htmlFor="debt-email">
               <UserAutocomplete
                 id="debt-email"
                 value={counterpartyEmail}
                 onChange={setCounterpartyEmail}
+                onSelect={(result) => setCounterpartyName(result.name)}
                 placeholder="alguien@example.com"
+                required={false}
               />
+              <span style={{ fontSize: '0.8rem' }}>
+                Si tiene cuenta en la app, la deuda queda vinculada a ella (sus abonos piden su confirmación). Si no,
+                la deuda igual se crea con el nombre como referencia.
+              </span>
             </FormField>
             <FormField label="Monto" htmlFor="debt-amount">
               <input
@@ -293,7 +348,7 @@ export function DebtsPage() {
                 step="0.01"
                 min="0.01"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value))}
                 required
               />
             </FormField>
@@ -328,7 +383,7 @@ export function DebtsPage() {
 
       <div className="debts-list">
         {debts.map((debt) => (
-          <DebtCard key={debt.id} debt={debt} onChange={updateOne} onDeleted={removeOne} />
+          <DebtCard key={debt.id} debt={debt} payingAccounts={accounts} onChange={updateOne} onDeleted={removeOne} />
         ))}
       </div>
     </Layout>

@@ -1,7 +1,15 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsISO8601, IsNumber, IsOptional, IsPositive, IsString, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsISO8601, IsNumber, IsOptional, IsPositive, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class CreateDebtPaymentDto {
+  @ApiProperty({
+    format: 'uuid',
+    description:
+      'Tu cuenta por donde se movió el dinero (de donde salió si eres el deudor, a donde entró si eres el acreedor) — el abono la refleja en tu saldo cuando quede confirmado',
+  })
+  @IsUUID()
+  accountId: string;
+
   @ApiPropertyOptional({
     example: 200,
     description:
