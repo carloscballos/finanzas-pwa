@@ -15,6 +15,7 @@ import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Debt, type DebtDirection } from '../lib/api'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
+import { formatDateOnly } from '../lib/dates'
 import './DebtsPage.css'
 
 function statusBadge(debt: Debt): { label: string; tone: BadgeTone } {
@@ -97,7 +98,7 @@ function DebtCard({ debt, onChange, onDeleted }: { debt: Debt; onChange: (d: Deb
 
         {debt.status === 'SETTLED' && debt.settledAt && (
           <span className="debt-settled">
-            Liquidada el {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(debt.settledAt))}
+            Liquidada el {formatDateOnly(debt.settledAt)}
           </span>
         )}
       </div>
