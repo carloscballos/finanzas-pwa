@@ -28,6 +28,7 @@ import {
   type TransactionType,
 } from '../lib/api'
 import { ACCOUNT_TYPE_LABELS } from '../lib/accountTypeLabels'
+import { dateInputToIso, formatDateOnly, todayDateInput } from '../lib/dates'
 import {
   computeAvailableCredit,
   estimateCuotaInterest,
@@ -124,7 +125,7 @@ function StatementPreviewRow({
             {!!item.interestAmount && ` + ${formatMoney(item.interestAmount, cardCurrency)} interés este mes`}
             {item.interestRate !== undefined && ` (${item.interestRate}%)`}
             {item.statementInstallmentCurrent && ` · extracto: cuota ${item.statementInstallmentCurrent}`}
-            {item.matchType === 'NEW' && item.purchasedAt && ` · fecha: ${formatShortDate(item.purchasedAt)}`}
+            {item.matchType === 'NEW' && item.purchasedAt && ` · fecha: ${formatDateOnly(item.purchasedAt)}`}
           </div>
           {item.matchType === 'NEW' && (
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 400, marginTop: '0.25rem' }}>
@@ -175,10 +176,6 @@ function formatDate(iso: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
     new Date(iso),
   )
-}
-
-function formatShortDate(iso: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(iso))
 }
 
 function CardPurchaseCard({
@@ -291,7 +288,7 @@ function CardPurchaseCard({
           <span className="loan-meta">
             Cuota {purchase.installmentsPaid}/{purchase.installmentsTotal} de{' '}
             {formatMoneyMaybeHidden(purchase.installmentAmount, purchase.account.currency, hideValues)} ·{' '}
-            {formatShortDate(purchase.purchasedAt)}
+            {formatDateOnly(purchase.purchasedAt)}
             {purchase.interestRate !== null && ` · ${purchase.interestRate}% interés`}
           </span>
         </div>
@@ -445,7 +442,7 @@ export function AccountTransactionsPage() {
   const [showPayAllForm, setShowPayAllForm] = useState(false)
   const [payAllAccountId, setPayAllAccountId] = useState('')
   const [payAllAmount, setPayAllAmount] = useState('')
-  const [payAllDate, setPayAllDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [payAllDate, setPayAllDate] = useState(todayDateInput)
   const [payingAllBusy, setPayingAllBusy] = useState(false)
   const [payAllError, setPayAllError] = useState<string | null>(null)
   const [paidOffExpanded, setPaidOffExpanded] = useState(false)
@@ -457,7 +454,7 @@ export function AccountTransactionsPage() {
   const [purchaseInstallmentAmount, setPurchaseInstallmentAmount] = useState('')
   const [purchaseEstimatedInterest, setPurchaseEstimatedInterest] = useState('')
   const [purchaseInstallmentsPaid, setPurchaseInstallmentsPaid] = useState('')
-  const [purchaseDate, setPurchaseDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [purchaseDate, setPurchaseDate] = useState(todayDateInput)
   const [purchaseInterestRate, setPurchaseInterestRate] = useState('')
   const [purchaseAlreadyInBalance, setPurchaseAlreadyInBalance] = useState(false)
   const [creatingPurchase, setCreatingPurchase] = useState(false)
@@ -480,7 +477,7 @@ export function AccountTransactionsPage() {
   const [toAccountId, setToAccountId] = useState('')
   const [transferAmount, setTransferAmount] = useState('')
   const [transferNote, setTransferNote] = useState('')
-  const [transferDate, setTransferDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [transferDate, setTransferDate] = useState(todayDateInput)
   const [autoRate, setAutoRate] = useState<api.ExchangeRate | null>(null)
   // Siempre "cuántos COP vale 1 USD" — nunca el multiplicador crudo de la
   // transferencia (ver multiplierFromUsdCopRate).
@@ -566,7 +563,7 @@ export function AccountTransactionsPage() {
     setPayAllAccountId('')
     const estimatedTotal = round2(activeMonthlyInstallments + activeMonthlyInterestEstimate)
     setPayAllAmount(estimatedTotal > 0 ? String(estimatedTotal) : '')
-    setPayAllDate(new Date().toISOString().slice(0, 10))
+    setPayAllDate(todayDateInput())
     setPayAllError(null)
     setShowPayAllForm(true)
   }
@@ -584,7 +581,7 @@ export function AccountTransactionsPage() {
         cardAccountId: accountId,
         payingAccountId: payAllAccountId,
         amount: payAllAmount ? Number(payAllAmount) : undefined,
-        occurredAt: new Date(payAllDate).toISOString(),
+        occurredAt: dateInputToIso(payAllDate),
       })
       await refreshAll()
       setShowPayAllForm(false)
@@ -608,7 +605,7 @@ export function AccountTransactionsPage() {
         installmentsTotal: Number(purchaseInstallmentsTotal),
         installmentAmount: Number(purchaseInstallmentAmount),
         installmentsPaid: purchaseInstallmentsPaid ? Number(purchaseInstallmentsPaid) : undefined,
-        purchasedAt: new Date(purchaseDate).toISOString(),
+        purchasedAt: dateInputToIso(purchaseDate),
         interestRate: purchaseInterestRate ? Number(purchaseInterestRate) : undefined,
         alreadyInBalance: purchaseAlreadyInBalance,
       })
@@ -621,7 +618,7 @@ export function AccountTransactionsPage() {
       setPurchaseInstallmentAmount('')
       setPurchaseEstimatedInterest('')
       setPurchaseInstallmentsPaid('')
-      setPurchaseDate(new Date().toISOString().slice(0, 10))
+      setPurchaseDate(todayDateInput())
       setPurchaseInterestRate('')
       setPurchaseAlreadyInBalance(false)
       setShowPurchaseForm(false)
@@ -818,7 +815,7 @@ export function AccountTransactionsPage() {
             ? (multiplierFromUsdCopRate(account.currency, toAccount.currency, Number(usdCopRate)) ?? undefined)
             : undefined,
         note: transferNote || undefined,
-        occurredAt: new Date(transferDate).toISOString(),
+        occurredAt: dateInputToIso(transferDate),
       })
       const [updatedAccount, updatedTxs] = await Promise.all([
         api.getAccount(token, accountId),

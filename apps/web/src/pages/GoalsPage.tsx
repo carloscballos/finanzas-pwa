@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Account, type Goal } from '../lib/api'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
+import { dateInputToIso, formatDateOnly } from '../lib/dates'
 import { sanitizeDecimalInput } from '../lib/money'
 import './GoalsPage.css'
 
@@ -75,7 +76,7 @@ function GoalCard({
           {goal.targetDate && (
             <span className="goal-meta">
               {' '}
-              · Meta: {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(goal.targetDate))}
+              · Meta: {formatDateOnly(goal.targetDate)}
             </span>
           )}
         </div>
@@ -169,7 +170,7 @@ export function GoalsPage() {
       const goal = await api.createGoal(token, {
         name,
         targetAmount: Number(targetAmount),
-        targetDate: targetDate ? new Date(targetDate).toISOString() : undefined,
+        targetDate: targetDate ? dateInputToIso(targetDate) : undefined,
         accountId: accountId || undefined,
         currency: accountId ? undefined : currency,
       })

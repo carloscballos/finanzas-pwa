@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Account, type Debt, type DebtDirection, type DebtPayment } from '../lib/api'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
+import { formatDateOnly } from '../lib/dates'
 import { formatMoneyMaybeHidden, sanitizeDecimalInput } from '../lib/money'
 import { usePrivacy } from '../context/PrivacyContext'
 import './LoansPage.css'
@@ -153,7 +154,7 @@ function DebtCard({
         )}
         {debt.status === 'SETTLED' && debt.settledAt && (
           <span className="debt-settled">
-            Liquidada el {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(debt.settledAt))}
+            Liquidada el {formatDateOnly(debt.settledAt)}
           </span>
         )}
       </div>

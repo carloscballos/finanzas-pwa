@@ -25,6 +25,7 @@ import {
   type RecurringTransaction,
   type TransactionType,
 } from '../lib/api'
+import { dateInputToIso, formatDateOnly, todayDateInput } from '../lib/dates'
 import { formatMoneyMaybeHidden, sanitizeDecimalInput } from '../lib/money'
 import { usePrivacy } from '../context/PrivacyContext'
 import './ForecastPage.css'
@@ -34,10 +35,6 @@ const FREQUENCY_LABELS: Record<RecurrenceFrequency, string> = {
   SEMIMONTHLY: 'Quincenal',
   MONTHLY: 'Mensual',
   YEARLY: 'Anual',
-}
-
-function formatDate(iso: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(iso))
 }
 
 export function ForecastPage() {
@@ -158,7 +155,7 @@ export function ForecastPage() {
     setApplyingId(item.id)
     setApplyAmount(String(item.amount))
     setApplyNote(item.note ?? '')
-    setApplyDate(new Date().toISOString().slice(0, 10))
+    setApplyDate(todayDateInput())
     setApplyError(null)
   }
 
@@ -175,7 +172,7 @@ export function ForecastPage() {
       await api.applyRecurringTransaction(token, item.id, {
         amount: Number(applyAmount),
         note: applyNote || undefined,
-        occurredAt: new Date(applyDate).toISOString(),
+        occurredAt: dateInputToIso(applyDate),
       })
       setRecurring(await api.getRecurringTransactions(token))
       setApplyingId(null)
@@ -346,7 +343,7 @@ export function ForecastPage() {
                         <>
                           {item.account.name} · {FREQUENCY_LABELS[item.frequency]}
                           {' · '}
-                          {item.lastAppliedAt ? `Última vez: ${formatDate(item.lastAppliedAt)}` : 'Nunca aplicada'}
+                          {item.lastAppliedAt ? `Última vez: ${formatDateOnly(item.lastAppliedAt)}` : 'Nunca aplicada'}
                           {!item.active && ' · Fuera de la proyección'}
                         </>
                       }

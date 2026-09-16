@@ -32,14 +32,11 @@ import {
   type Invitation,
   type Transaction,
 } from '../lib/api'
+import { formatDateOnly } from '../lib/dates'
 import './HomePage.css'
 
 const RECENT_TRANSACTIONS_LIMIT = 8
 const BUDGET_RISK_THRESHOLD = 70
-
-function formatDate(iso: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(iso))
-}
 
 function sumByCurrency(amounts: { amount: number; currency: string }[]): Record<string, number> {
   const totals: Record<string, number> = {}
@@ -461,7 +458,7 @@ export function HomePage() {
                         key={tx.id}
                         leading={<IconChip tone={tx.type === 'INCOME' ? 'ok' : 'error'}>{emoji}</IconChip>}
                         title={label}
-                        subtitle={formatDate(tx.occurredAt)}
+                        subtitle={formatDateOnly(tx.occurredAt)}
                         trailing={
                           <Money
                             amount={tx.amount}
