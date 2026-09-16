@@ -46,21 +46,23 @@ function sumByCurrency(amounts: { amount: number; currency: string }[]): Record<
   return totals
 }
 
-// Mismo criterio de "mes calendario" que el backend usa para presupuestos
-// (ver period-window.util.ts) — UTC, para que el rango coincida con
-// occurredAt tal cual se guarda.
+// Mes calendario en la zona horaria LOCAL del navegador: desde que los
+// movimientos llevan hora real (datetime-local), un gasto a las 10pm del 31
+// en Bogotá es 03:00 UTC del día 1 — con límites UTC caería en el mes
+// siguiente aunque la lista lo muestre el 31. Los límites se mandan al
+// backend como instantes ISO, así que el filtro sigue siendo exacto.
+// (Los presupuestos del backend sí siguen usando mes UTC — ver
+// period-window.util.ts — ese es un cambio aparte.)
 function startOfMonth(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
+  return new Date(date.getFullYear(), date.getMonth(), 1)
 }
 
 function addMonths(date: Date, delta: number): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + delta, 1))
+  return new Date(date.getFullYear(), date.getMonth() + delta, 1)
 }
 
 function formatMonthLabel(date: Date): string {
-  const label = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(
-    date,
-  )
+  const label = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(date)
   return label.charAt(0).toUpperCase() + label.slice(1)
 }
 

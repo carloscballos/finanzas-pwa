@@ -19,7 +19,7 @@ export class CreateLoanDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ example: 20000000, description: 'Monto original del préstamo' })
+  @ApiProperty({ example: 20000000, description: 'Monto original desembolsado' })
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive()
   principal: number;
@@ -33,23 +33,39 @@ export class CreateLoanDto {
   @IsEnum(CurrencyCode)
   currency?: CurrencyCode;
 
-  @ApiPropertyOptional({ example: 1.5, description: 'Tasa de interés anual (%) — solo informativa' })
+  @ApiPropertyOptional({
+    example: 24.88,
+    description:
+      'Tasa de interés EFECTIVA ANUAL (%), como la cotiza el banco. Se usa para repartir cada cuota en interés y capital. Sin tasa, toda la cuota se toma como capital.',
+  })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   interestRate?: number;
 
-  @ApiProperty({ example: 24, description: 'Número total de cuotas' })
+  @ApiProperty({ example: 72, description: 'Número total de cuotas' })
   @IsInt()
   @IsPositive()
   installmentsTotal: number;
 
-  @ApiProperty({ example: 950000, description: 'Monto de cada cuota' })
+  @ApiProperty({
+    example: 294257.61,
+    description: 'Valor total de cada cuota como la cobra el banco (capital + interés + seguro)',
+  })
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive()
   installmentAmount: number;
 
-  @ApiPropertyOptional({ example: 5, description: 'Día del mes en que vence la cuota (1-31)' })
+  @ApiPropertyOptional({
+    example: 11767,
+    description: 'Seguro de vida / cargos fijos incluidos en cada cuota — no amortizan capital',
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  insuranceAmount?: number;
+
+  @ApiPropertyOptional({ example: 11, description: 'Día del mes en que vence la cuota (1-31)' })
   @IsOptional()
   @IsInt()
   @Min(1)
@@ -65,11 +81,21 @@ export class CreateLoanDto {
   accountId?: string;
 
   @ApiPropertyOptional({
-    example: 5,
+    example: 17,
     description: 'Cuotas que ya se pagaron antes de registrar el préstamo (para importar uno en curso) — default 0',
   })
   @IsOptional()
   @IsInt()
   @Min(0)
   installmentsPaid?: number;
+
+  @ApiPropertyOptional({
+    example: 9633016.27,
+    description:
+      'Saldo de capital pendiente HOY según el extracto. Si se omite, se proyecta con la tasa y las cuotas ya pagadas.',
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  remainingBalance?: number;
 }

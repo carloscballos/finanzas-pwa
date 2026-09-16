@@ -28,7 +28,15 @@ import {
   type TransactionType,
 } from '../lib/api'
 import { ACCOUNT_TYPE_LABELS } from '../lib/accountTypeLabels'
-import { dateInputToIso, formatDateOnly, todayDateInput } from '../lib/dates'
+import {
+  dateInputToDateTimeInput,
+  dateInputToIso,
+  dateTimeInputToIso,
+  formatDateOnly,
+  formatDateTime,
+  nowDateTimeInput,
+  todayDateInput,
+} from '../lib/dates'
 import {
   computeAvailableCredit,
   estimateCuotaInterest,
@@ -172,12 +180,6 @@ function StatementPreviewRow({
   )
 }
 
-function formatDate(iso: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
-    new Date(iso),
-  )
-}
-
 function CardPurchaseCard({
   purchase,
   payingAccounts,
@@ -195,7 +197,7 @@ function CardPurchaseCard({
   const [accountId, setAccountId] = useState('')
   const [amount, setAmount] = useState('')
   const [interestAmount, setInterestAmount] = useState('')
-  const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [payDate, setPayDate] = useState(nowDateTimeInput)
   const [busy, setBusy] = useState(false)
 
   // Precarga el interés de esta cuota — de preferencia el valor real del
@@ -257,11 +259,11 @@ function CardPurchaseCard({
         accountId,
         amount: amount ? Number(amount) : undefined,
         interestAmount: interestAmount ? Number(interestAmount) : undefined,
-        occurredAt: new Date(payDate).toISOString(),
+        occurredAt: dateTimeInputToIso(payDate),
       })
       onChange(updated)
       setAmount('')
-      setPayDate(new Date().toISOString().slice(0, 10))
+      setPayDate(nowDateTimeInput())
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'No se pudo registrar el pago')
     } finally {
@@ -387,8 +389,8 @@ function CardPurchaseCard({
               title="Precargado con remainingBalance × % interés — corrígelo con el valor real del extracto si difiere"
             />
             <input
-              type="date"
-              aria-label="Fecha del pago"
+              type="datetime-local"
+              aria-label="Fecha y hora del pago"
               value={payDate}
               onChange={(e) => setPayDate(e.target.value)}
               required
@@ -438,11 +440,16 @@ export function AccountTransactionsPage() {
   const [statementLoading, setStatementLoading] = useState(false)
   const [statementError, setStatementError] = useState<string | null>(null)
   const statementInputRef = useRef<HTMLInputElement>(null)
+  // Flujo de PDF con contraseña: si el backend responde 422, guardamos el
+  // archivo y pedimos la clave para reintentar sin volver a elegirlo.
+  const [statementPendingFile, setStatementPendingFile] = useState<File | null>(null)
+  const [statementPassword, setStatementPassword] = useState('')
+  const [statementPasswordError, setStatementPasswordError] = useState<string | null>(null)
 
   const [showPayAllForm, setShowPayAllForm] = useState(false)
   const [payAllAccountId, setPayAllAccountId] = useState('')
   const [payAllAmount, setPayAllAmount] = useState('')
-  const [payAllDate, setPayAllDate] = useState(todayDateInput)
+  const [payAllDate, setPayAllDate] = useState(nowDateTimeInput)
   const [payingAllBusy, setPayingAllBusy] = useState(false)
   const [payAllError, setPayAllError] = useState<string | null>(null)
   const [paidOffExpanded, setPaidOffExpanded] = useState(false)
@@ -465,7 +472,7 @@ export function AccountTransactionsPage() {
   const [categoryId, setCategoryId] = useState('')
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(nowDateTimeInput)
   const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   const [templateFrequency, setTemplateFrequency] = useState<RecurrenceFrequency>('MONTHLY')
   const [creating, setCreating] = useState(false)
@@ -477,7 +484,7 @@ export function AccountTransactionsPage() {
   const [toAccountId, setToAccountId] = useState('')
   const [transferAmount, setTransferAmount] = useState('')
   const [transferNote, setTransferNote] = useState('')
-  const [transferDate, setTransferDate] = useState(todayDateInput)
+  const [transferDate, setTransferDate] = useState(nowDateTimeInput)
   const [autoRate, setAutoRate] = useState<api.ExchangeRate | null>(null)
   // Siempre "cuántos COP vale 1 USD" — nunca el multiplicador crudo de la
   // transferencia (ver multiplierFromUsdCopRate).
@@ -531,23 +538,62 @@ export function AccountTransactionsPage() {
     setTransactions(updatedTxs)
   }
 
-  async function handleStatementFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!token || !accountId || !file) return
+  // Corre el preview del extracto. Si el PDF está cifrado, el backend responde
+  // 422 (pedir contraseña) o 400 (contraseña incorrecta); todo lo demás es un
+  // error normal. `password` va solo cuando se reintenta tras pedir la clave.
+  async function runStatementPreview(file: File, password?: string) {
+    if (!token || !accountId) return
     setStatementError(null)
+    setStatementPasswordError(null)
     setStatementLoading(true)
     setStatementPreview(null)
     setStatementReconciliation(null)
     try {
-      const preview = await api.previewCardStatement(token, accountId, file)
+      const preview = await api.previewCardStatement(token, accountId, file, password)
       setStatementPreview(preview.items)
       setStatementReconciliation(preview.reconciliation)
+      // Éxito: limpiar cualquier estado de contraseña pendiente.
+      setStatementPendingFile(null)
+      setStatementPassword('')
     } catch (err) {
-      setStatementError(err instanceof ApiError ? err.message : 'No se pudo leer el extracto')
+      if (err instanceof ApiError && err.status === 422) {
+        // El PDF necesita contraseña: guardar el archivo y pedirla.
+        setStatementPendingFile(file)
+        setStatementPassword('')
+        setStatementPasswordError(null)
+      } else if (err instanceof ApiError && err.status === 400 && password) {
+        // Contraseña incorrecta en el reintento: mantener el formulario abierto.
+        setStatementPendingFile(file)
+        setStatementPasswordError(err.message)
+      } else {
+        setStatementPendingFile(null)
+        setStatementError(err instanceof ApiError ? err.message : 'No se pudo leer el extracto')
+      }
     } finally {
       setStatementLoading(false)
     }
+  }
+
+  async function handleStatementFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setStatementPendingFile(null)
+    setStatementPassword('')
+    setStatementPasswordError(null)
+    await runStatementPreview(file)
+  }
+
+  async function submitStatementPassword(event: FormEvent) {
+    event.preventDefault()
+    if (!statementPendingFile || !statementPassword) return
+    await runStatementPreview(statementPendingFile, statementPassword)
+  }
+
+  function cancelStatementPassword() {
+    setStatementPendingFile(null)
+    setStatementPassword('')
+    setStatementPasswordError(null)
   }
 
   function removeStatementItem(item: StatementPreviewItem) {
@@ -563,7 +609,7 @@ export function AccountTransactionsPage() {
     setPayAllAccountId('')
     const estimatedTotal = round2(activeMonthlyInstallments + activeMonthlyInterestEstimate)
     setPayAllAmount(estimatedTotal > 0 ? String(estimatedTotal) : '')
-    setPayAllDate(todayDateInput())
+    setPayAllDate(nowDateTimeInput())
     setPayAllError(null)
     setShowPayAllForm(true)
   }
@@ -581,7 +627,7 @@ export function AccountTransactionsPage() {
         cardAccountId: accountId,
         payingAccountId: payAllAccountId,
         amount: payAllAmount ? Number(payAllAmount) : undefined,
-        occurredAt: dateInputToIso(payAllDate),
+        occurredAt: dateTimeInputToIso(payAllDate),
       })
       await refreshAll()
       setShowPayAllForm(false)
@@ -716,7 +762,9 @@ export function AccountTransactionsPage() {
       setCategoryId(extracted.suggestedCategory?.id ?? '')
       setAmount(extracted.amount ? String(extracted.amount) : '')
       setNote(extracted.merchant)
-      setDate(extracted.occurredAt ?? new Date().toISOString().slice(0, 10))
+      // La factura solo da el día (si lo da) — la hora queda a mediodía y el
+      // usuario la ajusta si le importa.
+      setDate(extracted.occurredAt ? dateInputToDateTimeInput(extracted.occurredAt) : nowDateTimeInput())
       if (!showForm) toggleForm()
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'No se pudo leer la factura')
@@ -741,7 +789,7 @@ export function AccountTransactionsPage() {
         type,
         amount: Number(amount),
         note: note || undefined,
-        occurredAt: new Date(date).toISOString(),
+        occurredAt: dateTimeInputToIso(date),
       })
       setTransactions((prev) => [tx, ...prev])
       const updatedAccount = await api.getAccount(token, accountId)
@@ -767,7 +815,7 @@ export function AccountTransactionsPage() {
       setAmount('')
       setNote('')
       setCategoryId('')
-      setDate(new Date().toISOString().slice(0, 10))
+      setDate(nowDateTimeInput())
       setSaveAsTemplate(false)
       closeForm()
     } catch (err) {
@@ -815,7 +863,7 @@ export function AccountTransactionsPage() {
             ? (multiplierFromUsdCopRate(account.currency, toAccount.currency, Number(usdCopRate)) ?? undefined)
             : undefined,
         note: transferNote || undefined,
-        occurredAt: dateInputToIso(transferDate),
+        occurredAt: dateTimeInputToIso(transferDate),
       })
       const [updatedAccount, updatedTxs] = await Promise.all([
         api.getAccount(token, accountId),
@@ -977,7 +1025,7 @@ export function AccountTransactionsPage() {
                     <FormField label="Fecha" htmlFor="payall-date">
                       <input
                         id="payall-date"
-                        type="date"
+                        type="datetime-local"
                         value={payAllDate}
                         onChange={(e) => setPayAllDate(e.target.value)}
                         required
@@ -997,6 +1045,34 @@ export function AccountTransactionsPage() {
                 <div className="auth-error" style={{ marginBottom: '1rem' }}>
                   {statementError}
                 </div>
+              )}
+
+              {statementPendingFile && (
+                <Card className="ui-form-card">
+                  <Form onSubmit={submitStatementPassword}>
+                    <FormError>{statementPasswordError}</FormError>
+                    <p style={{ margin: '0 0 0.25rem', fontSize: '0.9rem' }}>
+                      El PDF <strong>{statementPendingFile.name}</strong> está protegido con contraseña. Ingrésala para leer el extracto.
+                    </p>
+                    <FormField label="Contraseña del PDF" htmlFor="statement-password">
+                      <input
+                        id="statement-password"
+                        type="password"
+                        autoComplete="off"
+                        autoFocus
+                        value={statementPassword}
+                        onChange={(e) => setStatementPassword(e.target.value)}
+                        placeholder="La contraseña con la que abres el PDF"
+                      />
+                    </FormField>
+                    <Button type="submit" disabled={statementLoading || !statementPassword}>
+                      {statementLoading ? 'Leyendo…' : 'Desbloquear y leer'}
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={cancelStatementPassword}>
+                      Cancelar
+                    </Button>
+                  </Form>
+                </Card>
               )}
 
               {statementReconciliation && (
@@ -1262,10 +1338,10 @@ export function AccountTransactionsPage() {
                     required
                   />
                 </FormField>
-                <FormField label="Fecha" htmlFor="transfer-date">
+                <FormField label="Fecha y hora" htmlFor="transfer-date">
                   <input
                     id="transfer-date"
-                    type="date"
+                    type="datetime-local"
                     value={transferDate}
                     onChange={(e) => setTransferDate(e.target.value)}
                     required
@@ -1348,8 +1424,8 @@ export function AccountTransactionsPage() {
                     required
                   />
                 </FormField>
-                <FormField label="Fecha" htmlFor="tx-date">
-                  <input id="tx-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+                <FormField label="Fecha y hora" htmlFor="tx-date">
+                  <input id="tx-date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} required />
                 </FormField>
                 <FormField label="Nota (opcional)" htmlFor="tx-note" full>
                   <input id="tx-note" value={note} onChange={(e) => setNote(e.target.value)} />
@@ -1428,7 +1504,7 @@ export function AccountTransactionsPage() {
                   }
                   trailing={
                     <>
-                      <div className="tx-row-date">{formatDate(tx.occurredAt)}</div>
+                      <div className="tx-row-date">{formatDateTime(tx.occurredAt)}</div>
                       <Money
                         amount={tx.amount}
                         currency={tx.account.currency}

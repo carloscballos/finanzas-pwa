@@ -14,7 +14,7 @@ import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Account, type Goal } from '../lib/api'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
-import { dateInputToIso, formatDateOnly } from '../lib/dates'
+import { dateInputToIso, dateTimeInputToIso, formatDateOnly, nowDateTimeInput } from '../lib/dates'
 import { sanitizeDecimalInput } from '../lib/money'
 import './GoalsPage.css'
 
@@ -33,7 +33,7 @@ function GoalCard({
   const [amount, setAmount] = useState('')
   const matchingAccounts = accounts.filter((a) => a.currency === goal.currency)
   const [accountId, setAccountId] = useState('')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(nowDateTimeInput)
   const [busy, setBusy] = useState(false)
 
   async function handleContribute(event: FormEvent) {
@@ -44,11 +44,11 @@ function GoalCard({
       const updated = await api.contributeToGoal(token, goal.id, {
         amount: Number(amount),
         accountId,
-        occurredAt: new Date(date).toISOString(),
+        occurredAt: dateTimeInputToIso(date),
       })
       onChange(updated)
       setAmount('')
-      setDate(new Date().toISOString().slice(0, 10))
+      setDate(nowDateTimeInput())
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'No se pudo registrar el aporte')
     } finally {
@@ -124,7 +124,7 @@ function GoalCard({
             value={amount}
             onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value, 2, true))}
           />
-          <input type="date" aria-label="Fecha del aporte" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <input type="datetime-local" aria-label="Fecha y hora del aporte" value={date} onChange={(e) => setDate(e.target.value)} required />
           <Button type="submit" disabled={busy || !amount || !accountId}>
             Registrar
           </Button>

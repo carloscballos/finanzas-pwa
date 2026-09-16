@@ -134,6 +134,10 @@ export class CardPurchasesController {
       properties: {
         accountId: { type: 'string', format: 'uuid' },
         file: { type: 'string', format: 'binary' },
+        password: {
+          type: 'string',
+          description: 'Contraseña del PDF, solo si el extracto está protegido',
+        },
       },
       required: ['accountId', 'file'],
     },
@@ -143,13 +147,15 @@ export class CardPurchasesController {
       'Subir un extracto PDF de tarjeta de crédito y previsualizar las compras detectadas — no crea ni modifica nada, solo analiza',
   })
   @ApiResponse({ status: 201, type: StatementPreviewResponseDto })
-  @ApiResponse({ status: 400, description: 'Falta el archivo, no es un PDF, o la cuenta no es una tarjeta de crédito' })
+  @ApiResponse({ status: 400, description: 'Falta el archivo, no es un PDF, la cuenta no es tarjeta, o la contraseña del PDF es incorrecta' })
   @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
+  @ApiResponse({ status: 422, description: 'El PDF está protegido con contraseña y no se envió ninguna (code PDF_PASSWORD_REQUIRED)' })
   @ApiResponse({ status: 503, description: 'El servicio de extracción no está disponible' })
   extractStatement(
     @CurrentUser() user: AuthenticatedUser,
     @Body('accountId', ParseUUIDPipe) accountId: string,
     @UploadedFile() file: Express.Multer.File,
+    @Body('password') password?: string,
   ): Promise<StatementPreviewResponseDto> {
     if (!file) {
       throw new BadRequestException('Debes subir un archivo PDF');
@@ -157,7 +163,7 @@ export class CardPurchasesController {
     if (file.mimetype !== 'application/pdf') {
       throw new BadRequestException('El archivo debe ser un PDF');
     }
-    return this.cardPurchasesService.previewStatement(user.id, accountId, file.buffer);
+    return this.cardPurchasesService.previewStatement(user.id, accountId, file.buffer, password);
   }
 
   @Delete(':id')

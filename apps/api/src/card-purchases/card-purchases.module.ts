@@ -4,11 +4,12 @@ import { CardPurchasesController } from './card-purchases.controller';
 import { CardPurchasesService } from './card-purchases.service';
 import { CardPurchasesRepository } from './card-purchases.repository';
 import { StatementExtractionService } from './statement-extraction.service';
+import { PdfDecryptService } from './pdf-decrypt.service';
 
 @Module({
   imports: [AccountsModule],
   controllers: [CardPurchasesController],
-  providers: [CardPurchasesService, CardPurchasesRepository, StatementExtractionService],
+  providers: [CardPurchasesService, CardPurchasesRepository, StatementExtractionService, PdfDecryptService],
   exports: [CardPurchasesService],
 })
 export class CardPurchasesModule {}

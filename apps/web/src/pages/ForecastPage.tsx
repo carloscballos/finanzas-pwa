@@ -25,7 +25,7 @@ import {
   type RecurringTransaction,
   type TransactionType,
 } from '../lib/api'
-import { dateInputToIso, formatDateOnly, todayDateInput } from '../lib/dates'
+import { dateTimeInputToIso, formatDateOnly, nowDateTimeInput } from '../lib/dates'
 import { formatMoneyMaybeHidden, sanitizeDecimalInput } from '../lib/money'
 import { usePrivacy } from '../context/PrivacyContext'
 import './ForecastPage.css'
@@ -155,7 +155,7 @@ export function ForecastPage() {
     setApplyingId(item.id)
     setApplyAmount(String(item.amount))
     setApplyNote(item.note ?? '')
-    setApplyDate(todayDateInput())
+    setApplyDate(nowDateTimeInput())
     setApplyError(null)
   }
 
@@ -172,7 +172,7 @@ export function ForecastPage() {
       await api.applyRecurringTransaction(token, item.id, {
         amount: Number(applyAmount),
         note: applyNote || undefined,
-        occurredAt: dateInputToIso(applyDate),
+        occurredAt: dateTimeInputToIso(applyDate),
       })
       setRecurring(await api.getRecurringTransactions(token))
       setApplyingId(null)
@@ -382,10 +382,10 @@ export function ForecastPage() {
                             required
                           />
                         </FormField>
-                        <FormField label="Fecha" htmlFor={`apply-date-${item.id}`}>
+                        <FormField label="Fecha y hora" htmlFor={`apply-date-${item.id}`}>
                           <input
                             id={`apply-date-${item.id}`}
-                            type="date"
+                            type="datetime-local"
                             value={applyDate}
                             onChange={(e) => setApplyDate(e.target.value)}
                             required

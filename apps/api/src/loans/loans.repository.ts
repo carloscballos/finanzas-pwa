@@ -16,9 +16,14 @@ export interface CreateLoanRecord {
   installmentsTotal: number;
   installmentsPaid: number;
   installmentAmount: number;
+  insuranceAmount?: number;
   dueDay?: number;
   accountId?: string;
   status: LoanStatus;
+}
+
+export interface UpdateLoanRecord extends UpdateLoanDto {
+  status?: LoanStatus;
 }
 
 export interface RegisterPaymentInput {
@@ -26,6 +31,7 @@ export interface RegisterPaymentInput {
   accountId: string;
   userId: string;
   amount: number;
+  note: string;
   occurredAt: Date;
   remainingBalance: number;
   status: LoanStatus;
@@ -59,6 +65,7 @@ export class LoansRepository {
         installmentsTotal: data.installmentsTotal,
         installmentsPaid: data.installmentsPaid,
         installmentAmount: data.installmentAmount,
+        insuranceAmount: data.insuranceAmount,
         dueDay: data.dueDay,
         accountId: data.accountId,
         status: data.status,
@@ -67,13 +74,17 @@ export class LoansRepository {
     });
   }
 
-  update(id: string, dto: UpdateLoanDto): Promise<LoanWithAccount> {
+  update(id: string, data: UpdateLoanRecord): Promise<LoanWithAccount> {
     return this.prisma.loan.update({
       where: { id },
       data: {
-        name: dto.name,
-        interestRate: dto.interestRate,
-        dueDay: dto.dueDay,
+        name: data.name,
+        interestRate: data.interestRate,
+        installmentAmount: data.installmentAmount,
+        insuranceAmount: data.insuranceAmount,
+        remainingBalance: data.remainingBalance,
+        dueDay: data.dueDay,
+        status: data.status,
       },
       include: WITH_ACCOUNT,
     });
@@ -89,6 +100,7 @@ export class LoansRepository {
           accountId: input.accountId,
           type: 'EXPENSE',
           amount: input.amount,
+          note: input.note,
           occurredAt: input.occurredAt,
           createdByUserId: input.userId,
           loanId: input.loanId,

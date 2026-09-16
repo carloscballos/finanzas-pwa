@@ -15,7 +15,14 @@ import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Account, type Loan } from '../lib/api'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
-import { formatMoneyMaybeHidden, sanitizeDecimalInput } from '../lib/money'
+import { dateTimeInputToIso, nowDateTimeInput } from '../lib/dates'
+import {
+  estimateFrenchInstallment,
+  formatMoneyMaybeHidden,
+  monthlyRateFromAnnualEffective,
+  round2,
+  sanitizeDecimalInput,
+} from '../lib/money'
 import { usePrivacy } from '../context/PrivacyContext'
 import './LoansPage.css'
 
@@ -33,10 +40,54 @@ function LoanCard({
   const { token } = useAuth()
   const { hideValues } = usePrivacy()
   const matchingAccounts = accounts.filter((a) => a.currency === loan.currency)
+  const next = loan.nextInstallment
+  const fmt = (value: number) => formatMoneyMaybeHidden(value, loan.currency, hideValues)
+
   const [accountId, setAccountId] = useState(loan.account?.id ?? '')
   const [amount, setAmount] = useState('')
-  const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [principalAmount, setPrincipalAmount] = useState('')
+  const [payDate, setPayDate] = useState(nowDateTimeInput)
   const [busy, setBusy] = useState(false)
+
+  const [editing, setEditing] = useState(false)
+  const [editInstallmentAmount, setEditInstallmentAmount] = useState('')
+  const [editInterestRate, setEditInterestRate] = useState('')
+  const [editInsurance, setEditInsurance] = useState('')
+  const [editRemaining, setEditRemaining] = useState('')
+  const [editBusy, setEditBusy] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+
+  function startEditing() {
+    setEditInstallmentAmount(String(loan.installmentAmount))
+    setEditInterestRate(loan.interestRate === null ? '' : String(loan.interestRate))
+    setEditInsurance(loan.insuranceAmount === null ? '' : String(loan.insuranceAmount))
+    setEditRemaining(String(loan.remainingBalance))
+    setEditError(null)
+    setEditing(true)
+  }
+
+  // Conciliar con el extracto: solo cambia el plan hacia adelante, no toca
+  // los pagos ya registrados (ver UpdateLoanDto en el backend).
+  async function handleSaveEdit(event: FormEvent) {
+    event.preventDefault()
+    if (!token) return
+    setEditBusy(true)
+    setEditError(null)
+    try {
+      const updated = await api.updateLoan(token, loan.id, {
+        installmentAmount: Number(editInstallmentAmount),
+        interestRate: editInterestRate ? Number(editInterestRate) : undefined,
+        insuranceAmount: editInsurance ? Number(editInsurance) : 0,
+        remainingBalance: Number(editRemaining),
+      })
+      onChange(updated)
+      setEditing(false)
+    } catch (err) {
+      setEditError(err instanceof ApiError ? err.message : 'No se pudo actualizar el préstamo')
+    } finally {
+      setEditBusy(false)
+    }
+  }
 
   async function handlePay(event: FormEvent) {
     event.preventDefault()
@@ -46,11 +97,13 @@ function LoanCard({
       const updated = await api.payLoanInstallment(token, loan.id, {
         accountId,
         amount: amount ? Number(amount) : undefined,
-        occurredAt: new Date(payDate).toISOString(),
+        principalAmount: principalAmount ? Number(principalAmount) : undefined,
+        occurredAt: dateTimeInputToIso(payDate),
       })
       onChange(updated)
       setAmount('')
-      setPayDate(new Date().toISOString().slice(0, 10))
+      setPrincipalAmount('')
+      setPayDate(nowDateTimeInput())
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'No se pudo registrar el pago')
     } finally {
@@ -77,17 +130,24 @@ function LoanCard({
           <span className="loan-meta">
             Cuota {loan.installmentsPaid}/{loan.installmentsTotal}
             {loan.dueDay && ` · vence el día ${loan.dueDay}`}
-            {loan.interestRate !== null && ` · ${loan.interestRate}% anual`}
+            {loan.interestRate !== null && ` · ${loan.interestRate}% E.A. (≈ ${loan.monthlyRate}% mensual)`}
           </span>
         </div>
-        <button className="link-danger" onClick={handleDelete}>
-          Eliminar
-        </button>
+        <div className="loan-card-actions">
+          {loan.status !== 'PAID_OFF' && (
+            <button className="link" onClick={editing ? () => setEditing(false) : startEditing}>
+              {editing ? 'Cancelar' : 'Editar'}
+            </button>
+          )}
+          <button className="link-danger" onClick={handleDelete}>
+            Eliminar
+          </button>
+        </div>
       </div>
       <ProgressBar value={loan.percentPaid} tone="accent" />
       <div className="loan-amounts">
         <span>
-          <Money amount={loan.remainingBalance} currency={loan.currency} /> pendiente
+          <Money amount={loan.remainingBalance} currency={loan.currency} /> saldo de capital
         </span>
         <span>{loan.percentPaid}% pagado</span>
       </div>
@@ -99,6 +159,64 @@ function LoanCard({
           {loan.status === 'PAID_OFF' ? 'Pagado' : 'Activo'}
         </Badge>
       </div>
+      {next && (
+        <p className="loan-next">
+          Próxima cuota ≈ <strong>{fmt(next.total)}</strong>: capital {fmt(next.principal)}
+          {next.interest > 0 && ` + interés ${fmt(next.interest)}`}
+          {next.insurance > 0 && ` + seguro ${fmt(next.insurance)}`}
+        </p>
+      )}
+
+      {editing && (
+        <form className="loan-pay" onSubmit={handleSaveEdit}>
+          <FormError>{editError}</FormError>
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            aria-label="Valor total de la cuota"
+            placeholder="Valor total de la cuota"
+            title="Valor total de la cuota según el extracto (capital + interés + seguro)"
+            value={editInstallmentAmount}
+            onChange={(e) => setEditInstallmentAmount(sanitizeDecimalInput(e.target.value))}
+            required
+          />
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            aria-label="Tasa efectiva anual %"
+            placeholder="% E.A. (opcional)"
+            title="Tasa de interés efectiva anual"
+            value={editInterestRate}
+            onChange={(e) => setEditInterestRate(sanitizeDecimalInput(e.target.value))}
+          />
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            aria-label="Seguro por cuota"
+            placeholder="Seguro por cuota (opcional)"
+            title="Seguro de vida / cargos fijos incluidos en la cuota"
+            value={editInsurance}
+            onChange={(e) => setEditInsurance(sanitizeDecimalInput(e.target.value))}
+          />
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            aria-label="Saldo de capital actual"
+            placeholder="Saldo de capital"
+            title="Saldo de capital pendiente según el extracto"
+            value={editRemaining}
+            onChange={(e) => setEditRemaining(sanitizeDecimalInput(e.target.value))}
+            required
+          />
+          <Button type="submit" disabled={editBusy}>
+            Guardar
+          </Button>
+        </form>
+      )}
 
       {loan.status !== 'PAID_OFF' &&
         (matchingAccounts.length === 0 ? (
@@ -126,13 +244,25 @@ function LoanCard({
               type="number"
               step="0.01"
               min="0.01"
-              placeholder={`Monto (cuota ${formatMoneyMaybeHidden(loan.installmentAmount, loan.currency, hideValues)})`}
+              aria-label="Total pagado"
+              placeholder={next ? `Total (≈ ${fmt(next.total)})` : 'Total pagado'}
+              title="Lo que salió de la cuenta. Vacío = la próxima cuota del plan"
               value={amount}
               onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value))}
             />
             <input
-              type="date"
-              aria-label="Fecha del pago"
+              type="number"
+              step="0.01"
+              min="0"
+              aria-label="Abono a capital"
+              placeholder={next ? `Capital (≈ ${fmt(next.principal)})` : 'Capital (opcional)'}
+              title="Abono a capital según el extracto. Vacío = total − interés del período − seguro"
+              value={principalAmount}
+              onChange={(e) => setPrincipalAmount(sanitizeDecimalInput(e.target.value))}
+            />
+            <input
+              type="datetime-local"
+              aria-label="Fecha y hora del pago"
               value={payDate}
               onChange={(e) => setPayDate(e.target.value)}
               required
@@ -160,11 +290,15 @@ export function LoansPage() {
   const [interestRate, setInterestRate] = useState('')
   const [installmentsTotal, setInstallmentsTotal] = useState('')
   const [installmentAmount, setInstallmentAmount] = useState('')
+  const [insuranceAmount, setInsuranceAmount] = useState('')
   const [dueDay, setDueDay] = useState('')
   const [accountId, setAccountId] = useState('')
   const [installmentsPaid, setInstallmentsPaid] = useState('')
+  const [remainingBalance, setRemainingBalance] = useState('')
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+
+  const canEstimate = Number(principal) > 0 && Number(installmentsTotal) > 0
 
   useEffect(() => {
     if (!token) return
@@ -176,6 +310,17 @@ export function LoansPage() {
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Error al cargar préstamos'))
       .finally(() => setLoading(false))
   }, [token])
+
+  // Cuota constante (amortización francesa) + seguro. Es un punto de partida:
+  // el banco redondea distinto, el usuario la corrige con la del extracto.
+  function estimateInstallment() {
+    const fixed = estimateFrenchInstallment(
+      Number(principal),
+      monthlyRateFromAnnualEffective(Number(interestRate) || 0),
+      Number(installmentsTotal),
+    )
+    setInstallmentAmount(String(round2(fixed + (Number(insuranceAmount) || 0))))
+  }
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault()
@@ -190,9 +335,11 @@ export function LoansPage() {
         interestRate: interestRate ? Number(interestRate) : undefined,
         installmentsTotal: Number(installmentsTotal),
         installmentAmount: Number(installmentAmount),
+        insuranceAmount: insuranceAmount ? Number(insuranceAmount) : undefined,
         dueDay: dueDay ? Number(dueDay) : undefined,
         accountId: accountId || undefined,
         installmentsPaid: installmentsPaid ? Number(installmentsPaid) : undefined,
+        remainingBalance: remainingBalance ? Number(remainingBalance) : undefined,
       })
       setLoans((prev) => [loan, ...prev])
       setName('')
@@ -201,9 +348,11 @@ export function LoansPage() {
       setInterestRate('')
       setInstallmentsTotal('')
       setInstallmentAmount('')
+      setInsuranceAmount('')
       setDueDay('')
       setAccountId('')
       setInstallmentsPaid('')
+      setRemainingBalance('')
       closeForm()
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'No se pudo crear el préstamo')
@@ -238,10 +387,10 @@ export function LoansPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                placeholder="Préstamo carro"
+                placeholder="Crédito de consumo BBVA"
               />
             </FormField>
-            <FormField label="Monto original" htmlFor="loan-principal">
+            <FormField label="Monto original (desembolsado)" htmlFor="loan-principal">
               <input
                 id="loan-principal"
                 type="number"
@@ -276,16 +425,47 @@ export function LoansPage() {
                 required
               />
             </FormField>
-            <FormField label="Monto de cada cuota" htmlFor="loan-installment-amount">
+            <FormField label="Tasa efectiva anual % (opcional)" htmlFor="loan-rate">
               <input
-                id="loan-installment-amount"
+                id="loan-rate"
                 type="number"
                 step="0.01"
-                min="0.01"
-                value={installmentAmount}
-                onChange={(e) => setInstallmentAmount(sanitizeDecimalInput(e.target.value))}
-                required
+                min="0"
+                placeholder="24.88"
+                value={interestRate}
+                onChange={(e) => setInterestRate(sanitizeDecimalInput(e.target.value))}
               />
+              <span className="loan-field-hint">
+                La E.A. del extracto. Reparte cada cuota en interés y capital — sin tasa, toda la cuota se toma como
+                capital.
+              </span>
+            </FormField>
+            <FormField label="Seguro / cargos fijos por cuota (opcional)" htmlFor="loan-insurance">
+              <input
+                id="loan-insurance"
+                type="number"
+                step="0.01"
+                min="0"
+                value={insuranceAmount}
+                onChange={(e) => setInsuranceAmount(sanitizeDecimalInput(e.target.value))}
+              />
+            </FormField>
+            <FormField label="Valor total de cada cuota" htmlFor="loan-installment-amount">
+              <div className="loan-inline-input">
+                <input
+                  id="loan-installment-amount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={installmentAmount}
+                  onChange={(e) => setInstallmentAmount(sanitizeDecimalInput(e.target.value))}
+                  required
+                />
+                <Button type="button" variant="secondary" onClick={estimateInstallment} disabled={!canEstimate}>
+                  Estimar
+                </Button>
+              </div>
+              <span className="loan-field-hint">Como la cobra el banco (capital + interés + seguro).</span>
             </FormField>
             <FormField label="Cuotas ya pagadas (opcional)" htmlFor="loan-installments-paid">
               <input
@@ -297,17 +477,20 @@ export function LoansPage() {
                 value={installmentsPaid}
                 onChange={(e) => setInstallmentsPaid(sanitizeDecimalInput(e.target.value, 0))}
               />
-              <span style={{ fontSize: '0.8rem' }}>Úsalo para traer un préstamo que ya venía en curso.</span>
+              <span className="loan-field-hint">Úsalo para traer un préstamo que ya venía en curso.</span>
             </FormField>
-            <FormField label="Tasa de interés anual % (opcional)" htmlFor="loan-rate">
+            <FormField label="Saldo de capital actual (opcional)" htmlFor="loan-remaining">
               <input
-                id="loan-rate"
+                id="loan-remaining"
                 type="number"
                 step="0.01"
                 min="0"
-                value={interestRate}
-                onChange={(e) => setInterestRate(sanitizeDecimalInput(e.target.value))}
+                value={remainingBalance}
+                onChange={(e) => setRemainingBalance(sanitizeDecimalInput(e.target.value))}
               />
+              <span className="loan-field-hint">
+                Cópialo del extracto. Si lo dejas vacío, se calcula con la tasa y las cuotas ya pagadas.
+              </span>
             </FormField>
             <FormField label="Día de pago (opcional)" htmlFor="loan-due-day">
               <input

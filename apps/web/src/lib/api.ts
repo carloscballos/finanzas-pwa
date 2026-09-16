@@ -167,16 +167,30 @@ export interface Loan {
   principal: number
   remainingBalance: number
   currency: string
+  /** Tasa efectiva anual (%), como la cotiza el banco. */
   interestRate: number | null
+  /** Tasa mensual equivalente (%), derivada de interestRate. */
+  monthlyRate: number
   installmentsTotal: number
   installmentsPaid: number
+  /** Valor total de la cuota (capital + interés + seguro). */
   installmentAmount: number
+  insuranceAmount: number | null
+  /** Reparto estimado de la próxima cuota según el saldo de capital actual. */
+  nextInstallment: LoanInstallmentSplit | null
   dueDay: number | null
   account: { id: string; name: string } | null
   status: LoanStatus
   percentPaid: number
   createdAt: string
   updatedAt: string
+}
+
+export interface LoanInstallmentSplit {
+  interest: number
+  principal: number
+  insurance: number
+  total: number
 }
 
 export interface CreateLoanInput {
@@ -186,20 +200,28 @@ export interface CreateLoanInput {
   interestRate?: number
   installmentsTotal: number
   installmentAmount: number
+  insuranceAmount?: number
   dueDay?: number
   accountId?: string
   installmentsPaid?: number
+  /** Saldo de capital actual según el extracto; si se omite se proyecta con la tasa. */
+  remainingBalance?: number
 }
 
 export interface UpdateLoanInput {
   name?: string
   interestRate?: number
+  installmentAmount?: number
+  insuranceAmount?: number
+  remainingBalance?: number
   dueDay?: number
 }
 
 export interface PayLoanInput {
   accountId: string
   amount?: number
+  /** Abono a capital según el extracto (default: total − interés del período − seguro). */
+  principalAmount?: number
   occurredAt?: string
 }
 
@@ -810,14 +832,18 @@ export interface StatementPreviewResponse {
 }
 
 // Multipart — no pasa por request(), que siempre manda JSON.
+// El backend responde 422 (code PDF_PASSWORD_REQUIRED) si el PDF está cifrado y
+// no se mandó contraseña, y 400 si la contraseña es incorrecta.
 export async function previewCardStatement(
   token: string,
   accountId: string,
   file: File,
+  password?: string,
 ): Promise<StatementPreviewResponse> {
   const formData = new FormData()
   formData.append('accountId', accountId)
   formData.append('file', file)
+  if (password) formData.append('password', password)
   const res = await fetch(`${API_URL}/api/v1/card-purchases/extract-statement`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },

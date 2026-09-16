@@ -16,7 +16,7 @@ import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Account, type Debt, type DebtDirection, type DebtPayment } from '../lib/api'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
-import { formatDateOnly } from '../lib/dates'
+import { dateTimeInputToIso, formatDateOnly, nowDateTimeInput } from '../lib/dates'
 import { formatMoneyMaybeHidden, sanitizeDecimalInput } from '../lib/money'
 import { usePrivacy } from '../context/PrivacyContext'
 import './LoansPage.css'
@@ -79,14 +79,14 @@ function DebtCard({
       const updated = await api.registerDebtPayment(token, debt.id, {
         accountId,
         amount: amount ? Number(amount) : undefined,
-        occurredAt: new Date(date).toISOString(),
+        occurredAt: dateTimeInputToIso(date),
         note: note || undefined,
       })
       onChange(updated)
       setAccountId('')
       setAmount('')
       setNote('')
-      setDate(new Date().toISOString().slice(0, 10))
+      setDate(nowDateTimeInput())
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'No se pudo registrar el abono')
     } finally {
@@ -182,7 +182,7 @@ function DebtCard({
               value={amount}
               onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value))}
             />
-            <input type="date" aria-label="Fecha del abono" value={date} onChange={(e) => setDate(e.target.value)} required />
+            <input type="datetime-local" aria-label="Fecha y hora del abono" value={date} onChange={(e) => setDate(e.target.value)} required />
             <input
               aria-label="Nota (opcional)"
               placeholder="Nota (opcional)"

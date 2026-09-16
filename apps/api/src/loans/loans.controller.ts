@@ -44,9 +44,16 @@ export class LoansController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Crear un préstamo' })
+  @ApiOperation({
+    summary: 'Crear un préstamo',
+    description:
+      'interestRate es la tasa EFECTIVA ANUAL. Si viene remainingBalance se toma como saldo de capital actual (extracto); si no, se proyecta con amortización francesa a partir de installmentsPaid.',
+  })
   @ApiResponse({ status: 201, type: LoanResponseDto })
-  @ApiResponse({ status: 400, description: 'Datos inválidos' })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos, o la cuota no cubre seguro + intereses del período (plan que nunca amortiza)',
+  })
   @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
   create(
     @CurrentUser() user: AuthenticatedUser,
@@ -56,9 +63,13 @@ export class LoansController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Actualizar nombre, tasa de interés o día de pago de un préstamo' })
+  @ApiOperation({
+    summary: 'Conciliar un préstamo con el extracto: nombre, tasa, cuota, seguro, saldo de capital o día de pago',
+    description: 'No toca movimientos ya registrados — solo el plan hacia adelante.',
+  })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 200, type: LoanResponseDto })
+  @ApiResponse({ status: 400, description: 'Datos inválidos, o la cuota no cubre seguro + intereses del período' })
   @ApiResponse({ status: 404, description: 'Préstamo no encontrado' })
   update(
     @CurrentUser() user: AuthenticatedUser,
@@ -69,13 +80,17 @@ export class LoansController {
   }
 
   @Post(':id/payments')
-  @ApiOperation({ summary: 'Pagar una cuota — crea un movimiento real en la cuenta elegida' })
+  @ApiOperation({
+    summary: 'Pagar una cuota — crea un movimiento real en la cuenta elegida',
+    description:
+      'Solo el capital baja el saldo: del total pagado se descuenta primero el interés del período (saldo × tasa mensual) y el seguro. principalAmount permite fijar el reparto según el extracto o registrar un abono extraordinario a capital.',
+  })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiResponse({ status: 201, type: LoanResponseDto })
   @ApiResponse({
     status: 400,
     description:
-      'Datos inválidos, la cuenta no coincide con la moneda del préstamo, o no tiene saldo suficiente para la cuota',
+      'Datos inválidos, la cuenta no coincide con la moneda del préstamo, no tiene saldo suficiente, o el abono a capital supera el total pagado',
   })
   @ApiResponse({ status: 404, description: 'Préstamo o cuenta no encontrada' })
   @ApiResponse({ status: 409, description: 'El préstamo ya está pagado por completo' })

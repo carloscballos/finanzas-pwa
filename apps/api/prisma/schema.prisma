@@ -299,7 +299,14 @@ model SavingsGoal {
 }
 
 // Préstamo (banco u otra entidad, no una persona — para eso está Debt).
-// remainingBalance empieza igual a principal y baja con cada pago; accountId
+// remainingBalance es el SALDO DE CAPITAL (lo que el banco muestra como
+// "saldo" en el extracto), no "principal menos lo pagado": cada cuota se
+// reparte en interés (saldo × tasa mensual, derivada de interestRate que es
+// EFECTIVA ANUAL como la cotizan los bancos en Colombia), seguro/cargos fijos
+// (insuranceAmount) y capital (el resto) — solo el capital baja el saldo.
+// Amortización francesa: capital+interés constante = installmentAmount −
+// insuranceAmount. Ver loans/amortization.util.ts.
+// accountId
 // es opcional y solo sirve para preseleccionar la cuenta de pago (igual que
 // SavingsGoal.accountId con la moneda) — cada pago vuelve a elegir la cuenta
 // explícitamente. currency/principal/installmentsTotal/accountId son
@@ -312,10 +319,16 @@ model Loan {
   principal         Decimal    @db.Decimal(14, 2)
   remainingBalance  Decimal    @db.Decimal(14, 2)
   currency          String     @default("COP")
+  // % efectivo anual (E.A.). Null = sin interés (toda la cuota es capital).
   interestRate      Decimal?   @db.Decimal(5, 2)
   installmentsTotal Int
   installmentsPaid  Int        @default(0)
+  // Valor total de la cuota como la cobra el banco (capital + interés + seguro).
   installmentAmount Decimal    @db.Decimal(14, 2)
+  // Seguro de vida / otros cargos fijos incluidos en cada cuota (ej. BBVA
+  // "seguro" ~1% de la cuota). No amortiza nada — solo informativo para el
+  // reparto.
+  insuranceAmount   Decimal?   @db.Decimal(14, 2)
   dueDay            Int?
   accountId         String?
   status            LoanStatus @default(ACTIVE)
@@ -346,8 +359,7 @@ model Loan {
 //   (esa parte de la deuda queda saldada, lo que libera cupo). remainingBalance
 //   baja en la misma proporción.
 // amount/installmentsTotal/accountId son inmutables tras crear (mismo
-// criterio que Loan). installmentAmount/interestRate sí son editables — a
-// diferencia de Loan, donde interestRate es solo informativo, aquí existen
+// criterio que Loan). installmentAmount/interestRate sí son editables — aquí existen
 // justamente para poder corregir la cuota estimada cuando llega el extracto
 // real del banco (ver CardPurchasesService.update).
 model CardPurchase {

@@ -15,6 +15,7 @@ import {
   ExtractedStatementPurchase,
   StatementExtractionService,
 } from './statement-extraction.service';
+import { PdfDecryptService } from './pdf-decrypt.service';
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
@@ -121,6 +122,7 @@ export class CardPurchasesService {
     private readonly cardPurchasesRepository: CardPurchasesRepository,
     private readonly accountsService: AccountsService,
     private readonly statementExtractionService: StatementExtractionService,
+    private readonly pdfDecryptService: PdfDecryptService,
   ) {}
 
   async findAllForUser(userId: string): Promise<CardPurchaseResponseDto[]> {
@@ -347,14 +349,19 @@ export class CardPurchasesService {
     userId: string,
     accountId: string,
     pdfBuffer: Buffer,
+    password?: string,
   ): Promise<StatementPreviewResponseDto> {
     const account = await this.accountsService.getAccessibleAccount(userId, accountId);
     if (account.type !== 'CREDIT_CARD') {
       throw new BadRequestException('Solo se pueden conciliar extractos de tarjetas de crédito');
     }
 
+    // Si el PDF viene con contraseña, se descifra aquí con la clave que dio el
+    // usuario antes de mandarlo a la IA (que no sabe abrir PDFs protegidos).
+    const readablePdf = await this.pdfDecryptService.decryptIfNeeded(pdfBuffer, password);
+
     const [extraction, existing] = await Promise.all([
-      this.statementExtractionService.extractPurchases(pdfBuffer),
+      this.statementExtractionService.extractPurchases(readablePdf),
       this.cardPurchasesRepository.findForAccount(accountId),
     ]);
     const { statementDate, purchases: extracted } = extraction;

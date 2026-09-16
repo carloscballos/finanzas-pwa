@@ -45,6 +45,24 @@ export function sanitizeDecimalInput(raw: string, decimals = 2, allowNegative = 
   return `${sign}${integerPart}.${fractionPart}`
 }
 
+// --- Préstamos: amortización francesa (cuota constante) ---
+// Espejo de apps/api/src/loans/amortization.util.ts — si se toca una, revisar
+// la otra. Los bancos cotizan tasa EFECTIVA anual; la mensual equivalente es
+// (1 + EA)^(1/12) − 1, no EA/12.
+export function monthlyRateFromAnnualEffective(annualEffectivePercent: number | null | undefined): number {
+  if (!annualEffectivePercent || annualEffectivePercent <= 0) return 0
+  return Math.pow(1 + annualEffectivePercent / 100, 1 / 12) - 1
+}
+
+// Parte constante (capital + interés) de la cuota de un préstamo a
+// `installments` meses. Solo un punto de partida: el banco suma seguro y
+// redondea distinto, el usuario corrige con el valor real del extracto.
+export function estimateFrenchInstallment(principal: number, monthlyRate: number, installments: number): number {
+  if (principal <= 0 || installments <= 0) return 0
+  if (monthlyRate <= 0) return round2(principal / installments)
+  return round2((principal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -installments)))
+}
+
 // Nunca debería superar creditLimit ni bajar de 0 — se recorta como defensa
 // extra por si algún movimiento genérico (fuera del flujo de Compras) deja
 // currentBalance en un valor inesperado.
