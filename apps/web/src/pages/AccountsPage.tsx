@@ -16,13 +16,15 @@ import * as api from '../lib/api'
 import { ApiError, type Account, type AccountType } from '../lib/api'
 import { ACCOUNT_TYPE_LABELS } from '../lib/accountTypeLabels'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
-import { computeAvailableCredit, formatMoney } from '../lib/money'
+import { computeAvailableCredit, formatMoneyMaybeHidden, sanitizeDecimalInput } from '../lib/money'
+import { usePrivacy } from '../context/PrivacyContext'
 import './AccountsPage.css'
 
 const ACCOUNT_TYPES = Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]
 
 export function AccountsPage() {
   const { token } = useAuth()
+  const { hideValues } = usePrivacy()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -135,7 +137,7 @@ export function AccountsPage() {
                 step="0.01"
                 max={type === 'CREDIT_CARD' ? 0 : undefined}
                 value={initialBalance}
-                onChange={(e) => setInitialBalance(e.target.value)}
+                onChange={(e) => setInitialBalance(sanitizeDecimalInput(e.target.value, 2, true))}
               />
               {type === 'CREDIT_CARD' && (
                 <span style={{ fontSize: '0.8rem' }}>
@@ -152,7 +154,7 @@ export function AccountsPage() {
                     step="0.01"
                     min="0"
                     value={creditLimit}
-                    onChange={(e) => setCreditLimit(e.target.value)}
+                    onChange={(e) => setCreditLimit(sanitizeDecimalInput(e.target.value))}
                   />
                 </FormField>
                 <FormField label="Día de pago" htmlFor="acc-due-day">
@@ -162,7 +164,7 @@ export function AccountsPage() {
                     min="1"
                     max="31"
                     value={paymentDueDay}
-                    onChange={(e) => setPaymentDueDay(e.target.value)}
+                    onChange={(e) => setPaymentDueDay(sanitizeDecimalInput(e.target.value, 0))}
                     placeholder="1-31"
                   />
                 </FormField>
@@ -190,8 +192,8 @@ export function AccountsPage() {
             <Money amount={account.currentBalance} currency={account.currency} tone="balance" size="lg" />
             {account.type === 'CREDIT_CARD' && account.creditLimit !== null && (
               <div className="account-credit-info">
-                Disponible: {formatMoney(computeAvailableCredit(account.creditLimit, account.currentBalance), account.currency)} de{' '}
-                {formatMoney(account.creditLimit, account.currency)}
+                Disponible: {formatMoneyMaybeHidden(computeAvailableCredit(account.creditLimit, account.currentBalance), account.currency, hideValues)} de{' '}
+                {formatMoneyMaybeHidden(account.creditLimit, account.currency, hideValues)}
                 {account.paymentDueDay && ` · Paga el día ${account.paymentDueDay}`}
               </div>
             )}

@@ -77,7 +77,8 @@ export class GoalsController {
   @ApiResponse({ status: 201, type: GoalResponseDto })
   @ApiResponse({
     status: 400,
-    description: 'El retiro dejaría el ahorro en negativo, o la cuenta no coincide con la moneda de la meta',
+    description:
+      'El retiro dejaría el ahorro en negativo, la cuenta no coincide con la moneda de la meta, o no tiene saldo suficiente para el aporte',
   })
   @ApiResponse({ status: 404, description: 'Meta o cuenta no encontrada' })
   contribute(

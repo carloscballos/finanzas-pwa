@@ -128,6 +128,25 @@
   color: var(--badge-error-fg);
 }
 
+.layout-sidebar-privacy {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border-color);
+  background: none;
+  color: var(--text);
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.layout-sidebar-privacy:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .layout-header {
   position: sticky;
   top: 0;
@@ -279,6 +298,25 @@
 
 .layout-user-trigger:hover {
   background: var(--bg-subtle);
+}
+
+.layout-privacy-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.layout-privacy-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .layout-user-avatar {

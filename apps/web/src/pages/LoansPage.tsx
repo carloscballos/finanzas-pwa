@@ -15,7 +15,8 @@ import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Account, type Loan } from '../lib/api'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
-import { formatMoney } from '../lib/money'
+import { formatMoneyMaybeHidden, sanitizeDecimalInput } from '../lib/money'
+import { usePrivacy } from '../context/PrivacyContext'
 import './LoansPage.css'
 
 function LoanCard({
@@ -30,9 +31,11 @@ function LoanCard({
   onDeleted: (id: string) => void
 }) {
   const { token } = useAuth()
+  const { hideValues } = usePrivacy()
   const matchingAccounts = accounts.filter((a) => a.currency === loan.currency)
   const [accountId, setAccountId] = useState(loan.account?.id ?? '')
   const [amount, setAmount] = useState('')
+  const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [busy, setBusy] = useState(false)
 
   async function handlePay(event: FormEvent) {
@@ -43,9 +46,11 @@ function LoanCard({
       const updated = await api.payLoanInstallment(token, loan.id, {
         accountId,
         amount: amount ? Number(amount) : undefined,
+        occurredAt: new Date(payDate).toISOString(),
       })
       onChange(updated)
       setAmount('')
+      setPayDate(new Date().toISOString().slice(0, 10))
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'No se pudo registrar el pago')
     } finally {
@@ -121,9 +126,16 @@ function LoanCard({
               type="number"
               step="0.01"
               min="0.01"
-              placeholder={`Monto (cuota ${formatMoney(loan.installmentAmount, loan.currency)})`}
+              placeholder={`Monto (cuota ${formatMoneyMaybeHidden(loan.installmentAmount, loan.currency, hideValues)})`}
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value))}
+            />
+            <input
+              type="date"
+              aria-label="Fecha del pago"
+              value={payDate}
+              onChange={(e) => setPayDate(e.target.value)}
+              required
             />
             <Button type="submit" disabled={busy || !accountId}>
               Pagar cuota
@@ -236,7 +248,7 @@ export function LoansPage() {
                 step="0.01"
                 min="0.01"
                 value={principal}
-                onChange={(e) => setPrincipal(e.target.value)}
+                onChange={(e) => setPrincipal(sanitizeDecimalInput(e.target.value))}
                 required
               />
             </FormField>
@@ -260,7 +272,7 @@ export function LoansPage() {
                 min="1"
                 step="1"
                 value={installmentsTotal}
-                onChange={(e) => setInstallmentsTotal(e.target.value)}
+                onChange={(e) => setInstallmentsTotal(sanitizeDecimalInput(e.target.value, 0))}
                 required
               />
             </FormField>
@@ -271,7 +283,7 @@ export function LoansPage() {
                 step="0.01"
                 min="0.01"
                 value={installmentAmount}
-                onChange={(e) => setInstallmentAmount(e.target.value)}
+                onChange={(e) => setInstallmentAmount(sanitizeDecimalInput(e.target.value))}
                 required
               />
             </FormField>
@@ -283,7 +295,7 @@ export function LoansPage() {
                 step="1"
                 placeholder="0"
                 value={installmentsPaid}
-                onChange={(e) => setInstallmentsPaid(e.target.value)}
+                onChange={(e) => setInstallmentsPaid(sanitizeDecimalInput(e.target.value, 0))}
               />
               <span style={{ fontSize: '0.8rem' }}>Úsalo para traer un préstamo que ya venía en curso.</span>
             </FormField>
@@ -294,7 +306,7 @@ export function LoansPage() {
                 step="0.01"
                 min="0"
                 value={interestRate}
-                onChange={(e) => setInterestRate(e.target.value)}
+                onChange={(e) => setInterestRate(sanitizeDecimalInput(e.target.value))}
               />
             </FormField>
             <FormField label="Día de pago (opcional)" htmlFor="loan-due-day">
@@ -304,7 +316,7 @@ export function LoansPage() {
                 min="1"
                 max="31"
                 value={dueDay}
-                onChange={(e) => setDueDay(e.target.value)}
+                onChange={(e) => setDueDay(sanitizeDecimalInput(e.target.value, 0))}
                 placeholder="1-31"
               />
             </FormField>

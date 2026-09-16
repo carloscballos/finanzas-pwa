@@ -62,7 +62,10 @@ export class CardPurchasesController {
   @Post()
   @ApiOperation({ summary: 'Registrar una compra a cuotas con una tarjeta de crédito' })
   @ApiResponse({ status: 201, type: CardPurchaseResponseDto })
-  @ApiResponse({ status: 400, description: 'Datos inválidos, o la cuenta no es una tarjeta de crédito' })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos, la cuenta no es una tarjeta de crédito, o la compra no cabe en el cupo disponible',
+  })
   @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
   create(
     @CurrentUser() user: AuthenticatedUser,
@@ -90,7 +93,8 @@ export class CardPurchasesController {
   @ApiResponse({ status: 201, type: CardPurchaseResponseDto })
   @ApiResponse({
     status: 400,
-    description: 'Datos inválidos, la cuenta de pago es la misma tarjeta, o no coincide en moneda',
+    description:
+      'Datos inválidos, la cuenta de pago es la misma tarjeta, no coincide en moneda, o no tiene saldo suficiente',
   })
   @ApiResponse({ status: 404, description: 'Compra o cuenta no encontrada' })
   @ApiResponse({ status: 409, description: 'La compra ya está pagada por completo' })
@@ -111,7 +115,7 @@ export class CardPurchasesController {
   @ApiResponse({
     status: 400,
     description:
-      'Datos inválidos, la cuenta de pago es la misma tarjeta, no coincide en moneda, o no hay compras activas',
+      'Datos inválidos, la cuenta de pago es la misma tarjeta, no coincide en moneda, no tiene saldo suficiente, o no hay compras activas',
   })
   @ApiResponse({ status: 404, description: 'Cuenta no encontrada' })
   payMonthlyInstallments(

@@ -30,6 +30,7 @@ export class TransfersService {
     }
     const fromAccount = await this.accountsService.getAccessibleAccount(userId, dto.fromAccountId);
     const toAccount = await this.accountsService.getAccessibleAccount(userId, dto.toAccountId);
+    await this.accountsService.assertSufficientFunds(userId, dto.fromAccountId, dto.fromAmount);
 
     let toAmount = dto.fromAmount;
     let exchangeRate: number | null = null;

@@ -77,16 +77,21 @@ export function HomePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()))
+  const [monthLoading, setMonthLoading] = useState(true)
+  const [monthError, setMonthError] = useState<string | null>(null)
 
-  const monthEnd = addMonths(monthStart, 1)
   const isCurrentMonth = monthStart.getTime() === startOfMonth(new Date()).getTime()
 
+  // Todo lo que es "estado actual" (saldos, presupuestos, metas, deudas,
+  // proyección, solicitudes) no depende del mes elegido — se carga una vez.
+  // Solo los movimientos se filtran por mes, en el efecto de abajo.
   useEffect(() => {
     if (!token) return
+    let ignore = false
     setLoading(true)
+    setError(null)
     Promise.all([
       api.getAccounts(token),
-      api.getTransactions(token, { startDate: monthStart.toISOString(), endDate: monthEnd.toISOString() }),
       api.getBudgets(token),
       api.getGoals(token),
       api.getDebts(token),
@@ -94,9 +99,9 @@ export function HomePage() {
       api.getMyInvitations(token),
       api.getReceivedFriendRequests(token),
     ])
-      .then(([accs, txs, bud, gls, dbts, fc, invs, freqs]) => {
+      .then(([accs, bud, gls, dbts, fc, invs, freqs]) => {
+        if (ignore) return
         setAccounts(accs)
-        setTransactions(txs)
         setBudgets(bud)
         setGoals(gls)
         setDebts(dbts)
@@ -104,8 +109,43 @@ export function HomePage() {
         setInvitations(invs.filter((i) => i.status === 'PENDING'))
         setFriendRequests(freqs)
       })
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'Error al cargar el resumen'))
-      .finally(() => setLoading(false))
+      .catch((err) => {
+        if (!ignore) setError(err instanceof ApiError ? err.message : 'Error al cargar el resumen')
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false)
+      })
+    return () => {
+      ignore = true
+    }
+  }, [token])
+
+  // `ignore` descarta la respuesta de un mes que ya no es el visible: al
+  // pasar varios meses rápido con las flechas, las peticiones se solapan y
+  // sin esto la que llegara de última "ganaba" aunque fuera de otro mes —
+  // el encabezado decía un mes y los números eran de otro.
+  useEffect(() => {
+    if (!token) return
+    let ignore = false
+    setMonthLoading(true)
+    setMonthError(null)
+    api
+      .getTransactions(token, {
+        startDate: monthStart.toISOString(),
+        endDate: addMonths(monthStart, 1).toISOString(),
+      })
+      .then((txs) => {
+        if (!ignore) setTransactions(txs)
+      })
+      .catch((err) => {
+        if (!ignore) setMonthError(err instanceof ApiError ? err.message : 'Error al cargar los movimientos del mes')
+      })
+      .finally(() => {
+        if (!ignore) setMonthLoading(false)
+      })
+    return () => {
+      ignore = true
+    }
   }, [token, monthStart])
 
   const personalAccounts = accounts.filter((a) => a.memberCount <= 1)
@@ -204,6 +244,7 @@ export function HomePage() {
               </button>
             )}
           </div>
+          {monthError && <div className="auth-error">{monthError}</div>}
 
           <section className="home-section">
             <SectionHeader title="Saldo total" />
@@ -243,7 +284,7 @@ export function HomePage() {
             )}
           </section>
 
-          {monthCurrencies.length > 0 && (
+          {!monthLoading && monthCurrencies.length > 0 && (
             <section className="home-section">
               <SectionHeader title={`Resumen de ${formatMonthLabel(monthStart)}`} />
               <CardGrid minWidth={240}>
@@ -384,9 +425,11 @@ export function HomePage() {
             </section>
           )}
 
-          <section className="home-section">
+          <section className="home-section" aria-busy={monthLoading}>
             <SectionHeader title={`Movimientos de ${formatMonthLabel(monthStart)}`} />
-            {recentTransactions.length === 0 ? (
+            {monthLoading ? (
+              <p>Cargando…</p>
+            ) : recentTransactions.length === 0 ? (
               <EmptyState>No hay movimientos en este mes.</EmptyState>
             ) : (
               <>

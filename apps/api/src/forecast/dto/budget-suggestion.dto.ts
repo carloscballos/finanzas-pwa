@@ -32,9 +32,17 @@ export class BudgetSuggestionDto {
 
   @ApiProperty({
     example: 850.5,
-    description: 'Promedio de gasto mensual real en esta categoría/moneda en los últimos 3 meses completos',
+    description:
+      'Promedio de gasto mensual real en esta categoría/moneda, sobre los meses completos de historial que existen (hasta 3)',
   })
   averageMonthlySpend: number;
+
+  @ApiProperty({
+    example: 2,
+    description:
+      'Cuántos meses completos de historial respaldan el promedio (1 a 3) — un usuario nuevo tiene menos de 3',
+  })
+  monthsOfHistory: number;
 
   @ApiPropertyOptional({ type: ExistingBudgetRefDto })
   existingBudget: ExistingBudgetRefDto | null;

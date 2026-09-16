@@ -66,6 +66,14 @@ class TransactionCardPurchaseSummaryDto {
   merchant: string;
 }
 
+class TransactionDebtSummaryDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'Beto Ruiz', description: 'La otra parte de la deuda, desde la perspectiva de quien registró este movimiento' })
+  counterpartyName: string;
+}
+
 export class TransactionResponseDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
@@ -126,6 +134,12 @@ export class TransactionResponseDto {
 
   @ApiPropertyOptional({ type: TransactionCardPurchaseSummaryDto })
   cardPurchase: TransactionCardPurchaseSummaryDto | null;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Si es un abono confirmado de una deuda' })
+  debtId: string | null;
+
+  @ApiPropertyOptional({ type: TransactionDebtSummaryDto })
+  debt: TransactionDebtSummaryDto | null;
 
   @ApiProperty({ example: '2026-08-10T18:00:00.000Z' })
   createdAt: Date;

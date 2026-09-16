@@ -5,6 +5,10 @@ import { AccountResponseDto } from './dto/account-response.dto';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 @Injectable()
 export class AccountsService {
   constructor(private readonly accountsRepository: AccountsRepository) {}
@@ -50,6 +54,45 @@ export class AccountsService {
   // la cuenta (cualquier rol, no solo owner) antes de operar sobre ella.
   async getAccessibleAccount(userId: string, accountId: string): Promise<AccountWithMembers> {
     return this.getAccountForMember(userId, accountId);
+  }
+
+  // Única validación de "¿alcanza?" de toda la app — la llaman todos los
+  // flujos que sacan dinero de una cuenta (gasto normal, transferencia,
+  // aporte a meta, cuota de préstamo/tarjeta, abono de deuda, plantilla
+  // aplicada). En una cuenta normal se compara contra el saldo; en una
+  // tarjeta de crédito contra el cupo disponible (creditLimit + saldo, que
+  // en tarjetas es ≤ 0) — y si la tarjeta no tiene creditLimit no se valida,
+  // porque no hay contra qué. `editedEffect` es para ediciones: el efecto
+  // que el movimiento que se está editando ya tiene sobre el saldo (+monto si
+  // era ingreso, -monto si era gasto), que se descuenta antes de comparar
+  // para no contarlo contra sí mismo.
+  async assertSufficientFunds(
+    userId: string,
+    accountId: string,
+    amount: number,
+    editedEffect = 0,
+  ): Promise<void> {
+    const account = await this.getAccountForMember(userId, accountId);
+    const balances = await this.computeCurrentBalances([account]);
+    const balance = round2((balances.get(account.id) ?? 0) - editedEffect);
+    const needed = round2(amount);
+
+    if (account.type === 'CREDIT_CARD') {
+      if (account.creditLimit === null) return;
+      const available = round2(Number(account.creditLimit) + balance);
+      if (needed > available) {
+        throw new BadRequestException(
+          `Cupo insuficiente en ${account.name}: disponible ${available.toFixed(2)} ${account.currency} y el movimiento es de ${needed.toFixed(2)}`,
+        );
+      }
+      return;
+    }
+
+    if (needed > balance) {
+      throw new BadRequestException(
+        `Saldo insuficiente en ${account.name}: tiene ${balance.toFixed(2)} ${account.currency} y el movimiento es de ${needed.toFixed(2)}`,
+      );
+    }
   }
 
   // El owner puede quitar a cualquier otro miembro; un miembro puede

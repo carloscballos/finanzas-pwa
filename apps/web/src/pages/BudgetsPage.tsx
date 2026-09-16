@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Budget, type BudgetPeriod, type Category } from '../lib/api'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
+import { sanitizeDecimalInput } from '../lib/money'
 import './BudgetsPage.css'
 
 function barTone(percentUsed: number): ProgressTone {
@@ -36,6 +37,12 @@ export function BudgetsPage() {
   const [period, setPeriod] = useState<BudgetPeriod>('MONTHLY')
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editLimitAmount, setEditLimitAmount] = useState('')
+  const [editPeriod, setEditPeriod] = useState<BudgetPeriod>('MONTHLY')
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!token) return
@@ -90,6 +97,37 @@ export function BudgetsPage() {
     }
   }
 
+  function startEdit(budget: Budget) {
+    setEditingId(budget.id)
+    setEditLimitAmount(String(budget.limitAmount))
+    setEditPeriod(budget.period)
+    setEditError(null)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditError(null)
+  }
+
+  async function handleSaveEdit(event: FormEvent, budget: Budget) {
+    event.preventDefault()
+    if (!token) return
+    setEditSaving(true)
+    setEditError(null)
+    try {
+      const updated = await api.updateBudget(token, budget.id, {
+        limitAmount: Number(editLimitAmount),
+        period: editPeriod,
+      })
+      setBudgets((prev) => prev.map((b) => (b.id === budget.id ? updated : b)))
+      setEditingId(null)
+    } catch (err) {
+      setEditError(err instanceof ApiError ? err.message : 'No se pudo guardar el presupuesto')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   return (
     <Layout fabActions={[{ label: 'Nuevo presupuesto', icon: PiggyBank, onClick: toggleForm }]}>
       <SectionHeader as="h1" title="Presupuestos">
@@ -128,7 +166,7 @@ export function BudgetsPage() {
                 step="0.01"
                 min="0.01"
                 value={limitAmount}
-                onChange={(e) => setLimitAmount(e.target.value)}
+                onChange={(e) => setLimitAmount(sanitizeDecimalInput(e.target.value))}
                 required
               />
             </FormField>
@@ -164,31 +202,76 @@ export function BudgetsPage() {
                 </h3>
                 <span className="budget-period">{budget.period === 'MONTHLY' ? 'Mensual' : 'Semanal'}</span>
               </div>
-              <button className="link-danger" onClick={() => handleDelete(budget)}>
-                Eliminar
-              </button>
+              {editingId !== budget.id && (
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button className="link-neutral" onClick={() => startEdit(budget)}>
+                    Editar
+                  </button>
+                  <button className="link-danger" onClick={() => handleDelete(budget)}>
+                    Eliminar
+                  </button>
+                </div>
+              )}
             </div>
-            <ProgressBar value={budget.percentUsed} tone={barTone(budget.percentUsed)} height={8} />
-            <div className="budget-amounts">
-              <span>
-                <Money amount={budget.spent} currency={budget.currency} /> gastado
-              </span>
-              <span className="budget-percent">{budget.percentUsed}%</span>
-            </div>
-            <div className="budget-amounts">
-              <span>
-                Límite <Money amount={budget.limitAmount} currency={budget.currency} />
-              </span>
-              <span>
-                {budget.remaining >= 0 ? (
-                  <>
-                    <Money amount={budget.remaining} currency={budget.currency} /> restante
-                  </>
-                ) : (
-                  'Excedido'
-                )}
-              </span>
-            </div>
+
+            {editingId === budget.id ? (
+              <Form onSubmit={(e) => handleSaveEdit(e, budget)}>
+                <FormError>{editError}</FormError>
+                <FormField label="Periodo" htmlFor={`budget-edit-period-${budget.id}`} full>
+                  <select
+                    id={`budget-edit-period-${budget.id}`}
+                    value={editPeriod}
+                    onChange={(e) => setEditPeriod(e.target.value as BudgetPeriod)}
+                  >
+                    <option value="MONTHLY">Mensual</option>
+                    <option value="WEEKLY">Semanal</option>
+                  </select>
+                </FormField>
+                <FormField label={`Límite (${budget.currency})`} htmlFor={`budget-edit-limit-${budget.id}`} full>
+                  <input
+                    id={`budget-edit-limit-${budget.id}`}
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={editLimitAmount}
+                    onChange={(e) => setEditLimitAmount(sanitizeDecimalInput(e.target.value))}
+                    required
+                  />
+                </FormField>
+                <div className="ui-field-full" style={{ display: 'flex', gap: '0.5rem' }}>
+                  <Button type="submit" disabled={editSaving}>
+                    {editSaving ? 'Guardando…' : 'Guardar'}
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={cancelEdit}>
+                    Cancelar
+                  </Button>
+                </div>
+              </Form>
+            ) : (
+              <>
+                <ProgressBar value={budget.percentUsed} tone={barTone(budget.percentUsed)} height={8} />
+                <div className="budget-amounts">
+                  <span>
+                    <Money amount={budget.spent} currency={budget.currency} /> gastado
+                  </span>
+                  <span className="budget-percent">{budget.percentUsed}%</span>
+                </div>
+                <div className="budget-amounts">
+                  <span>
+                    Límite <Money amount={budget.limitAmount} currency={budget.currency} />
+                  </span>
+                  <span>
+                    {budget.remaining >= 0 ? (
+                      <>
+                        <Money amount={budget.remaining} currency={budget.currency} /> restante
+                      </>
+                    ) : (
+                      'Excedido'
+                    )}
+                  </span>
+                </div>
+              </>
+            )}
           </Card>
         ))}
       </CardGrid>

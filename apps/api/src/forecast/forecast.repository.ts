@@ -40,4 +40,19 @@ export class ForecastRepository {
   findBudgetsForUser(userId: string): Promise<Budget[]> {
     return this.prisma.budget.findMany({ where: { userId } });
   }
+
+  // Desde cuándo registra movimientos el usuario — define cuántos meses de
+  // historial real hay para promediar. Se mira su primer movimiento con
+  // categoría PROPIA (la misma población de la que salen las sugerencias),
+  // no el primer movimiento de sus cuentas: en una cuenta compartida a la
+  // que se unió después, los movimientos viejos del otro miembro no son
+  // historial suyo y deflarían su promedio.
+  async findEarliestTransactionDate(userId: string): Promise<Date | null> {
+    const first = await this.prisma.transaction.findFirst({
+      where: { category: { userId } },
+      orderBy: { occurredAt: 'asc' },
+      select: { occurredAt: true },
+    });
+    return first?.occurredAt ?? null;
+  }
 }

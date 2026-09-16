@@ -26,7 +26,8 @@ import {
   type TransactionType,
 } from '../lib/api'
 import { dateInputToIso, formatDateOnly, todayDateInput } from '../lib/dates'
-import { formatMoney } from '../lib/money'
+import { formatMoneyMaybeHidden, sanitizeDecimalInput } from '../lib/money'
+import { usePrivacy } from '../context/PrivacyContext'
 import './ForecastPage.css'
 
 const FREQUENCY_LABELS: Record<RecurrenceFrequency, string> = {
@@ -38,6 +39,7 @@ const FREQUENCY_LABELS: Record<RecurrenceFrequency, string> = {
 
 export function ForecastPage() {
   const { token } = useAuth()
+  const { hideValues } = usePrivacy()
   const [summary, setSummary] = useState<ForecastSummary[]>([])
   const [suggestions, setSuggestions] = useState<BudgetSuggestion[]>([])
   const [recurring, setRecurring] = useState<RecurringTransaction[]>([])
@@ -262,7 +264,7 @@ export function ForecastPage() {
                 step="0.01"
                 min="0.01"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value))}
                 required
               />
             </FormField>
@@ -376,7 +378,7 @@ export function ForecastPage() {
                             step="0.01"
                             min="0.01"
                             value={applyAmount}
-                            onChange={(e) => setApplyAmount(e.target.value)}
+                            onChange={(e) => setApplyAmount(sanitizeDecimalInput(e.target.value))}
                             required
                           />
                         </FormField>
@@ -411,7 +413,11 @@ export function ForecastPage() {
           <section className="forecast-section">
             <SectionHeader title="Presupuestos sugeridos" />
             <p className="recurring-row-meta" style={{ marginBottom: '0.75rem' }}>
-              Basado en tu gasto real promedio de los últimos 3 meses completos.
+              {suggestions.length === 0
+                ? 'Se calcula sobre tu gasto real de los últimos meses completos (hasta 3).'
+                : suggestions[0].monthsOfHistory === 1
+                  ? 'Basado en tu gasto real de tu último mes completo — con más meses de historial, el promedio se afina.'
+                  : `Basado en tu gasto real promedio de los últimos ${suggestions[0].monthsOfHistory} meses completos.`}
             </p>
             {suggestions.length === 0 ? (
               <EmptyState>Todavía no hay suficiente historial de gastos para sugerir presupuestos.</EmptyState>
@@ -426,15 +432,17 @@ export function ForecastPage() {
                       title={s.category.name}
                       subtitle={
                         <>
-                          Promedio: {formatMoney(s.averageMonthlySpend, s.currency)}/mes
+                          Promedio: {formatMoneyMaybeHidden(s.averageMonthlySpend, s.currency, hideValues)}/mes
                         </>
                       }
                       trailing={
                         s.existingBudget ? (
-                          <Badge tone="ok">Ya tienes presupuesto de {formatMoney(s.existingBudget.limitAmount, s.currency)}</Badge>
+                          <Badge tone="ok">
+                            Ya tienes presupuesto de {formatMoneyMaybeHidden(s.existingBudget.limitAmount, s.currency, hideValues)}
+                          </Badge>
                         ) : (
                           <Button disabled={creatingBudgetFor === key} onClick={() => handleCreateSuggestedBudget(s)}>
-                            Crear presupuesto de {formatMoney(Math.ceil(s.averageMonthlySpend), s.currency)}
+                            Crear presupuesto de {formatMoneyMaybeHidden(Math.ceil(s.averageMonthlySpend), s.currency, hideValues)}
                           </Button>
                         )
                       }

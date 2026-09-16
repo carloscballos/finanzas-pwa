@@ -14,9 +14,12 @@ import {
   MoreHorizontal,
   ChevronDown,
   LogOut,
+  Eye,
+  EyeOff,
   type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { usePrivacy } from '../context/PrivacyContext'
 import * as api from '../lib/api'
 import { formatMoney } from '../lib/money'
 import { MoreMenu, type MoreMenuItem } from './MoreMenu'
@@ -58,6 +61,7 @@ export function Layout({
   fabActions?: FabAction[]
 }) {
   const { user, token, logout } = useAuth()
+  const { hideValues, toggleHideValues } = usePrivacy()
   const location = useLocation()
   const [usdRate, setUsdRate] = useState<number | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -107,6 +111,15 @@ export function Layout({
         </nav>
 
         <div className="layout-sidebar-footer">
+          <button
+            type="button"
+            className="layout-sidebar-privacy"
+            onClick={toggleHideValues}
+            title={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
+          >
+            {hideValues ? <EyeOff size={16} /> : <Eye size={16} />}
+            {hideValues ? 'Mostrar valores' : 'Ocultar valores'}
+          </button>
           {usdRate !== null && (
             <div
               className="layout-sidebar-rate"
@@ -159,6 +172,15 @@ export function Layout({
           </nav>
 
           <div className="layout-user" ref={userMenuRef}>
+            <button
+              type="button"
+              className="layout-privacy-toggle"
+              onClick={toggleHideValues}
+              title={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
+              aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
+            >
+              {hideValues ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
             {usdRate !== null && (
               <span
                 className="layout-usd-rate"

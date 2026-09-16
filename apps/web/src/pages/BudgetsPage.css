@@ -19,3 +19,12 @@
   font-size: 0.8rem;
   font-weight: 600;
 }
+
+.link-neutral {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}

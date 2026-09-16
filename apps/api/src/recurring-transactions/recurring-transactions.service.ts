@@ -74,6 +74,10 @@ export class RecurringTransactionsService {
     dto: ApplyRecurringTransactionDto,
   ): Promise<TransactionResponseDto> {
     const item = await this.getAccessible(userId, id);
+    const amount = dto.amount ?? Number(item.amount);
+    if (item.type === 'EXPENSE') {
+      await this.accountsService.assertSufficientFunds(userId, item.accountId, amount);
+    }
 
     const created = await this.transactionsRepository.create(
       userId,
@@ -81,7 +85,7 @@ export class RecurringTransactionsService {
         accountId: item.accountId,
         categoryId: item.categoryId,
         type: item.type,
-        amount: dto.amount ?? Number(item.amount),
+        amount,
         note: dto.note ?? item.note ?? undefined,
         occurredAt: dto.occurredAt,
       },

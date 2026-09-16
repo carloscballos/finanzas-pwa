@@ -74,12 +74,18 @@ export class GoalsService {
       );
     }
 
+    // Solo aportar (amount > 0) saca dinero real de la cuenta — un retiro
+    // (amount < 0) es un ingreso hacia ella, así que no hay saldo que validar.
+    if (dto.amount > 0) {
+      await this.accountsService.assertSufficientFunds(userId, dto.accountId, dto.amount);
+    }
+
     const updated = await this.goalsRepository.addContribution({
       goalId: id,
       accountId: dto.accountId,
       userId,
       amount: dto.amount,
-      occurredAt: new Date(),
+      occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
     });
     return GoalMapper.toResponse(updated);
   }
