@@ -66,9 +66,9 @@ Toda la PWA (13 páginas) sigue un design system propio a partir de un spec que 
 
 ## Despliegue
 
-App en producción en **https://www.koyride.com** (dominio propio del usuario, reciclado — antes tenía un Cloudflare Tunnel de otro proyecto suyo ahí, ya lo reemplazamos). Stack:
+App en producción en **https://www.finance.koystudio.dev** (dominio propio del usuario, reciclado — antes tenía un Cloudflare Tunnel de otro proyecto suyo ahí, ya lo reemplazamos). Stack:
 
-- **Frontend** → Vercel, conectado al repo de GitHub, Root Directory `apps/web`, detecta Vite solo. Variable `VITE_API_URL=https://api.koyride.com` (ojo: Vite la "hornea" en el build — si cambia, hay que forzar un redeploy, no basta con guardar la variable).
+- **Frontend** → Vercel, conectado al repo de GitHub, Root Directory `apps/web`, detecta Vite solo. Variable `VITE_API_URL=https://api.koystudio.dev` (ojo: Vite la "hornea" en el build — si cambia, hay que forzar un redeploy, no basta con guardar la variable).
 - **Backend + Postgres** → Railway, mismo repo, Root Directory `apps/api`. **Builder: Nixpacks/Railpack** (probamos Dockerfile por los errores de build, pero el problema real era el gotcha #4 de tsconfig — con eso arreglado, Nixpacks funciona bien y es más simple; no vale la pena volver a Docker a menos que Nixpacks vuelva a fallar por otra razón).
   - Build Command: `npm install && npx prisma generate && npm run build`
   - Start Command: `npx prisma migrate deploy && npm run start:prod`

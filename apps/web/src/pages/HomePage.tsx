@@ -150,13 +150,17 @@ export function HomePage() {
     }
   }, [token, monthStart])
 
-  const personalAccounts = accounts.filter((a) => a.memberCount <= 1)
-  const sharedAccounts = accounts.filter((a) => a.memberCount > 1)
+  const personalAccounts = accounts.filter((a) => a.memberCount <= 1 && a.type !== 'CREDIT_CARD')
+  const sharedAccounts = accounts.filter((a) => a.memberCount > 1 && a.type !== 'CREDIT_CARD')
+  const creditCardAccounts = accounts.filter((a) => a.type === 'CREDIT_CARD')
   const personalBalancesByCurrency = sumByCurrency(
     personalAccounts.map((a) => ({ amount: a.currentBalance, currency: a.currency })),
   )
   const sharedBalancesByCurrency = sumByCurrency(
     sharedAccounts.map((a) => ({ amount: a.currentBalance, currency: a.currency })),
+  )
+  const creditCardBalancesByCurrency = sumByCurrency(
+    creditCardAccounts.map((a) => ({ amount: a.currentBalance, currency: a.currency })),
   )
   const budgetsAtRisk = budgets
     .filter((b) => b.percentUsed >= BUDGET_RISK_THRESHOLD)
@@ -277,6 +281,21 @@ export function HomePage() {
                           key={currency}
                           label={currency}
                           value={<Money amount={total} currency={currency} tone="balance" size="lg" />}
+                        />
+                      ))}
+                    </CardGrid>
+                  </div>
+                )}
+                {creditCardAccounts.length > 0 && (
+                  <div className="home-balance-group">
+                    <div className="home-balance-group-label">Tarjetas de crédito (deudas)</div>
+                    <CardGrid minWidth={240}>
+                      {Object.entries(creditCardBalancesByCurrency).map(([currency, total]) => (
+                        <StatCard
+                          key={currency}
+                          label={currency}
+                          value={<Money amount={total} currency={currency} tone={total < 0 ? 'positive' : 'negative'} size="lg" />}
+                          sub={total < 0 ? 'Cupo disponible' : 'Saldo adeudado'}
                         />
                       ))}
                     </CardGrid>
