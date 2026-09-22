@@ -29,6 +29,11 @@ enum TransactionType {
   EXPENSE
 }
 
+enum TransactionStatus {
+  PENDING
+  CONFIRMED
+}
+
 enum BudgetPeriod {
   WEEKLY
   MONTHLY
@@ -185,7 +190,7 @@ model Category {
 }
 
 model Transaction {
-  id                     String          @id @default(uuid())
+  id                     String             @id @default(uuid())
   accountId              String
   // Null cuando la transacción es una pata de una Transfer, un aporte/retiro
   // de SavingsGoal, el pago de un Loan, o una pata de CardPurchase (ver
@@ -194,9 +199,10 @@ model Transaction {
   categoryId              String?
   createdByUserId        String
   type                   TransactionType
-  amount                 Decimal         @db.Decimal(14, 2)
+  amount                 Decimal            @db.Decimal(14, 2)
   note                   String?
-  occurredAt             DateTime        @default(now())
+  occurredAt             DateTime           @default(now())
+  status                 TransactionStatus  @default(CONFIRMED)
   recurringTransactionId String?
   transferId              String?
   // Ver SavingsGoal: aportar/retirar mueve dinero real de/hacia esta cuenta.
@@ -210,8 +216,8 @@ model Transaction {
   // contraparte no tiene cuenta en la app) mueve dinero real en la cuenta de
   // quien lo registró.
   debtId                  String?
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
 
   account              Account               @relation(fields: [accountId], references: [id], onDelete: Cascade)
   category             Category?             @relation(fields: [categoryId], references: [id], onDelete: Restrict)

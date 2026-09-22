@@ -32,6 +32,7 @@ export class TransactionsService {
       accountId: query.accountId,
       categoryId: query.categoryId,
       type: query.type,
+      status: query.status,
       startDate: query.startDate ? new Date(query.startDate) : undefined,
       endDate: query.endDate ? new Date(query.endDate) : undefined,
     });
@@ -45,8 +46,18 @@ export class TransactionsService {
 
   async create(userId: string, dto: CreateTransactionDto): Promise<TransactionResponseDto> {
     await this.accountsService.getAccessibleAccount(userId, dto.accountId);
-    const category = await this.categoriesService.getOwnedCategory(userId, dto.categoryId);
-    this.assertTypeMatches(dto.type, category.type);
+
+    if (!dto.categoryId && dto.status !== 'PENDING') {
+      throw new BadRequestException(
+        'categoryId es requerido para transacciones confirmadas',
+      );
+    }
+
+    if (dto.categoryId) {
+      const category = await this.categoriesService.getOwnedCategory(userId, dto.categoryId);
+      this.assertTypeMatches(dto.type, category.type);
+    }
+
     if (dto.type === TransactionType.EXPENSE) {
       await this.accountsService.assertSufficientFunds(userId, dto.accountId, dto.amount);
     }
@@ -68,19 +79,25 @@ export class TransactionsService {
     }
 
     const type = dto.type ?? existing.type;
-    const category =
-      dto.categoryId || dto.type
-        // existing.categoryId solo es null en patas de transferencia, ya
-        // descartadas arriba por assertNotTransferLeg.
-        ? await this.categoriesService.getOwnedCategory(userId, dto.categoryId ?? existing.categoryId!)
-        : existing.category!;
-    this.assertTypeMatches(type, category.type);
+    const finalStatus = dto.status ?? existing.status;
+    const finalCategoryId = dto.categoryId ?? existing.categoryId;
+
+    if (!finalCategoryId && finalStatus !== 'PENDING') {
+      throw new BadRequestException(
+        'categoryId es requerido para transacciones confirmadas',
+      );
+    }
+
+    if (dto.categoryId || dto.type) {
+      const category = await this.categoriesService.getOwnedCategory(
+        userId,
+        dto.categoryId ?? existing.categoryId!,
+      );
+      this.assertTypeMatches(type, category.type);
+    }
 
     if (type === TransactionType.EXPENSE) {
       const targetAccountId = dto.accountId ?? existing.accountId;
-      // Si el movimiento sigue en la misma cuenta, ya está contado en su
-      // saldo — se descuenta su efecto actual para no compararlo contra sí
-      // mismo (subir un gasto de 50 a 60 solo necesita 10 más de saldo).
       const editedEffect =
         targetAccountId === existing.accountId
           ? (existing.type === TransactionType.INCOME ? 1 : -1) * Number(existing.amount)

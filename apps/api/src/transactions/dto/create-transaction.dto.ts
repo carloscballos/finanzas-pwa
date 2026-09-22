@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TransactionType } from '@prisma/client';
+import { TransactionType, TransactionStatus } from '@prisma/client';
 import {
   IsEnum,
   IsISO8601,
@@ -16,9 +16,13 @@ export class CreateTransactionDto {
   @IsUUID()
   accountId: string;
 
-  @ApiProperty({ format: 'uuid' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Requerido si status es CONFIRMED; opcional para PENDING (se completa al revisar)',
+  })
+  @IsOptional()
   @IsUUID()
-  categoryId: string;
+  categoryId?: string;
 
   @ApiProperty({ enum: TransactionType, example: TransactionType.EXPENSE })
   @IsEnum(TransactionType)
@@ -42,4 +46,13 @@ export class CreateTransactionDto {
   @IsOptional()
   @IsISO8601()
   occurredAt?: string;
+
+  @ApiPropertyOptional({
+    enum: TransactionStatus,
+    default: TransactionStatus.CONFIRMED,
+    description: 'Estado del movimiento: PENDING si es un pago registrado desde Wallet, CONFIRMED por defecto',
+  })
+  @IsOptional()
+  @IsEnum(TransactionStatus)
+  status?: TransactionStatus;
 }

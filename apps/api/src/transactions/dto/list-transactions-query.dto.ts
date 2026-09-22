@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TransactionType } from '@prisma/client';
+import { TransactionType, TransactionStatus } from '@prisma/client';
 import { IsEnum, IsISO8601, IsOptional, IsUUID } from 'class-validator';
 
 export class ListTransactionsQueryDto {
@@ -17,6 +17,11 @@ export class ListTransactionsQueryDto {
   @IsOptional()
   @IsEnum(TransactionType)
   type?: TransactionType;
+
+  @ApiPropertyOptional({ enum: TransactionStatus, description: 'Filtrar por estado (PENDING o CONFIRMED)' })
+  @IsOptional()
+  @IsEnum(TransactionStatus)
+  status?: TransactionStatus;
 
   @ApiPropertyOptional({
     example: '2026-08-01T00:00:00.000Z',

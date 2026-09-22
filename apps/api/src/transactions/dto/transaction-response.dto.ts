@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { TransactionType } from '@prisma/client';
+import { TransactionType, TransactionStatus } from '@prisma/client';
 
 class TransactionAccountSummaryDto {
   @ApiProperty({ format: 'uuid' })
@@ -89,6 +89,9 @@ export class TransactionResponseDto {
 
   @ApiProperty({ example: '2026-08-10T18:00:00.000Z' })
   occurredAt: Date;
+
+  @ApiProperty({ enum: TransactionStatus, default: TransactionStatus.CONFIRMED })
+  status: TransactionStatus;
 
   @ApiProperty({ type: TransactionAccountSummaryDto })
   account: TransactionAccountSummaryDto;

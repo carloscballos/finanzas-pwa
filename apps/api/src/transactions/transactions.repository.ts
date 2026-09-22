@@ -34,6 +34,7 @@ export interface TransactionFilters {
   accountId?: string;
   categoryId?: string;
   type?: TransactionType;
+  status?: string;
   startDate?: Date;
   endDate?: Date;
 }
@@ -51,6 +52,7 @@ export class TransactionsRepository {
       where: {
         categoryId: filters.categoryId,
         type: filters.type,
+        status: filters.status,
         occurredAt:
           filters.startDate || filters.endDate
             ? { gte: filters.startDate, lt: filters.endDate }
@@ -81,6 +83,7 @@ export class TransactionsRepository {
         amount: dto.amount,
         note: dto.note,
         occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : undefined,
+        status: dto.status,
         createdByUserId: userId,
         recurringTransactionId,
       },
@@ -98,6 +101,7 @@ export class TransactionsRepository {
         amount: dto.amount,
         note: dto.note,
         occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : undefined,
+        status: dto.status,
       },
       include: WITH_RELATIONS,
     });
