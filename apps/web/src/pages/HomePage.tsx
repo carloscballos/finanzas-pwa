@@ -19,12 +19,15 @@ import { ListRow } from '../components/ui/ListRow'
 import { Money } from '../components/ui/Money'
 import { SectionHeader } from '../components/ui/SectionHeader'
 import { StatCard } from '../components/ui/StatCard'
+import { Button } from '../components/ui/Button'
+import { PendingTransactionsDrawer } from '../components/PendingTransactionsDrawer'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import {
   ApiError,
   type Account,
   type Budget,
+  type Category,
   type Debt,
   type ForecastSummary,
   type FriendRequest,
@@ -69,6 +72,7 @@ function formatMonthLabel(date: Date): string {
 export function HomePage() {
   const { user, token } = useAuth()
   const [accounts, setAccounts] = useState<Account[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [goals, setGoals] = useState<Goal[]>([])
@@ -81,6 +85,8 @@ export function HomePage() {
   const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()))
   const [monthLoading, setMonthLoading] = useState(true)
   const [monthError, setMonthError] = useState<string | null>(null)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [showPendingDrawer, setShowPendingDrawer] = useState(false)
 
   const isCurrentMonth = monthStart.getTime() === startOfMonth(new Date()).getTime()
 
@@ -94,22 +100,26 @@ export function HomePage() {
     setError(null)
     Promise.all([
       api.getAccounts(token),
+      api.getCategories(token),
       api.getBudgets(token),
       api.getGoals(token),
       api.getDebts(token),
       api.getForecastSummary(token),
       api.getMyInvitations(token),
       api.getReceivedFriendRequests(token),
+      api.getPendingTransactions(token),
     ])
-      .then(([accs, bud, gls, dbts, fc, invs, freqs]) => {
+      .then(([accs, cats, bud, gls, dbts, fc, invs, freqs, pending]) => {
         if (ignore) return
         setAccounts(accs)
+        setCategories(cats)
         setBudgets(bud)
         setGoals(gls)
         setDebts(dbts)
         setForecast(fc)
         setInvitations(invs.filter((i) => i.status === 'PENDING'))
         setFriendRequests(freqs)
+        setPendingCount(pending.length)
       })
       .catch((err) => {
         if (!ignore) setError(err instanceof ApiError ? err.message : 'Error al cargar el resumen')
@@ -220,6 +230,14 @@ export function HomePage() {
           </Link>
         ))}
       </div>
+
+      {pendingCount > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+          <Button onClick={() => setShowPendingDrawer(true)} variant="outline">
+            {pendingCount} pago{pendingCount !== 1 ? 's' : ''} pendiente{pendingCount !== 1 ? 's' : ''}
+          </Button>
+        </div>
+      )}
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}
@@ -502,6 +520,18 @@ export function HomePage() {
           </section>
         </>
       )}
+
+      <PendingTransactionsDrawer
+        isOpen={showPendingDrawer}
+        onClose={() => setShowPendingDrawer(false)}
+        token={token}
+        accounts={accounts}
+        categories={categories}
+        onConfirmed={() => {
+          setShowPendingDrawer(false)
+          setPendingCount((c) => Math.max(0, c - 1))
+        }}
+      />
     </Layout>
   )
 }

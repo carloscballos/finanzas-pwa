@@ -55,6 +55,7 @@ export interface CreateAccountInput {
 }
 
 export type TransactionType = 'INCOME' | 'EXPENSE'
+export type TransactionStatus = 'PENDING' | 'CONFIRMED'
 
 export interface Category {
   id: string
@@ -82,6 +83,7 @@ export interface Transaction {
   amount: number
   note: string | null
   occurredAt: string
+  status: TransactionStatus
   account: { id: string; name: string; currency: string }
   category: { id: string; name: string; emoji: string | null; type: TransactionType } | null
   createdByUserId: string
@@ -102,11 +104,22 @@ export interface Transaction {
 
 export interface CreateTransactionInput {
   accountId: string
-  categoryId: string
+  categoryId?: string
   type: TransactionType
   amount: number
   note?: string
   occurredAt?: string
+  status?: TransactionStatus
+}
+
+export interface UpdateTransactionInput {
+  accountId?: string
+  categoryId?: string
+  type?: TransactionType
+  amount?: number
+  note?: string
+  occurredAt?: string
+  status?: TransactionStatus
 }
 
 export type BudgetPeriod = 'WEEKLY' | 'MONTHLY'
@@ -519,18 +532,27 @@ export function deleteCategory(token: string, id: string) {
 
 export function getTransactions(
   token: string,
-  filters: { accountId?: string; startDate?: string; endDate?: string } = {},
+  filters: { accountId?: string; status?: TransactionStatus; startDate?: string; endDate?: string } = {},
 ) {
   const params = new URLSearchParams()
   if (filters.accountId) params.set('accountId', filters.accountId)
+  if (filters.status) params.set('status', filters.status)
   if (filters.startDate) params.set('startDate', filters.startDate)
   if (filters.endDate) params.set('endDate', filters.endDate)
   const qs = params.toString()
   return request<Transaction[]>(`/api/v1/transactions${qs ? `?${qs}` : ''}`, { token })
 }
 
+export function getPendingTransactions(token: string) {
+  return getTransactions(token, { status: 'PENDING' })
+}
+
 export function createTransaction(token: string, input: CreateTransactionInput) {
   return request<Transaction>('/api/v1/transactions', { method: 'POST', body: input, token })
+}
+
+export function updateTransaction(token: string, id: string, input: UpdateTransactionInput) {
+  return request<Transaction>(`/api/v1/transactions/${id}`, { method: 'PATCH', body: input, token })
 }
 
 export function deleteTransaction(token: string, id: string) {
