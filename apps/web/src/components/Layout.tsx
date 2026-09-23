@@ -14,6 +14,7 @@ import {
   MoreHorizontal,
   ChevronDown,
   LogOut,
+  Settings,
   Eye,
   EyeOff,
   type LucideIcon,
@@ -132,6 +133,10 @@ export function Layout({
             <span className="layout-user-avatar">{user?.name?.[0]?.toUpperCase() ?? '?'}</span>
             <span className="layout-sidebar-user-name">{user?.name}</span>
           </div>
+          <NavLink to="/settings" className="layout-sidebar-link">
+            <Settings size={16} strokeWidth={2} />
+            <span>Configuración</span>
+          </NavLink>
           <button className="layout-sidebar-logout" onClick={logout}>
             <LogOut size={16} />
             Salir
