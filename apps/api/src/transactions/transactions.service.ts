@@ -64,7 +64,7 @@ export class TransactionsService {
       this.assertTypeMatches(dto.type, category.type);
     }
 
-    if (dto.type === TransactionType.EXPENSE) {
+    if (dto.type === TransactionType.EXPENSE && dto.accountId) {
       await this.accountsService.assertSufficientFunds(userId, dto.accountId, dto.amount);
     }
 

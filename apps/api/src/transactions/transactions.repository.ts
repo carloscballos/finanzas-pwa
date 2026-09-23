@@ -75,6 +75,10 @@ export class TransactionsRepository {
     dto: CreateTransactionDto,
     recurringTransactionId?: string,
   ): Promise<TransactionWithRelations> {
+    if (!dto.accountId) {
+      throw new Error('accountId es requerido para crear transacciones');
+    }
+
     return this.prisma.transaction.create({
       data: {
         accountId: dto.accountId,

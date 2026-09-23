@@ -24,7 +24,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
     // Primero intenta validar como JWT (el guard padre lo hace)
     try {
-      return await super.canActivate(context);
+      const result = await super.canActivate(context);
+      // Convierte Observable a boolean si es necesario
+      return Boolean(result);
     } catch {
       // Si JWT falla, intenta como API key
       const userId = await this.apiKeysService.validateToken(token);
