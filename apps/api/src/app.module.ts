@@ -19,6 +19,7 @@ import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
 import { TransfersModule } from './transfers/transfers.module';
 import { LoansModule } from './loans/loans.module';
 import { CardPurchasesModule } from './card-purchases/card-purchases.module';
+import { ApiKeysModule } from './api-keys/api-keys.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { CardPurchasesModule } from './card-purchases/card-purchases.module';
     TransfersModule,
     LoansModule,
     CardPurchasesModule,
+    ApiKeysModule,
   ],
 })
 export class AppModule {}

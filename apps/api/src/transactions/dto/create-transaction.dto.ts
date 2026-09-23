@@ -12,9 +12,13 @@ import {
 } from 'class-validator';
 
 export class CreateTransactionDto {
-  @ApiProperty({ format: 'uuid', description: 'Cuenta a la que pertenece el movimiento' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Cuenta a la que pertenece el movimiento. Opcional si status=PENDING',
+  })
+  @IsOptional()
   @IsUUID()
-  accountId: string;
+  accountId?: string;
 
   @ApiPropertyOptional({
     format: 'uuid',

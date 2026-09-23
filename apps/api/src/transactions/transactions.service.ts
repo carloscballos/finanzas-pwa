@@ -45,7 +45,13 @@ export class TransactionsService {
   }
 
   async create(userId: string, dto: CreateTransactionDto): Promise<TransactionResponseDto> {
-    await this.accountsService.getAccessibleAccount(userId, dto.accountId);
+    if (!dto.accountId && dto.status !== TransactionStatus.PENDING) {
+      throw new BadRequestException('accountId es requerido para transacciones confirmadas');
+    }
+
+    if (dto.accountId) {
+      await this.accountsService.getAccessibleAccount(userId, dto.accountId);
+    }
 
     if (!dto.categoryId && dto.status !== TransactionStatus.PENDING) {
       throw new BadRequestException(

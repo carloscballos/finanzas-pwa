@@ -120,8 +120,22 @@ model User {
   loans                 Loan[]
   cardPurchases         CardPurchase[]
   debtPayments          DebtPayment[]
+  apiKeys               ApiKey[]
 
   @@map("users")
+}
+
+model ApiKey {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique @db.Char(64)
+  label     String   @default("Shortcut")
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
 }
 
 // Toda cuenta tiene al menos un miembro (el owner). Una cuenta "personal"
