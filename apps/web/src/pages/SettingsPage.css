@@ -1,0 +1,121 @@
+.settings-container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.settings-section {
+  margin-bottom: 2rem;
+}
+
+.settings-section h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--color-text-primary);
+}
+
+.settings-description {
+  font-size: 0.95rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.settings-error {
+  background: var(--color-error-soft);
+  color: var(--color-error);
+  padding: 1rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+
+.settings-token-card {
+  margin-bottom: 1.5rem;
+}
+
+.token-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.token-info {
+  flex: 1;
+}
+
+.token-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.token-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--color-text-primary);
+  word-break: break-all;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-xs);
+}
+
+.token-date {
+  font-size: 0.8rem;
+  color: var(--color-text-tertiary);
+}
+
+.settings-empty {
+  background: var(--color-surface-secondary);
+  padding: 2rem;
+  border-radius: var(--radius-md);
+  text-align: center;
+  color: var(--color-text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.settings-button {
+  width: 100%;
+  margin-bottom: 2rem;
+}
+
+.settings-instructions {
+  background: var(--color-surface-secondary);
+  padding: 1.5rem;
+  border-radius: var(--radius-md);
+  margin-top: 1.5rem;
+}
+
+.settings-instructions h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--color-text-primary);
+}
+
+.settings-instructions ol {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.8;
+}
+
+.settings-instructions li {
+  margin-bottom: 0.75rem;
+}
+
+.settings-instructions code {
+  background: var(--color-surface-primary);
+  padding: 0.2rem 0.4rem;
+  border-radius: var(--radius-xs);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  color: var(--color-primary);
+}

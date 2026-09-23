@@ -911,4 +911,17 @@ export function getBudgetSuggestions(token: string) {
   return request<BudgetSuggestion[]>('/api/v1/forecast/budget-suggestions', { token })
 }
 
+export interface ApiKeyResponse {
+  token: string
+  createdAt: string
+}
+
+export function generateApiKey(token: string) {
+  return request<ApiKeyResponse>('/api/v1/api-keys/generate', { method: 'POST', token })
+}
+
+export function getCurrentApiKey(token: string) {
+  return request<ApiKeyResponse | null>('/api/v1/api-keys/current', { token })
+}
+
 export { ApiError }
