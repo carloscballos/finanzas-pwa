@@ -233,7 +233,7 @@ export function HomePage() {
 
       {pendingCount > 0 && (
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
-          <Button onClick={() => setShowPendingDrawer(true)} variant="outline">
+          <Button onClick={() => setShowPendingDrawer(true)} variant="secondary">
             {pendingCount} pago{pendingCount !== 1 ? 's' : ''} pendiente{pendingCount !== 1 ? 's' : ''}
           </Button>
         </div>

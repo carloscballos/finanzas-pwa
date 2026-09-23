@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
-import { X, ChevronDown } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Button } from './ui/Button'
 import { Card, CardHeader } from './ui/Card'
 import { Money } from './ui/Money'
 import { Badge } from './ui/Badge'
-import { FormField } from './ui/Form'
 import * as api from '../lib/api'
 import type { Transaction, Account, Category } from '../lib/api'
 import { formatDateTime } from '../lib/dates'
@@ -107,7 +106,7 @@ export function PendingTransactionsDrawer({
       <div className={`pending-drawer ${isOpen ? 'open' : ''}`}>
         <div className="drawer-header">
           <h2>Pagos pendientes ({pending.length})</h2>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button onClick={onClose} style={{ padding: '0.25rem', minWidth: 'auto' }}>
             <X size={20} />
           </Button>
         </div>
@@ -186,7 +185,7 @@ export function PendingTransactionsDrawer({
 
               <div className="form-actions">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   onClick={() => {
                     setEditingId(null)
                     setEditForm(null)
@@ -205,7 +204,7 @@ export function PendingTransactionsDrawer({
             <div className="pending-list">
               {pending.map((tx) => (
                 <Card key={tx.id} className="pending-item">
-                  <CardHeader className="pending-item-header">
+                  <div className="pending-item-content">
                     <div className="pending-item-main">
                       <div>
                         <div className="pending-item-account">{tx.account.name}</div>
@@ -215,18 +214,18 @@ export function PendingTransactionsDrawer({
                             <span>{tx.category.name}</span>
                           </div>
                         ) : (
-                          <Badge variant="outline">Sin categoría</Badge>
+                          <Badge tone="neutral">Sin categoría</Badge>
                         )}
                       </div>
                       <Money amount={tx.amount} currency={tx.account.currency} tone="negative" />
                     </div>
                     <div className="pending-item-meta-text">
-                      {formatDateTime(new Date(tx.occurredAt))}
+                      {formatDateTime(tx.occurredAt)}
                       {tx.note && ` • ${tx.note}`}
                     </div>
-                  </CardHeader>
+                  </div>
                   <div className="pending-item-footer">
-                    <Button size="sm" onClick={() => startEdit(tx)}>
+                    <Button onClick={() => startEdit(tx)}>
                       Editar y confirmar
                     </Button>
                   </div>
