@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Copy, CheckCircle } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { Button } from '../components/ui/Button'
-import { Card, CardHeader } from '../components/ui/Card'
+import { Card } from '../components/ui/Card'
 import { SectionHeader } from '../components/ui/SectionHeader'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
@@ -22,6 +22,7 @@ export function SettingsPage() {
   }, [token])
 
   async function loadApiKey() {
+    if (!token) return
     setLoading(true)
     setError(null)
     try {
@@ -35,6 +36,7 @@ export function SettingsPage() {
   }
 
   async function handleGenerate() {
+    if (!token) return
     setGenerating(true)
     setError(null)
     try {
@@ -72,23 +74,20 @@ export function SettingsPage() {
             <p>Cargando...</p>
           ) : apiKey ? (
             <Card className="settings-token-card">
-              <CardHeader>
-                <div className="token-display">
-                  <div className="token-info">
-                    <div className="token-label">Token activo</div>
-                    <div className="token-value">{apiKey.token.slice(0, 16)}...{apiKey.token.slice(-8)}</div>
-                    <div className="token-date">Creado: {new Date(apiKey.createdAt).toLocaleDateString()}</div>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={copyToClipboard}
-                    variant={copied ? 'outline' : 'default'}
-                  >
-                    {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
-                    {copied ? 'Copiado!' : 'Copiar'}
-                  </Button>
+              <div className="token-display">
+                <div className="token-info">
+                  <div className="token-label">Token activo</div>
+                  <div className="token-value">{apiKey.token.slice(0, 16)}...{apiKey.token.slice(-8)}</div>
+                  <div className="token-date">Creado: {new Date(apiKey.createdAt).toLocaleDateString()}</div>
                 </div>
-              </CardHeader>
+                <Button
+                  onClick={copyToClipboard}
+                  variant={copied ? 'secondary' : undefined}
+                >
+                  {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
+                  {copied ? 'Copiado!' : 'Copiar'}
+                </Button>
+              </div>
             </Card>
           ) : (
             <div className="settings-empty">

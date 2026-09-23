@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { Button } from './ui/Button'
-import { Card, CardHeader } from './ui/Card'
+import { Card } from './ui/Card'
 import { Money } from './ui/Money'
 import { Badge } from './ui/Badge'
 import * as api from '../lib/api'
