@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { TransactionType } from '@prisma/client';
+import { TransactionType, TransactionStatus } from '@prisma/client';
 import { AccountsService } from '../accounts/accounts.service';
 import { CategoriesService } from '../categories/categories.service';
 import { TransactionsRepository } from './transactions.repository';
@@ -47,7 +47,7 @@ export class TransactionsService {
   async create(userId: string, dto: CreateTransactionDto): Promise<TransactionResponseDto> {
     await this.accountsService.getAccessibleAccount(userId, dto.accountId);
 
-    if (!dto.categoryId && dto.status !== 'PENDING') {
+    if (!dto.categoryId && dto.status !== TransactionStatus.PENDING) {
       throw new BadRequestException(
         'categoryId es requerido para transacciones confirmadas',
       );
@@ -82,7 +82,7 @@ export class TransactionsService {
     const finalStatus = dto.status ?? existing.status;
     const finalCategoryId = dto.categoryId ?? existing.categoryId;
 
-    if (!finalCategoryId && finalStatus !== 'PENDING') {
+    if (!finalCategoryId && finalStatus !== TransactionStatus.PENDING) {
       throw new BadRequestException(
         'categoryId es requerido para transacciones confirmadas',
       );

@@ -1,4 +1,4 @@
-import { Transaction, TransactionType } from '@prisma/client';
+import { Transaction, TransactionType, TransactionStatus } from '@prisma/client';
 import { TransactionResponseDto } from '../dto/transaction-response.dto';
 
 export type TransactionWithRelations = Transaction & {
@@ -29,6 +29,7 @@ export class TransactionMapper {
       amount: Number(transaction.amount),
       note: transaction.note,
       occurredAt: transaction.occurredAt,
+      status: transaction.status,
       account: transaction.account,
       category: transaction.category,
       createdByUserId: transaction.createdByUserId,

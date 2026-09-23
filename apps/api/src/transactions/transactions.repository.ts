@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { TransactionType } from '@prisma/client';
+import { TransactionType, TransactionStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
@@ -34,7 +34,7 @@ export interface TransactionFilters {
   accountId?: string;
   categoryId?: string;
   type?: TransactionType;
-  status?: string;
+  status?: TransactionStatus;
   startDate?: Date;
   endDate?: Date;
 }
