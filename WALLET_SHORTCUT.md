@@ -1,168 +1,107 @@
 # Apple Wallet → Finanzas PWA Shortcut
 
-Automáticamente registra pagos de Apple Wallet en tu app de finanzas.
+Registra pagos de Wallet en tu app con un Shortcut ultra-simple.
 
 ## Setup (una sola vez)
 
-### 1. Guardar credenciales en Keychain (setup inicial)
+### 1. Generar token en la app
 
-1. Abre **Shortcuts**
-2. Crea nuevo shortcut → "Crear shortcut vacío"
-3. Nombre: "Finanzas Setup"
-4. Agrega:
+1. Abre **Finanzas PWA** → Configuración (o Settings)
+2. Busca **"Generar token para Shortcut"**
+3. Copia el token (algo como: `sk_live_abc123xyz...`)
+4. **Guárdalo en un lugar seguro** (lo usarás en el siguiente paso)
 
-```
-Paso 1: Pedir texto
-  - Título: "Email"
-  - Guarda en variable EMAIL
+### 2. Crear el Shortcut de Pagos
 
-Paso 2: Pedir contraseña
-  - Título: "Contraseña"
-  - Guarda en variable PASSWORD
-
-Paso 3: Pedir texto
-  - Título: "Cuenta UUID (para gastos)"
-  - Pista: "ID desde Cuentas en la app"
-  - Guarda en variable ACCOUNT_ID
-
-Paso 4: Guardar en Keychain
-  - Guardar en Keychain
-  - Contraseña: EMAIL
-  - Cuenta: "finanzas_email"
-
-Paso 5: Guardar en Keychain
-  - Guardar en Keychain
-  - Contraseña: PASSWORD
-  - Cuenta: "finanzas_password"
-
-Paso 6: Guardar en Keychain
-  - Guardar en Keychain
-  - Contraseña: ACCOUNT_ID
-  - Cuenta: "finanzas_account_id"
-
-Paso 7: Notificación
-  - "✅ Credenciales guardadas. Ahora crea el Shortcut de Pagos."
-```
-
-5. Ejecuta este shortcut **UNA SOLA VEZ** al inicio
-
-### 2. Crear el Shortcut de Pagos (automático)
-
-1. Nuevo shortcut → "Crear shortcut vacío"
-2. Nombre: "Finanzas - Registrar Pago"
-3. Agrega:
+1. Abre **Shortcuts** en iOS
+2. Crea nuevo → **"Crear shortcut vacío"**
+3. Nombre: **"Finanzas - Pago"**
+4. Agrega estos pasos (busca estos nombres exactos):
 
 ```
-Paso 1: Pedir número
-  - Título: "Monto del pago"
-  - Guarda en variable AMOUNT
+PASO 1: Solicitar número
+  Busca en Shortcuts: "Solicitar número"
+  - Título: "¿Cuánto pagaste?"
+  - Guarda el resultado en una variable (dale nombre: AMOUNT)
 
-Paso 2: Obtener de Keychain
-  - Cuenta: "finanzas_email"
-  - Guarda en variable EMAIL
-
-Paso 3: Obtener de Keychain
-  - Cuenta: "finanzas_password"
-  - Guarda en variable PASSWORD
-
-Paso 4: Obtener de Keychain
-  - Cuenta: "finanzas_account_id"
-  - Guarda en variable ACCOUNT_ID
-
-Paso 5: Enviar petición HTTP (Login)
-  - URL: https://api.koystudio.dev/api/v1/auth/login
-  - Método: POST
-  - Headers: Content-Type = application/json
-  - Body: {"email": EMAIL, "password": PASSWORD}
-  - Guarda el resultado en variable RESPONSE
-
-Paso 6: Extraer token
-  - Obtén el valor de RESPONSE.accessToken
-  - Guarda en variable TOKEN
-
-Paso 7: Enviar petición HTTP (Crear transacción)
+PASO 2: Obtener URL
+  Busca en Shortcuts: "Obtener URL" o "Get URL contents"
   - URL: https://api.koystudio.dev/api/v1/transactions
   - Método: POST
-  - Headers:
-    - Content-Type = application/json
-    - Authorization = Bearer TOKEN
-  - Body:
+  - Headers (presiona el engranaje/⚙️):
+    * Content-Type: application/json
+    * Authorization: Bearer sk_live_abc123xyz...
+      (reemplaza "sk_live..." con tu token copiado arriba)
+  - Body (cuerpo):
     {
-      "accountId": ACCOUNT_ID,
       "type": "EXPENSE",
       "amount": AMOUNT,
       "occurredAt": Hora actual,
       "status": "PENDING"
     }
 
-Paso 8: Notificación
-  - "✅ Pago de $AMOUNT registrado en Finanzas"
+PASO 3: Mostrar resultado
+  Busca en Shortcuts: "Mostrar resultado"
+  - Mensaje: "✅ Pago registrado en Finanzas"
 ```
 
-### 3. Automatizar después de Wallet (opcional)
+### 3. Usar el Shortcut
 
-**En iOS 18+:**
-1. Abre Automations de Shortcuts (pestaña "Automations" abajo)
-2. Presiona "+" → "Crear automatización personal"
-3. Selecciona "Wallet" → "Se completa un pago con Wallet"
-4. Elige tu Shortcut "Finanzas - Registrar Pago"
+**Manual** (siempre funciona):
+- Toca el ícono del Shortcut en pantalla de inicio (o en la app)
+- Ingresa el monto
+- Listo, aparece en la app como "1 pago pendiente"
+
+**Automático** (iOS 18+, opcional):
+1. Abre **Automations** en Shortcuts (pestaña abajo)
+2. Presiona **+** → "Crear automatización personal"
+3. Selecciona **"Wallet"** → "Se completa un pago con Wallet"
+4. Elige tu Shortcut "Finanzas - Pago"
 5. Desactiva "Preguntar antes de ejecutar"
-6. **Listo**: cada pago con Wallet corre el Shortcut automáticamente
-
-**Manual (funciona siempre):**
-- Agrega a pantalla de inicio: Shortcuts → tu shortcut → "Agregar a pantalla de inicio"
-- Después de pagar, toca el ícono, ingresa el monto, listo
-
-## Dónde obtener el UUID de tu cuenta
-
-En la app, en **Cuentas**:
-- Toca la cuenta donde quieres cargar gastos (ej. "Efectivo", "Cuenta USD")
-- El UUID está en la URL o al presionar compartir
-- Ejemplo: `3fa85f64-5717-4c2a-b5cc-a51ef8547b2a`
-- Cópialo y úsalo en el Setup
+6. ✅ Cada pago con Wallet ejecuta el Shortcut automáticamente
 
 ## Primer uso
 
-1. **Corre "Finanzas Setup"** una única vez
-   - Email, contraseña, UUID de cuenta
-   - Se guarda en Keychain (encriptado)
-   
-2. **En Automation** (o manual):
-   - Paga con Wallet
-   - Shortcut pide solo el monto → registra → notificación
-
-3. **En la app**:
-   - Home muestra "1 pago pendiente"
-   - Abre drawer → edita categoría → confirma
+1. Genera el token en la app (paso 1 arriba)
+2. Copia el token en el Shortcut (paso 2 → PASO 2 → Authorization header)
+3. **Cada pago**:
+   - Toca el Shortcut (o automático si configuraste Automation)
+   - Ingresa monto
+   - Aparece en la app como "1 pago pendiente"
+4. **En la app**:
+   - Home muestra contador de pagos pendientes
+   - Abre el drawer
+   - Elige cuenta, categoría, edita lo que quieras
+   - Confirma
 
 ## 🔒 Seguridad
 
-- **Email y contraseña**: guardadas en Keychain iOS (encriptado a nivel del OS)
-- **Token JWT**: generado y desechado en cada pago, no se persiste
+- **Token**: almacenado en el Shortcut (puedes revocarlo desde la app en cualquier momento)
 - **HTTPS**: todas las conexiones cifradas
-- **Keychain**: solo tú puedes acceder (requiere Face ID/Touch ID si lo activas)
+- **Sin credenciales**: no almacenas email/contraseña en el dispositivo
+- **Revocación**: genera un token nuevo desde la app si el anterior se compromete
 
 ## ⚠️ Troubleshooting
 
-**"Error 401 - Credenciales inválidas"**
-- Verifica que email/contraseña sean correctas (prueba en la app)
-- Revisa el Keychain: Configuración → Contraseñas → busca "finanzas_"
-- Si está mal, borra la entrada y corre Setup de nuevo
+**"Error de sintaxis en el Shortcut"**
+- Verifica que el JSON del Body esté bien formateado
+- Asegúrate de reemplazar `sk_live_abc...` con tu token real
+- Las comillas y comas deben estar exactas
 
-**"Error 404 - Cuenta no encontrada"**
-- El UUID de la cuenta es incorrecto
-- Copia exacto desde Cuentas en la app
-- Asegúrate de no incluir espacios
+**"Error 401 - Token inválido"**
+- Tu token expiró o es incorrecto
+- Genera un token nuevo en la app (Configuración → "Generar token para Shortcut")
+- Copia el nuevo token en el Shortcut
 
-**"El Shortcut no aparece en Automation"**
-- Cierra Shortcuts completamente y reabre
-- El Shortcut debe tener un nombre simple sin caracteres especiales
-- En Automations, busca por "Finanzas - Registrar Pago"
+**"Error de conexión"**
+- Verifica que tengas internet (WiFi o datos)
+- Comprueba que la URL sea exacta: `https://api.koystudio.dev/api/v1/transactions`
+- Si sigue fallando, la API podría estar caída (revisa el estado en la app)
 
 **"Pago no aparece en la app"**
 - Recarga Finanzas (cierra y abre)
-- Revisa que el pago esté en "1 pago pendiente" en el Home
-- Si no aparece, verifica en la consola del navegador (F12) si hubo error
+- Verifica que no haya error (el Shortcut debería mostrar ✅ al final)
+- Si dice "Error", toca para ver el detalle exacto
 
 ## Alternativa: CLI (para developers)
 
