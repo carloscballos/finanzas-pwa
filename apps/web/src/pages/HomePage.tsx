@@ -513,7 +513,6 @@ export function HomePage() {
           accounts={accounts}
           categories={categories}
           onConfirmed={() => {
-            setShowPendingDrawer(false)
             setPendingCount((c) => Math.max(0, c - 1))
           }}
         />

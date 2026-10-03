@@ -1,13 +1,17 @@
-import { useState, useEffect } from 'react'
-import { X } from 'lucide-react'
-import { Button } from './ui/Button'
-import { Card } from './ui/Card'
-import { Money } from './ui/Money'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Trash2 } from 'lucide-react'
 import { Badge } from './ui/Badge'
+import { Button } from './ui/Button'
+import { EmptyState } from './ui/EmptyState'
+import { Form, FormError, FormField } from './ui/Form'
+import { ListRow } from './ui/ListRow'
+import { Modal } from './ui/Modal'
+import { Money } from './ui/Money'
 import * as api from '../lib/api'
-import type { Transaction, Account, Category } from '../lib/api'
-import { formatDateTime } from '../lib/dates'
-import './PendingTransactionsDrawer.css'
+import type { Account, Category, Transaction } from '../lib/api'
+import { emitDataChanged } from '../lib/dataEvents'
+import { dateTimeInputToIso, formatDateTime, isoToDateTimeInput } from '../lib/dates'
+import { sanitizeDecimalInput } from '../lib/money'
 
 interface Props {
   isOpen: boolean
@@ -18,223 +22,196 @@ interface Props {
   onConfirmed?: () => void
 }
 
-export function PendingTransactionsDrawer({
-  isOpen,
-  onClose,
-  token,
-  accounts,
-  categories,
-  onConfirmed,
-}: Props) {
+/**
+ * Pagos pendientes (los que registra el Shortcut de Wallet): se revisan uno a
+ * uno eligiendo cuenta y categoría; hasta confirmarlos no mueven ningún saldo.
+ */
+export function PendingTransactionsDrawer({ isOpen, onClose, token, accounts, categories, onConfirmed }: Props) {
   const [pending, setPending] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<{
-    accountId: string
-    categoryId: string
-    note: string
-    amount: number
-    occurredAt: string
-  } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Transaction | null>(null)
+  const [accountId, setAccountId] = useState('')
+  const [categoryId, setCategoryId] = useState('')
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [date, setDate] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (!isOpen || !token) return
-    loadPending()
-  }, [isOpen, token])
-
-  async function loadPending() {
+    if (!isOpen) return
+    setEditing(null)
     setLoading(true)
     setError(null)
-    try {
-      const data = await api.getPendingTransactions(token)
-      setPending(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar pagos pendientes')
-    } finally {
-      setLoading(false)
-    }
+    api
+      .getPendingTransactions(token)
+      .then(setPending)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Error al cargar los pagos pendientes'))
+      .finally(() => setLoading(false))
+  }, [isOpen, token])
+
+  function startReview(tx: Transaction) {
+    setEditing(tx)
+    setAccountId(tx.account.id)
+    setCategoryId(tx.category?.id ?? '')
+    setAmount(String(tx.amount))
+    setNote(tx.note ?? '')
+    setDate(isoToDateTimeInput(tx.occurredAt))
+    setError(null)
   }
 
-  function startEdit(tx: Transaction) {
-    setEditingId(tx.id)
-    setEditForm({
-      accountId: tx.account.id,
-      categoryId: tx.category?.id ?? '',
-      note: tx.note ?? '',
-      amount: tx.amount,
-      occurredAt: tx.occurredAt,
-    })
+  // Cuando ya no queda ninguno por revisar, se cierra solo.
+  function afterResolved(id: string) {
+    const rest = pending.filter((t) => t.id !== id)
+    setPending(rest)
+    setEditing(null)
+    emitDataChanged()
+    onConfirmed?.()
+    if (rest.length === 0) onClose()
   }
 
-  async function saveEdit() {
-    if (!editForm || !editingId) return
-    if (!editForm.categoryId) {
-      setError('La categoría es requerida')
+  async function handleConfirm(event: FormEvent) {
+    event.preventDefault()
+    if (!editing) return
+    if (!categoryId) {
+      setError('Elige una categoría')
       return
     }
-
     setSaving(true)
     setError(null)
     try {
-      await api.updateTransaction(token, editingId, {
-        accountId: editForm.accountId,
-        categoryId: editForm.categoryId,
-        note: editForm.note || undefined,
-        amount: editForm.amount,
-        occurredAt: editForm.occurredAt,
+      await api.updateTransaction(token, editing.id, {
+        accountId,
+        categoryId,
+        note: note || undefined,
+        amount: Number(amount),
+        occurredAt: dateTimeInputToIso(date),
         status: 'CONFIRMED',
       })
-      setEditingId(null)
-      setEditForm(null)
-      await loadPending()
-      onConfirmed?.()
+      afterResolved(editing.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al confirmar')
+      setError(err instanceof Error ? err.message : 'No se pudo confirmar el pago')
     } finally {
       setSaving(false)
     }
   }
 
-  const expenseCategories = categories.filter((c) => c.type === 'EXPENSE')
-  const tx = editingId ? pending.find((t) => t.id === editingId) : null
+  async function handleDiscard(tx: Transaction) {
+    if (!confirm('¿Descartar este pago pendiente? No se registrará.')) return
+    try {
+      await api.deleteTransaction(token, tx.id)
+      afterResolved(tx.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo descartar el pago')
+    }
+  }
+
+  const type = editing?.type ?? 'EXPENSE'
+  const categoriesForType = categories.filter((c) => c.type === type)
+  const accountOptions = accounts.filter((a) => a.type !== 'CREDIT_CARD')
 
   return (
-    <>
-      {isOpen && <div className="drawer-overlay" onClick={onClose} />}
-      <div className={`pending-drawer ${isOpen ? 'open' : ''}`}>
-        <div className="drawer-header">
-          <h2>Pagos pendientes ({pending.length})</h2>
-          <Button onClick={onClose} style={{ padding: '0.25rem', minWidth: 'auto' }}>
-            <X size={20} />
-          </Button>
-        </div>
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title={editing ? 'Confirmar pago' : `Pagos pendientes${pending.length ? ` (${pending.length})` : ''}`}
+    >
+      {error && <div className="auth-error">{error}</div>}
 
-        {error && <div className="drawer-error">{error}</div>}
-
-        {loading ? (
-          <div className="drawer-loading">Cargando...</div>
-        ) : pending.length === 0 ? (
-          <div className="drawer-empty">No tienes pagos pendientes</div>
-        ) : editingId && editForm && tx ? (
-          <div className="drawer-content">
-            <div className="edit-form">
-              <div className="form-row">
-                <label>Monto</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={editForm.amount}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, amount: parseFloat(e.target.value) })
-                  }
-                />
-              </div>
-
-              <div className="form-row">
-                <label>Cuenta</label>
-                <select
-                  value={editForm.accountId}
-                  onChange={(e) => setEditForm({ ...editForm, accountId: e.target.value })}
-                >
-                  {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name} ({a.currency})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-row">
-                <label>Categoría *</label>
-                <select
-                  value={editForm.categoryId}
-                  onChange={(e) => setEditForm({ ...editForm, categoryId: e.target.value })}
-                >
-                  <option value="">Selecciona una categoría</option>
-                  {expenseCategories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.emoji ? `${c.emoji} ` : ''}
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-row">
-                <label>Descripción</label>
-                <textarea
-                  value={editForm.note}
-                  onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
-                  placeholder="p. ej. Pago de Wallet"
-                  rows={2}
-                />
-              </div>
-
-              <div className="form-row">
-                <label>Fecha/Hora</label>
-                <input
-                  type="datetime-local"
-                  value={editForm.occurredAt.slice(0, 16)}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, occurredAt: new Date(e.target.value).toISOString() })
-                  }
-                />
-              </div>
-
-              <div className="form-actions">
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setEditingId(null)
-                    setEditForm(null)
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button onClick={saveEdit} disabled={saving}>
-                  {saving ? 'Guardando...' : 'Confirmar'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="drawer-content">
-            <div className="pending-list">
-              {pending.map((tx) => (
-                <Card key={tx.id} className="pending-item">
-                  <div className="pending-item-content">
-                    <div className="pending-item-main">
-                      <div>
-                        <div className="pending-item-account">{tx.account.name}</div>
-                        {tx.category ? (
-                          <div className="pending-item-meta">
-                            {tx.category.emoji && <span>{tx.category.emoji}</span>}
-                            <span>{tx.category.name}</span>
-                          </div>
-                        ) : (
-                          <Badge tone="neutral">Sin categoría</Badge>
-                        )}
-                      </div>
-                      <Money amount={tx.amount} currency={tx.account.currency} tone="negative" />
-                    </div>
-                    <div className="pending-item-meta-text">
-                      {formatDateTime(tx.occurredAt)}
-                      {tx.note && ` • ${tx.note}`}
-                    </div>
-                  </div>
-                  <div className="pending-item-footer">
-                    <Button onClick={() => startEdit(tx)}>
-                      Editar y confirmar
-                    </Button>
-                  </div>
-                </Card>
+      {editing ? (
+        <Form onSubmit={handleConfirm}>
+          <FormField label={`Monto (${editing.account.currency})`} htmlFor="pending-amount">
+            <input
+              id="pending-amount"
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={amount}
+              onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value))}
+              required
+            />
+          </FormField>
+          <FormField label="Fecha y hora" htmlFor="pending-date">
+            <input id="pending-date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} required />
+          </FormField>
+          <FormField label="Cuenta" htmlFor="pending-account">
+            <select id="pending-account" value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
+              {accountOptions.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name} ({a.currency})
+                </option>
               ))}
-            </div>
+            </select>
+          </FormField>
+          <FormField label="Categoría" htmlFor="pending-category">
+            <select id="pending-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
+              <option value="" disabled>
+                Elige una
+              </option>
+              {categoriesForType.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.emoji ? `${c.emoji} ` : ''}
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </FormField>
+          <FormField label="Nota (opcional)" htmlFor="pending-note" full>
+            <input id="pending-note" value={note} onChange={(e) => setNote(e.target.value)} />
+          </FormField>
+          <FormError>{error}</FormError>
+          <div className="ui-field-full" style={{ display: 'flex', gap: '0.5rem' }}>
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Guardando…' : 'Confirmar'}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setEditing(null)}>
+              Volver
+            </Button>
           </div>
-        )}
-      </div>
-    </>
+        </Form>
+      ) : loading ? (
+        <p>Cargando…</p>
+      ) : pending.length === 0 ? (
+        <EmptyState>No tienes pagos pendientes.</EmptyState>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <p style={{ margin: 0, fontSize: '0.85rem' }}>
+            Llegaron desde tu Shortcut. Elige la cuenta y la categoría para registrarlos: hasta entonces no afectan tus saldos.
+          </p>
+          {pending.map((tx) => (
+            <ListRow
+              key={tx.id}
+              title={tx.note || 'Pago sin descripción'}
+              subtitle={
+                <>
+                  {formatDateTime(tx.occurredAt)} {!tx.category && <Badge>Sin categoría</Badge>}
+                </>
+              }
+              trailing={
+                <Money
+                  amount={tx.amount}
+                  currency={tx.account.currency}
+                  tone={tx.type === 'INCOME' ? 'positive' : 'negative'}
+                />
+              }
+              actions={
+                <>
+                  <Button onClick={() => startReview(tx)}>Revisar</Button>
+                  <button
+                    type="button"
+                    className="icon-danger-btn"
+                    title="Descartar"
+                    aria-label="Descartar pago pendiente"
+                    onClick={() => handleDiscard(tx)}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </>
+              }
+            />
+          ))}
+        </div>
+      )}
+    </Modal>
   )
 }

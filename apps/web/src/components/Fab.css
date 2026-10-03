@@ -9,6 +9,11 @@
     right: var(--space-4);
     bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + var(--space-3));
     z-index: 45;
+    /* El contenedor reserva el espacio de las acciones ocultas y es bastante
+       más grande que el círculo: sin esto se come los toques de lo que queda
+       debajo (la última tarjeta de una lista). Solo el "+" y las acciones
+       abiertas reciben toques. */
+    pointer-events: none;
   }
 }
 
@@ -99,6 +104,7 @@
   position: relative;
   z-index: 46;
   margin-left: auto;
+  pointer-events: auto;
 }
 
 .fab-trigger:hover {

@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TransactionType, TransactionStatus } from '@prisma/client';
+import { Type } from 'class-transformer';
 import {
   IsEnum,
   IsISO8601,
@@ -33,6 +34,8 @@ export class CreateTransactionDto {
   type: TransactionType;
 
   @ApiProperty({ example: 250.5, description: 'Siempre positivo; el signo lo da `type`' })
+  // Un Shortcut suele mandar el monto como texto ("1500"): se convierte a número.
+  @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
   amount: number;

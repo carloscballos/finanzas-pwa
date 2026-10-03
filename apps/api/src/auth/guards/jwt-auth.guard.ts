@@ -26,9 +26,11 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Token no proporcionado');
     }
 
-    const [scheme, token] = authHeader.split(' ');
+    // Tolerante con espacios de más: al pegar el token en un Shortcut es fácil que
+    // se cuele un espacio o salto de línea al final, o uno doble tras "Bearer".
+    const [scheme, token] = authHeader.trim().split(/\s+/);
 
-    if (scheme !== 'Bearer' || !token) {
+    if (scheme?.toLowerCase() !== 'bearer' || !token) {
       throw new UnauthorizedException('Esquema de autorización inválido');
     }
 
