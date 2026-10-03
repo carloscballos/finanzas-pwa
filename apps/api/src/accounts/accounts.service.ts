@@ -14,6 +14,7 @@ export class AccountsService {
   constructor(private readonly accountsRepository: AccountsRepository) {}
 
   async create(userId: string, dto: CreateAccountDto): Promise<AccountResponseDto> {
+    this.assertNotGoalType(dto.type);
     this.assertValidCreditCardBalance(dto.type, dto.initialBalance);
     const account = await this.accountsRepository.create(dto, userId);
     return AccountMapper.toResponse(account, userId, Number(account.initialBalance));
@@ -37,6 +38,8 @@ export class AccountsService {
     dto: UpdateAccountDto,
   ): Promise<AccountResponseDto> {
     const existing = await this.assertOwner(userId, accountId);
+    this.assertNotGoalAccount(existing.type);
+    this.assertNotGoalType(dto.type);
     if (dto.initialBalance !== undefined) {
       this.assertValidCreditCardBalance(dto.type ?? existing.type, dto.initialBalance);
     }
@@ -46,8 +49,15 @@ export class AccountsService {
   }
 
   async remove(userId: string, accountId: string): Promise<void> {
-    await this.assertOwner(userId, accountId);
+    const account = await this.assertOwner(userId, accountId);
+    this.assertNotGoalAccount(account.type);
     await this.accountsRepository.delete(accountId);
+  }
+
+  // Neto de movimientos por cuenta (sin initialBalance) — Goals lo usa para
+  // calcular cuánto lleva ahorrado cada meta (saldo de su cuenta oculta).
+  getNetMovements(accountIds: string[]): Promise<Map<string, number>> {
+    return this.accountsRepository.getNetMovements(accountIds);
   }
 
   // Usado por Transactions/Goals para validar que el usuario tiene acceso a
@@ -150,6 +160,20 @@ export class AccountsService {
       throw new ForbiddenException('Solo el propietario puede modificar esta cuenta');
     }
     return account;
+  }
+
+  // Las cuentas GOAL las crea y borra el módulo de metas; por la API de cuentas
+  // no se pueden crear, convertir, editar ni eliminar.
+  private assertNotGoalType(type: string | undefined): void {
+    if (type === 'GOAL') {
+      throw new BadRequestException('Las cuentas de metas se crean creando una meta de ahorro');
+    }
+  }
+
+  private assertNotGoalAccount(type: string): void {
+    if (type === 'GOAL') {
+      throw new BadRequestException('Esta cuenta respalda una meta de ahorro: gestiónala desde la meta');
+    }
   }
 
   // En una tarjeta de crédito, initialBalance representa deuda (0 o

@@ -1,18 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { AccountMemberRole, AccountType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGoalDto } from './dto/create-goal.dto';
 import { UpdateGoalDto } from './dto/update-goal.dto';
 import { GoalWithAccount } from './mappers/goal.mapper';
 
-const WITH_ACCOUNT = { account: { select: { id: true, name: true } } } as const;
-
-export interface AddContributionInput {
-  goalId: string;
-  accountId: string;
-  userId: string;
-  amount: number;
-  occurredAt: Date;
-}
+const WITH_ACCOUNT = { account: { select: { id: true, name: true, initialBalance: true } } } as const;
 
 @Injectable()
 export class GoalsRepository {
@@ -30,62 +23,47 @@ export class GoalsRepository {
     return this.prisma.savingsGoal.findUnique({ where: { id }, include: WITH_ACCOUNT });
   }
 
+  // Crear la meta crea su cuenta oculta (type GOAL) en la misma operación, con el
+  // mismo usuario como OWNER: así las transferencias de aporte/retiro pasan por
+  // la validación de acceso de siempre.
   create(userId: string, dto: CreateGoalDto, currency: string): Promise<GoalWithAccount> {
     return this.prisma.savingsGoal.create({
       data: {
-        userId,
+        user: { connect: { id: userId } },
         name: dto.name,
         targetAmount: dto.targetAmount,
         currency,
         targetDate: dto.targetDate ? new Date(dto.targetDate) : undefined,
-        accountId: dto.accountId,
+        account: {
+          create: {
+            name: dto.name,
+            type: AccountType.GOAL,
+            currency,
+            members: { create: { userId, role: AccountMemberRole.OWNER } },
+          },
+        },
       },
       include: WITH_ACCOUNT,
     });
   }
 
-  update(id: string, dto: UpdateGoalDto, currency?: string): Promise<GoalWithAccount> {
+  // El nombre de la cuenta oculta acompaña al de la meta (así los movimientos
+  // dicen "Transferencia hacia <meta>" aunque la meta ya no exista).
+  update(id: string, dto: UpdateGoalDto): Promise<GoalWithAccount> {
     return this.prisma.savingsGoal.update({
       where: { id },
       data: {
         name: dto.name,
         targetAmount: dto.targetAmount,
-        currency,
         targetDate: dto.targetDate ? new Date(dto.targetDate) : undefined,
-        accountId: dto.accountId,
+        account: dto.name ? { update: { name: dto.name } } : undefined,
       },
       include: WITH_ACCOUNT,
     });
   }
 
-  // Transacción interactiva (no el array form) porque hay que crear el
-  // Transaction real y actualizar currentAmount de forma atómica — mismo
-  // principio que TransfersRepository.create. amount positivo (aportar) crea
-  // un EXPENSE en accountId; negativo (retirar) crea un INCOME por el valor
-  // absoluto — en ambos casos sin categoría (categoryId null), igual que las
-  // patas de una transferencia.
-  async addContribution(input: AddContributionInput): Promise<GoalWithAccount> {
-    const goalId = await this.prisma.$transaction(async (tx) => {
-      await tx.transaction.create({
-        data: {
-          accountId: input.accountId,
-          type: input.amount > 0 ? 'EXPENSE' : 'INCOME',
-          amount: Math.abs(input.amount),
-          occurredAt: input.occurredAt,
-          createdByUserId: input.userId,
-          goalId: input.goalId,
-        },
-      });
-      const goal = await tx.savingsGoal.update({
-        where: { id: input.goalId },
-        data: { currentAmount: { increment: input.amount } },
-      });
-      return goal.id;
-    });
-
-    return (await this.findById(goalId))!;
-  }
-
+  // Solo se borra la meta: su cuenta oculta se conserva (ya en cero tras la
+  // devolución) para no perder el historial de los movimientos.
   async delete(id: string): Promise<void> {
     await this.prisma.savingsGoal.delete({ where: { id } });
   }

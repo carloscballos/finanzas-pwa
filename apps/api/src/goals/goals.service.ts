@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AccountsService } from '../accounts/accounts.service';
+import { TransfersService } from '../transfers/transfers.service';
 import { GoalsRepository } from './goals.repository';
 import { GoalMapper, GoalWithAccount } from './mappers/goal.mapper';
 import { GoalResponseDto } from './dto/goal-response.dto';
@@ -10,84 +11,126 @@ import { CurrencyCode } from '../common/currency';
 
 const DEFAULT_CURRENCY = CurrencyCode.COP;
 
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+// Una meta ES una cuenta oculta (type GOAL): lo ahorrado es su saldo, aportar es
+// una transferencia desde una cuenta real hacia ella (para la cuenta de origen
+// es un gasto: ya no es dinero disponible) y retirar es la transferencia de vuelta.
 @Injectable()
 export class GoalsService {
   constructor(
     private readonly goalsRepository: GoalsRepository,
     private readonly accountsService: AccountsService,
+    private readonly transfersService: TransfersService,
   ) {}
 
   async findAllForUser(userId: string): Promise<GoalResponseDto[]> {
     const goals = await this.goalsRepository.findAllForUser(userId);
-    return GoalMapper.toResponseList(goals);
+    const saved = await this.savedAmounts(goals);
+    return goals.map((goal) => GoalMapper.toResponse(goal, saved.get(goal.id) ?? 0));
   }
 
   async findOne(userId: string, id: string): Promise<GoalResponseDto> {
     const goal = await this.getOwnedGoal(userId, id);
-    return GoalMapper.toResponse(goal);
+    return this.toResponse(goal);
   }
 
   async create(userId: string, dto: CreateGoalDto): Promise<GoalResponseDto> {
-    // Si la meta está ligada a una cuenta, hereda su moneda (ignora
-    // cualquier `currency` que haya mandado el cliente); si no, usa la que
-    // eligió o COP por default.
-    let currency: string = dto.currency ?? DEFAULT_CURRENCY;
-    if (dto.accountId) {
-      const account = await this.accountsService.getAccessibleAccount(userId, dto.accountId);
-      currency = account.currency;
-    }
-    const created = await this.goalsRepository.create(userId, dto, currency);
-    return GoalMapper.toResponse(created);
+    const created = await this.goalsRepository.create(userId, dto, dto.currency ?? DEFAULT_CURRENCY);
+    return this.toResponse(created);
   }
 
   async update(userId: string, id: string, dto: UpdateGoalDto): Promise<GoalResponseDto> {
     await this.getOwnedGoal(userId, id);
-
-    // Si se cambia la cuenta ligada, la moneda de la meta se actualiza para
-    // seguir siendo consistente con esa cuenta.
-    let currency: string | undefined;
-    if (dto.accountId) {
-      const account = await this.accountsService.getAccessibleAccount(userId, dto.accountId);
-      currency = account.currency;
-    }
-
-    const updated = await this.goalsRepository.update(id, dto, currency);
-    return GoalMapper.toResponse(updated);
+    const updated = await this.goalsRepository.update(id, dto);
+    return this.toResponse(updated);
   }
 
-  async remove(userId: string, id: string): Promise<void> {
-    await this.getOwnedGoal(userId, id);
+  // Si la meta tiene dinero ahorrado, se devuelve a `refundAccountId` con una
+  // transferencia antes de borrarla — sin esto ese dinero se perdería, porque ya
+  // salió de las cuentas reales cuando se aportó.
+  async remove(userId: string, id: string, refundAccountId?: string): Promise<void> {
+    const goal = await this.getOwnedGoal(userId, id);
+    const saved = await this.savedAmount(goal);
+
+    if (saved > 0) {
+      if (!refundAccountId) {
+        throw new BadRequestException(
+          `La meta tiene ${saved.toFixed(2)} ${goal.currency} ahorrados: indica a qué cuenta devolverlos (refundAccountId)`,
+        );
+      }
+      const refundAccount = await this.accountsService.getAccessibleAccount(userId, refundAccountId);
+      this.assertSameCurrency(refundAccount.currency, goal.currency);
+      await this.transfersService.create(
+        userId,
+        {
+          fromAccountId: goal.accountId,
+          toAccountId: refundAccountId,
+          fromAmount: saved,
+          note: `Devolución de la meta: ${goal.name}`,
+        },
+        { goalId: goal.id },
+      );
+    }
+
     await this.goalsRepository.delete(id);
   }
 
   async contribute(userId: string, id: string, dto: ContributeGoalDto): Promise<GoalResponseDto> {
     const goal = await this.getOwnedGoal(userId, id);
-    const newAmount = Number(goal.currentAmount) + dto.amount;
-    if (newAmount < 0) {
-      throw new BadRequestException('El retiro no puede dejar el ahorro acumulado en negativo');
-    }
-
     const account = await this.accountsService.getAccessibleAccount(userId, dto.accountId);
-    if (account.currency !== goal.currency) {
-      throw new BadRequestException(
-        `La cuenta debe estar en ${goal.currency} — la meta está en esa moneda`,
+    this.assertSameCurrency(account.currency, goal.currency);
+
+    const occurredAt = dto.occurredAt;
+
+    if (dto.amount > 0) {
+      // Aportar: cuenta real -> meta. La validación de saldo es la de siempre
+      // (TransfersService.create la hace sobre la cuenta de origen).
+      await this.transfersService.create(
+        userId,
+        { fromAccountId: dto.accountId, toAccountId: goal.accountId, fromAmount: dto.amount, occurredAt },
+        { goalId: goal.id },
+      );
+    } else {
+      // Retirar: meta -> cuenta real.
+      const withdraw = -dto.amount;
+      const saved = await this.savedAmount(goal);
+      if (withdraw > saved) {
+        throw new BadRequestException('El retiro no puede dejar el ahorro acumulado en negativo');
+      }
+      await this.transfersService.create(
+        userId,
+        { fromAccountId: goal.accountId, toAccountId: dto.accountId, fromAmount: withdraw, occurredAt },
+        { goalId: goal.id },
       );
     }
 
-    // Solo aportar (amount > 0) saca dinero real de la cuenta — un retiro
-    // (amount < 0) es un ingreso hacia ella, así que no hay saldo que validar.
-    if (dto.amount > 0) {
-      await this.accountsService.assertSufficientFunds(userId, dto.accountId, dto.amount);
-    }
+    return this.findOne(userId, id);
+  }
 
-    const updated = await this.goalsRepository.addContribution({
-      goalId: id,
-      accountId: dto.accountId,
-      userId,
-      amount: dto.amount,
-      occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
-    });
-    return GoalMapper.toResponse(updated);
+  private async toResponse(goal: GoalWithAccount): Promise<GoalResponseDto> {
+    return GoalMapper.toResponse(goal, await this.savedAmount(goal));
+  }
+
+  private async savedAmount(goal: GoalWithAccount): Promise<number> {
+    return (await this.savedAmounts([goal])).get(goal.id) ?? 0;
+  }
+
+  private async savedAmounts(goals: GoalWithAccount[]): Promise<Map<string, number>> {
+    const net = await this.accountsService.getNetMovements(goals.map((g) => g.accountId));
+    return new Map(
+      goals.map((g) => [g.id, round2(Number(g.account.initialBalance) + (net.get(g.accountId) ?? 0))]),
+    );
+  }
+
+  private assertSameCurrency(accountCurrency: string, goalCurrency: string): void {
+    if (accountCurrency !== goalCurrency) {
+      throw new BadRequestException(
+        `La cuenta debe estar en ${goalCurrency} — la meta está en esa moneda`,
+      );
+    }
   }
 
   private async getOwnedGoal(userId: string, id: string): Promise<GoalWithAccount> {

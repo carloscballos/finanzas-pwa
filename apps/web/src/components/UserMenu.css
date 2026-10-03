@@ -1,0 +1,188 @@
+.user-menu {
+  position: relative;
+}
+
+.user-menu-block {
+  width: 100%;
+}
+
+.user-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0.2rem 0.35rem 0.2rem 0.2rem;
+  border-radius: var(--radius-pill);
+  color: var(--text-h);
+  font: inherit;
+  transition: background 0.15s ease;
+}
+
+.user-menu-trigger:hover {
+  background: var(--bg-subtle);
+}
+
+.user-menu-block .user-menu-trigger {
+  width: 100%;
+  border-radius: var(--radius-control);
+  padding: 0.4rem 0.5rem;
+}
+
+.user-menu-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.user-menu-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu-block .user-menu-name {
+  flex: 1;
+  text-align: left;
+  max-width: none;
+}
+
+@media (max-width: 1023px) {
+  .user-menu:not(.user-menu-block) .user-menu-name {
+    display: none;
+  }
+}
+
+.user-menu-chevron {
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.user-menu-chevron.open {
+  transform: rotate(180deg);
+}
+
+.user-menu-popup {
+  position: absolute;
+  z-index: 41;
+  width: 14rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  background: var(--card-bg-raised);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+}
+
+.user-menu-popup-down {
+  top: calc(100% + 0.5rem);
+  right: 0;
+}
+
+.user-menu-popup-up {
+  bottom: calc(100% + 0.5rem);
+  left: 0;
+  width: 100%;
+  min-width: 13rem;
+}
+
+.user-menu-popup-name {
+  font-weight: 600;
+  color: var(--text-h);
+  padding: 0.35rem 0.5rem 0;
+}
+
+.user-menu-popup-rate {
+  font-size: 0.8rem;
+  color: var(--text);
+  padding: 0 0.5rem 0.35rem;
+}
+
+.user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--text-h);
+  padding: 0.55rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: left;
+}
+
+.user-menu-item:hover {
+  background: var(--bg-subtle);
+  color: var(--accent);
+}
+
+.user-menu-item-danger:hover {
+  background: var(--badge-error-bg);
+  color: var(--badge-error-fg);
+}
+
+.settings-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.settings-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-h);
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.settings-option:hover {
+  border-color: var(--accent);
+}
+
+.settings-option-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-control);
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.settings-option-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-option-text small {
+  color: var(--text);
+  font-size: 0.8rem;
+}

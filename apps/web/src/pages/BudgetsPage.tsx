@@ -11,6 +11,7 @@ import { Modal } from '../components/ui/Modal'
 import { Money } from '../components/ui/Money'
 import { ProgressBar, type ProgressTone } from '../components/ui/ProgressBar'
 import { SectionHeader } from '../components/ui/SectionHeader'
+import { SummaryCard, SummaryGrid } from '../components/ui/SummaryCard'
 import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
@@ -162,44 +163,45 @@ export function BudgetsPage() {
       {!loading && !error && budgets.length === 0 && <EmptyState>Todavía no tienes presupuestos.</EmptyState>}
 
       {budgets.length > 0 && (
-        <section className="budget-summary" aria-label="Resumen de presupuestos">
+        <SummaryGrid label="Resumen de presupuestos">
           {summarize(budgets).map((g) => {
             const percent = g.limit > 0 ? (g.spent / g.limit) * 100 : 0
             const remaining = g.limit - g.spent
             return (
-              <Card key={g.key} className="budget-summary-card">
-                <div className="budget-summary-label">
-                  {g.currency} · {g.period === 'MONTHLY' ? 'Mensual' : 'Semanal'}
-                </div>
-                <div className="budget-summary-main">
-                  <Money amount={g.spent} currency={g.currency} size="lg" />
-                  <span>
-                    gastado de <Money amount={g.limit} currency={g.currency} />
-                  </span>
-                </div>
-                <ProgressBar value={percent} tone={barTone(percent)} height={10} />
-                <div className="budget-summary-foot">
-                  <span>
-                    {remaining >= 0 ? (
-                      <>
-                        <Money amount={remaining} currency={g.currency} /> disponible
-                      </>
-                    ) : (
-                      <>
-                        Excedido por <Money amount={-remaining} currency={g.currency} tone="negative" />
-                      </>
-                    )}
-                  </span>
-                  <span className="budget-summary-badges">
+              <SummaryCard
+                key={g.key}
+                label={`${g.currency} · ${g.period === 'MONTHLY' ? 'Mensual' : 'Semanal'}`}
+                main={
+                  <>
+                    <Money amount={g.spent} currency={g.currency} size="lg" />
+                    <span>
+                      gastado de <Money amount={g.limit} currency={g.currency} />
+                    </span>
+                  </>
+                }
+                progress={{ value: percent, tone: barTone(percent) }}
+                footLeft={
+                  remaining >= 0 ? (
+                    <>
+                      <Money amount={remaining} currency={g.currency} /> disponible
+                    </>
+                  ) : (
+                    <>
+                      Excedido por <Money amount={-remaining} currency={g.currency} tone="negative" />
+                    </>
+                  )
+                }
+                footRight={
+                  <>
                     {g.count} presupuesto{g.count !== 1 ? 's' : ''}
                     {g.exceeded > 0 && <Badge tone="error">{g.exceeded} excedido{g.exceeded !== 1 ? 's' : ''}</Badge>}
                     {g.atRisk > 0 && <Badge tone="warn">{g.atRisk} cerca del límite</Badge>}
-                  </span>
-                </div>
-              </Card>
+                  </>
+                }
+              />
             )
           })}
-        </section>
+        </SummaryGrid>
       )}
 
       <div className="budget-list">

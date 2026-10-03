@@ -6,15 +6,14 @@ import { dateInputToIso } from '../lib/dates'
 import { sanitizeDecimalInput } from '../lib/money'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
-import { ApiError, type Account, type Goal } from '../lib/api'
+import { ApiError, type Goal } from '../lib/api'
 
 /** Formulario de nuevo registro, compartido por su página y el Home (ambos lo muestran en un Modal). */
-export function GoalForm({ accounts, onCreated }: { accounts: Account[]; onCreated: (goal: Goal) => void }) {
+export function GoalForm({ onCreated }: { onCreated: (goal: Goal) => void }) {
   const { token } = useAuth()
   const [name, setName] = useState('')
   const [targetAmount, setTargetAmount] = useState('')
   const [targetDate, setTargetDate] = useState('')
-  const [accountId, setAccountId] = useState('')
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY)
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -29,8 +28,7 @@ export function GoalForm({ accounts, onCreated }: { accounts: Account[]; onCreat
         name,
         targetAmount: Number(targetAmount),
         targetDate: targetDate ? dateInputToIso(targetDate) : undefined,
-        accountId: accountId || undefined,
-        currency: accountId ? undefined : currency,
+        currency,
       })
       onCreated(goal)
     } catch (err) {
@@ -66,28 +64,17 @@ export function GoalForm({ accounts, onCreated }: { accounts: Account[]; onCreat
       <FormField label="Fecha meta (opcional)" htmlFor="goal-date">
         <input id="goal-date" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
       </FormField>
-      <FormField label="Cuenta relacionada (opcional)" htmlFor="goal-account">
-        <select id="goal-account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-          <option value="">Sin cuenta</option>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name} ({a.currency})
+      <FormField label="Moneda" htmlFor="goal-currency">
+        <select id="goal-currency" value={currency} onChange={(e) => setCurrency(e.target.value as typeof currency)}>
+          {CURRENCIES.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.code} · {c.label}
             </option>
           ))}
         </select>
-      </FormField>
-      <FormField label="Moneda" htmlFor="goal-currency">
-        {accountId ? (
-          <input id="goal-currency" value={accounts.find((a) => a.id === accountId)?.currency ?? ''} disabled />
-        ) : (
-          <select id="goal-currency" value={currency} onChange={(e) => setCurrency(e.target.value as typeof currency)}>
-            {CURRENCIES.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.code} · {c.label}
-              </option>
-            ))}
-          </select>
-        )}
+        <span style={{ fontSize: '0.8rem' }}>
+          Se ahorra con cuentas en esta moneda. No se puede cambiar después.
+        </span>
       </FormField>
       <Button type="submit" disabled={creating}>
         {creating ? 'Creando…' : 'Crear meta'}

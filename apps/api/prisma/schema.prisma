@@ -17,6 +17,9 @@ enum AccountType {
   CREDIT_CARD
   INVESTMENT
   OTHER
+  // Cuenta oculta que respalda una meta de ahorro (ver SavingsGoal). No se lista
+  // en /accounts ni se puede crear/editar/borrar por la API de cuentas.
+  GOAL
 }
 
 enum AccountMemberRole {
@@ -238,7 +241,7 @@ model Transaction {
   createdBy            User                  @relation(fields: [createdByUserId], references: [id])
   recurringTransaction RecurringTransaction? @relation(fields: [recurringTransactionId], references: [id], onDelete: SetNull)
   transfer             Transfer?             @relation(fields: [transferId], references: [id], onDelete: Cascade)
-  goal                 SavingsGoal?          @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  goal                 SavingsGoal?          @relation(fields: [goalId], references: [id], onDelete: SetNull)
   loan                 Loan?                 @relation(fields: [loanId], references: [id], onDelete: Cascade)
   cardPurchase         CardPurchase?         @relation(fields: [cardPurchaseId], references: [id], onDelete: Cascade)
   debt                 Debt?                 @relation(fields: [debtId], references: [id], onDelete: Cascade)
@@ -300,19 +303,22 @@ model Budget {
 // "guardado" reste del balance de esa cuenta en vez de ser un número
 // desconectado. accountId aquí es independiente de eso: solo fija la moneda.
 model SavingsGoal {
-  id            String    @id @default(uuid())
-  userId        String
-  name          String
-  targetAmount  Decimal   @db.Decimal(14, 2)
-  currentAmount Decimal   @default(0) @db.Decimal(14, 2)
-  currency      String    @default("COP")
-  targetDate    DateTime?
-  accountId     String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String    @id @default(uuid())
+  userId       String
+  name         String
+  targetAmount Decimal   @db.Decimal(14, 2)
+  currency     String    @default("COP")
+  targetDate   DateTime?
+  // Una meta ES una cuenta (type GOAL, oculta): lo ahorrado es el saldo de esa
+  // cuenta, aportar es una Transfer hacia ella y retirar es una Transfer de
+  // vuelta. Al borrar la meta se devuelve el saldo y la cuenta se conserva (ya
+  // en cero) para no perder el historial de movimientos.
+  accountId    String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account      Account?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account       Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
   contributions Transaction[]
 
   @@map("savings_goals")

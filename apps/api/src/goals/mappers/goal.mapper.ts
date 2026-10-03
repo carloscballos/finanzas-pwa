@@ -1,12 +1,16 @@
-import { SavingsGoal } from '@prisma/client';
+import { Prisma, SavingsGoal } from '@prisma/client';
 import { GoalResponseDto } from '../dto/goal-response.dto';
 
-export type GoalWithAccount = SavingsGoal & { account: { id: string; name: string } | null };
+// La cuenta oculta (type GOAL) que respalda la meta: su saldo es lo ahorrado.
+export type GoalWithAccount = SavingsGoal & {
+  account: { id: string; name: string; initialBalance: Prisma.Decimal };
+};
 
 export class GoalMapper {
-  static toResponse(goal: GoalWithAccount): GoalResponseDto {
+  // currentAmount no es una columna: es el saldo de la cuenta de la meta, que
+  // calcula el service (initialBalance + neto de movimientos).
+  static toResponse(goal: GoalWithAccount, currentAmount: number): GoalResponseDto {
     const targetAmount = Number(goal.targetAmount);
-    const currentAmount = Number(goal.currentAmount);
 
     return {
       id: goal.id,
@@ -16,13 +20,8 @@ export class GoalMapper {
       currency: goal.currency,
       percentComplete: targetAmount > 0 ? Math.round((currentAmount / targetAmount) * 100) : 0,
       targetDate: goal.targetDate,
-      account: goal.account,
       createdAt: goal.createdAt,
       updatedAt: goal.updatedAt,
     };
-  }
-
-  static toResponseList(goals: GoalWithAccount[]): GoalResponseDto[] {
-    return goals.map(GoalMapper.toResponse);
   }
 }

@@ -179,6 +179,9 @@ export function HomePage() {
       .filter((a) => a.creditLimit != null)
       .map((a) => ({ amount: (a.creditLimit ?? 0) + a.currentBalance, currency: a.currency })),
   )
+  // Lo ahorrado en metas ya salió de las cuentas (aportar es un gasto para la
+  // cuenta de origen), así que no está en los saldos de arriba: se muestra aparte.
+  const goalSavedByCurrency = sumByCurrency(goals.map((g) => ({ amount: g.currentAmount, currency: g.currency })))
   const activeLoans = loans.filter((l) => l.status === 'ACTIVE')
   const loanBalancesByCurrency = sumByCurrency(
     activeLoans.map((l) => ({ amount: l.remainingBalance, currency: l.currency })),
@@ -342,7 +345,17 @@ export function HomePage() {
             <AddTile onClick={() => setCreating('budget')} label="Nuevo presupuesto" />
           </HomeRow>
 
-          <HomeRow title="Metas" to="/goals">
+          <HomeRow
+            title="Metas"
+            to="/goals"
+            summary={
+              Object.keys(goalSavedByCurrency).length > 0 ? (
+                <>
+                  Ahorrado <CurrencyTotals totals={goalSavedByCurrency} />
+                </>
+              ) : undefined
+            }
+          >
             {goals.map((g) => (
               <TileCard
                 key={g.id}
@@ -470,7 +483,6 @@ export function HomePage() {
         )}
         {creating === 'goal' && (
           <GoalForm
-            accounts={accounts}
             onCreated={(goal) => {
               setGoals((prev) => [...prev, goal])
               setCreating(null)

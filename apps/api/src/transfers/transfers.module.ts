@@ -9,5 +9,6 @@ import { TransfersRepository } from './transfers.repository';
   imports: [AccountsModule, ExchangeRatesModule],
   controllers: [TransfersController],
   providers: [TransfersService, TransfersRepository],
+  exports: [TransfersService],
 })
 export class TransfersModule {}

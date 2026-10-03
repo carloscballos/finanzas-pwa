@@ -16,6 +16,9 @@ export interface CreateTransferInput {
   exchangeRate: number | null;
   note?: string;
   occurredAt: Date;
+  // Si la transferencia es un aporte/retiro de una meta, ambas patas quedan
+  // ligadas a ella (para mostrarlas como "Meta: …" en los movimientos).
+  goalId?: string;
 }
 
 @Injectable()
@@ -63,6 +66,7 @@ export class TransfersRepository {
             occurredAt: input.occurredAt,
             createdByUserId: userId,
             transferId: transfer.id,
+            goalId: input.goalId,
           },
           {
             accountId: input.toAccountId,
@@ -72,6 +76,7 @@ export class TransfersRepository {
             occurredAt: input.occurredAt,
             createdByUserId: userId,
             transferId: transfer.id,
+            goalId: input.goalId,
           },
         ],
       });

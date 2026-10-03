@@ -159,7 +159,6 @@ export interface Goal {
   currency: string
   percentComplete: number
   targetDate: string | null
-  account: { id: string; name: string } | null
   createdAt: string
   updatedAt: string
 }
@@ -168,7 +167,6 @@ export interface CreateGoalInput {
   name: string
   targetAmount: number
   targetDate?: string
-  accountId?: string
   currency?: string
 }
 
@@ -479,7 +477,10 @@ async function request<T>(
   }
 
   if (res.status === 204) return undefined as T
-  return res.json()
+  // Nest responde 200 con el cuerpo vacío cuando el handler devuelve null
+  // (ej. GET /api-keys/current sin token generado): eso es "sin datos", no un error.
+  const text = await res.text()
+  return (text ? JSON.parse(text) : null) as T
 }
 
 export function getHealth(): Promise<HealthResponse> {
@@ -583,6 +584,16 @@ export function createGoal(token: string, input: CreateGoalInput) {
   return request<Goal>('/api/v1/goals', { method: 'POST', body: input, token })
 }
 
+export interface UpdateGoalInput {
+  name?: string
+  targetAmount?: number
+  targetDate?: string
+}
+
+export function updateGoal(token: string, id: string, input: UpdateGoalInput) {
+  return request<Goal>(`/api/v1/goals/${id}`, { method: 'PATCH', body: input, token })
+}
+
 export function contributeToGoal(
   token: string,
   id: string,
@@ -595,8 +606,11 @@ export function contributeToGoal(
   })
 }
 
-export function deleteGoal(token: string, id: string) {
-  return request<void>(`/api/v1/goals/${id}`, { method: 'DELETE', token })
+// Si la meta tiene dinero ahorrado, `refundAccountId` es la cuenta (misma
+// moneda) a la que se devuelve antes de borrarla.
+export function deleteGoal(token: string, id: string, refundAccountId?: string) {
+  const query = refundAccountId ? `?refundAccountId=${refundAccountId}` : ''
+  return request<void>(`/api/v1/goals/${id}${query}`, { method: 'DELETE', token })
 }
 
 export function getDebts(token: string) {

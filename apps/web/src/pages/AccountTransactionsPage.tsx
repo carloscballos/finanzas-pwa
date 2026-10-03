@@ -919,10 +919,14 @@ export function AccountTransactionsPage() {
               // sueltas) — una transferencia sí tiene su propio DELETE
               // (/transfers/:id, borra sus dos patas), así que no se bloquea.
               const isLockedElsewhere = !!tx.goal || !!tx.loan || !!tx.cardPurchase || !!tx.debt
-              const emoji = isTransfer
-                ? '⇄'
-                : tx.goal
-                  ? '🎯'
+              // Un aporte/retiro de meta ahora es una transferencia hacia/desde la
+              // cuenta de la meta: se muestra como "Meta: …" (la meta manda sobre
+              // "Transferencia") y es un gasto para esta cuenta, porque ese dinero
+              // ya no está disponible.
+              const emoji = tx.goal
+                ? '🎯'
+                : isTransfer
+                  ? '⇄'
                   : tx.loan
                     ? '🏦'
                     : tx.cardPurchase
@@ -936,10 +940,10 @@ export function AccountTransactionsPage() {
                   key={tx.id}
                   leading={<IconChip tone={tx.type === 'INCOME' ? 'ok' : 'error'}>{emoji}</IconChip>}
                   title={
-                    isTransfer
-                      ? `Transferencia ${tx.type === 'EXPENSE' ? 'hacia' : 'desde'} ${tx.transferCounterpartyAccount?.name ?? ''}`
-                      : tx.goal
-                        ? `Meta: ${tx.goal.name}`
+                    tx.goal
+                      ? `Meta: ${tx.goal.name}`
+                      : isTransfer
+                        ? `Transferencia ${tx.type === 'EXPENSE' ? 'hacia' : 'desde'} ${tx.transferCounterpartyAccount?.name ?? ''}`
                         : tx.loan
                           ? `Préstamo: ${tx.loan.name}`
                           : tx.cardPurchase
@@ -949,8 +953,11 @@ export function AccountTransactionsPage() {
                               : tx.category?.name
                   }
                   subtitle={
-                    (tx.note || account.memberCount > 1) && (
+                    (tx.goal || tx.note || account.memberCount > 1) && (
                       <>
+                        {tx.goal && (
+                          <div className="tx-row-note">{tx.type === 'EXPENSE' ? 'Aporte a la meta' : 'Retiro de la meta'}</div>
+                        )}
                         {tx.note && <div className="tx-row-note">{tx.note}</div>}
                         {account.memberCount > 1 && <div className="tx-row-creator">{tx.createdBy.name}</div>}
                       </>

@@ -4,11 +4,156 @@
   gap: 0.75rem;
 }
 
+.debt-section {
+  margin: 1.5rem 0;
+}
+
+.debt-section h2,
+.debt-confirm h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.debt-section-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-pill);
+  padding: 0.1rem 0.55rem;
+}
+
+/* Abonos que me toca confirmar: arriba de todo, porque piden una acción. */
+.debt-confirm {
+  margin-bottom: 1.5rem;
+}
+
+.debt-confirm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.debt-confirm-card {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border-color: var(--badge-warn-fg);
+  background: var(--badge-warn-bg);
+}
+
+.debt-confirm-text {
+  font-size: 0.9rem;
+  color: var(--text-h);
+}
+
+.debt-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.debt-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.debt-party {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.debt-unregistered {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  padding: 0.1rem 0.5rem;
+}
+
+.debt-description {
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.debt-amounts {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+}
+
+.debt-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+}
+
+.debt-toggle,
+.debt-settled-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: none;
+  padding: 0.25rem 0;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.debt-settled-toggle {
+  font-size: 1.1rem;
+  color: var(--text-h);
+}
+
+.debt-toggle:hover,
+.debt-settled-toggle:hover {
+  color: var(--accent);
+}
+
+.debt-toggle-chevron {
+  transition: transform 0.15s ease;
+}
+
+.debt-toggle-chevron.open {
+  transform: rotate(180deg);
+}
+
+.debt-settled {
+  font-size: 0.8rem;
+  color: var(--badge-ok-fg);
+}
+
+.debt-waiting {
+  font-size: 0.8rem;
+  color: var(--text);
+  font-style: italic;
+}
+
 .debt-payments {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
 }
 
 .debt-payment-row {
@@ -39,51 +184,4 @@
   display: flex;
   gap: 0.4rem;
   align-items: center;
-}
-
-.debt-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.75rem;
-}
-
-.debt-party {
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.debt-unregistered {
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--text);
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-pill);
-  padding: 0.1rem 0.5rem;
-}
-
-.debt-description {
-  font-size: 0.85rem;
-  color: var(--text);
-}
-
-.debt-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.debt-waiting {
-  font-size: 0.8rem;
-  color: var(--text);
-  font-style: italic;
-}
-
-.debt-settled {
-  font-size: 0.8rem;
-  color: var(--badge-ok-fg);
 }

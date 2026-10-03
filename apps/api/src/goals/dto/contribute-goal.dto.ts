@@ -13,7 +13,7 @@ export class ContributeGoalDto {
   @ApiProperty({
     format: 'uuid',
     description:
-      'Cuenta de la que sale el aporte (o a la que vuelve un retiro) — debe estar en la misma moneda que la meta. Se crea un movimiento real en esa cuenta.',
+      'Cuenta de la que sale el aporte (o a la que vuelve un retiro) — debe estar en la misma moneda que la meta. Se registra como una transferencia hacia/desde la meta.',
   })
   @IsUUID()
   accountId: string;

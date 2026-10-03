@@ -1,13 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-class GoalAccountSummaryDto {
-  @ApiProperty({ format: 'uuid' })
-  id: string;
-
-  @ApiProperty({ example: 'Ahorros Santander' })
-  name: string;
-}
-
 export class GoalResponseDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
@@ -18,7 +10,10 @@ export class GoalResponseDto {
   @ApiProperty({ example: 50000 })
   targetAmount: number;
 
-  @ApiProperty({ example: 12500 })
+  @ApiProperty({
+    example: 12500,
+    description: 'Ahorrado hasta ahora: el saldo de la cuenta (oculta) que respalda la meta',
+  })
   currentAmount: number;
 
   @ApiProperty({ example: 'COP' })
@@ -29,9 +24,6 @@ export class GoalResponseDto {
 
   @ApiPropertyOptional({ example: '2027-01-01T00:00:00.000Z' })
   targetDate: Date | null;
-
-  @ApiPropertyOptional({ type: GoalAccountSummaryDto })
-  account: GoalAccountSummaryDto | null;
 
   @ApiProperty({ example: '2026-08-10T16:00:00.000Z' })
   createdAt: Date;

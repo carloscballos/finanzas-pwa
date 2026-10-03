@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsISO8601, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsEnum, IsISO8601, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { CurrencyCode } from '../../common/currency';
 
 export class CreateGoalDto {
@@ -18,15 +18,11 @@ export class CreateGoalDto {
   @IsISO8601()
   targetDate?: string;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'Cuenta donde se está ahorrando (opcional)' })
-  @IsOptional()
-  @IsUUID()
-  accountId?: string;
-
   @ApiPropertyOptional({
     enum: CurrencyCode,
     default: CurrencyCode.COP,
-    description: 'Se ignora si se especifica accountId: la meta hereda la moneda de esa cuenta',
+    description:
+      'Moneda de la meta. Los aportes solo pueden venir de cuentas en esta misma moneda. No cambia después de crearla.',
   })
   @IsOptional()
   @IsEnum(CurrencyCode)

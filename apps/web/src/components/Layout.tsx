@@ -6,7 +6,6 @@ import {
   CreditCard,
   PiggyBank,
   Target,
-  Tags,
   HandCoins,
   Landmark,
   Users,
@@ -14,12 +13,8 @@ import {
   TrendingUp,
   MoreHorizontal,
   ChevronDown,
-  LogOut,
-  Settings,
   Eye,
   EyeOff,
-  Moon,
-  Sun,
   Plus,
   Camera,
   Image as ImageIcon,
@@ -27,11 +22,11 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { usePrivacy } from '../context/PrivacyContext'
-import { useTheme } from '../context/ThemeContext'
 import * as api from '../lib/api'
 import { formatMoney } from '../lib/money'
 import { MoreMenu, type MoreMenuItem } from './MoreMenu'
 import { Fab, type FabAction } from './Fab'
+import { UserMenu } from './UserMenu'
 import { QuickTransactionModal } from './QuickTransactionModal'
 import { Button } from './ui/Button'
 import './Layout.css'
@@ -53,7 +48,6 @@ const CARDS_ITEM: NavItem = { to: '/cards', label: 'Tarjetas', icon: CreditCard 
 
 const SECONDARY_ITEMS: MoreMenuItem[] = [
   CARDS_ITEM,
-  { to: '/categories', label: 'Categorías', icon: Tags },
   { to: '/debts', label: 'Deudas', icon: HandCoins },
   { to: '/loans', label: 'Préstamos', icon: Landmark },
   { to: '/friends', label: 'Amigos', icon: Users },
@@ -81,10 +75,8 @@ export function Layout({
   /** La página de una cuenta ya tiene su propio "Nuevo movimiento" (con la cuenta conocida). */
   hideQuickTransaction?: boolean
 }) {
-  const { user, token, logout } = useAuth()
+  const { token } = useAuth()
   const { hideValues, toggleHideValues } = usePrivacy()
-  const { theme, toggleTheme } = useTheme()
-  const themeLabel = theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'
   const location = useLocation()
   const [usdRate, setUsdRate] = useState<number | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -92,8 +84,6 @@ export function Layout({
   const [quickScanFile, setQuickScanFile] = useState<File | undefined>(undefined)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
-  const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const userMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!token) return
@@ -102,17 +92,6 @@ export function Layout({
       .then((r) => setUsdRate(r.rate))
       .catch(() => setUsdRate(null))
   }, [token])
-
-  useEffect(() => {
-    if (!userMenuOpen) return
-    function handleClickOutside(event: MouseEvent) {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setUserMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [userMenuOpen])
 
   function openQuick() {
     setQuickScanFile(undefined)
@@ -177,10 +156,6 @@ export function Layout({
             {hideValues ? <EyeOff size={16} /> : <Eye size={16} />}
             {hideValues ? 'Mostrar valores' : 'Ocultar valores'}
           </button>
-          <button type="button" className="layout-sidebar-privacy" onClick={toggleTheme} title={themeLabel}>
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-            {theme === 'dark' ? 'Tema claro' : 'Tema oscuro'}
-          </button>
           {usdRate !== null && (
             <div
               className="layout-sidebar-rate"
@@ -189,18 +164,7 @@ export function Layout({
               1 USD = {formatMoney(Math.round(usdRate), 'COP')}
             </div>
           )}
-          <div className="layout-sidebar-user">
-            <span className="layout-user-avatar">{user?.name?.[0]?.toUpperCase() ?? '?'}</span>
-            <span className="layout-sidebar-user-name">{user?.name}</span>
-          </div>
-          <NavLink to="/settings" className="layout-sidebar-link">
-            <Settings size={16} strokeWidth={2} />
-            <span>Configuración</span>
-          </NavLink>
-          <button className="layout-sidebar-logout" onClick={logout}>
-            <LogOut size={16} />
-            Salir
-          </button>
+          <UserMenu placement="up" block />
         </div>
       </aside>
 
@@ -236,7 +200,7 @@ export function Layout({
             </button>
           </nav>
 
-          <div className="layout-user" ref={userMenuRef}>
+          <div className="layout-user">
             {!hideQuickTransaction && (
               <button
                 type="button"
@@ -257,15 +221,6 @@ export function Layout({
             >
               {hideValues ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
-            <button
-              type="button"
-              className="layout-privacy-toggle"
-              onClick={toggleTheme}
-              title={themeLabel}
-              aria-label={themeLabel}
-            >
-              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
             {usdRate !== null && (
               <span
                 className="layout-usd-rate"
@@ -274,30 +229,7 @@ export function Layout({
                 1 USD = {formatMoney(Math.round(usdRate), 'COP')}
               </span>
             )}
-            <button
-              type="button"
-              className="layout-user-trigger"
-              onClick={() => setUserMenuOpen((v) => !v)}
-              aria-expanded={userMenuOpen}
-            >
-              <span className="layout-user-avatar">{user?.name?.[0]?.toUpperCase() ?? '?'}</span>
-              <span className="layout-user-name">{user?.name}</span>
-              <ChevronDown size={14} className={`layout-chevron ${userMenuOpen ? 'open' : ''}`} />
-            </button>
-            {userMenuOpen && (
-              <div className="layout-user-menu">
-                <div className="layout-user-menu-name">{user?.name}</div>
-                {usdRate !== null && (
-                  <div className="layout-user-menu-rate">
-                    1 USD = {formatMoney(Math.round(usdRate), 'COP')}
-                  </div>
-                )}
-                <button className="layout-user-menu-logout" onClick={logout}>
-                  <LogOut size={16} />
-                  Salir
-                </button>
-              </div>
-            )}
+            <UserMenu placement="down" usdRate={usdRate} />
           </div>
         </div>
       </header>

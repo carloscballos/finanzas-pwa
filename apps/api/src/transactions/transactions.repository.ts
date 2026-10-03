@@ -59,7 +59,7 @@ export class TransactionsRepository {
             : undefined,
         account: filters.accountId
           ? { id: filters.accountId }
-          : { members: { some: { userId: filters.userId } } },
+          : { members: { some: { userId: filters.userId } }, type: { not: 'GOAL' } },
       },
       include: WITH_RELATIONS,
       orderBy: { occurredAt: 'desc' },

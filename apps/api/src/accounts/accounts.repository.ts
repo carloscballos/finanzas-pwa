@@ -30,7 +30,8 @@ export class AccountsRepository {
 
   findAllForUser(userId: string): Promise<AccountWithMembers[]> {
     return this.prisma.account.findMany({
-      where: { members: { some: { userId } } },
+      // Las cuentas GOAL respaldan metas de ahorro: no son cuentas para el usuario.
+      where: { members: { some: { userId } }, type: { not: 'GOAL' } },
       include: WITH_MEMBERS,
       orderBy: { createdAt: 'asc' },
     });

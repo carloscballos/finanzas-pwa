@@ -63,7 +63,7 @@ Todos los endpoints de negocio viven bajo `/api/v1/...` (versionado desde el dí
 - `GET/POST/PATCH/DELETE /api/v1/categories` — categorías propias del usuario (ingreso o gasto); borrar falla con 409 si está en uso
 - `GET/POST/PATCH/DELETE /api/v1/transactions` — movimientos (ingreso/gasto), filtrables por `accountId`/`categoryId`/`type`. Cada movimiento expone `createdBy` (quién lo registró — relevante en cuentas compartidas). Las patas de una transferencia (`transferId` no nulo) no se pueden editar/eliminar aquí directamente (400) — ver `/transfers`
 - `GET/POST/PATCH/DELETE /api/v1/budgets` — presupuesto por categoría de gasto + periodo (semanal/mensual), con `spent`/`remaining`/`percentUsed` calculados sobre el periodo actual
-- `GET/POST/PATCH/DELETE /api/v1/goals` + `POST /api/v1/goals/:id/contributions` — metas de ahorro, opcionalmente ligadas a una cuenta, con aportes/retiros
+- `GET/POST/PATCH/DELETE /api/v1/goals` + `POST /api/v1/goals/:id/contributions` — metas de ahorro. Cada meta es una cuenta oculta (`type: GOAL`): aportar/retirar es una transferencia entre una cuenta real (misma moneda) y la meta, y `DELETE /goals/:id?refundAccountId=` devuelve lo ahorrado antes de borrarla
 - `GET/POST/DELETE /api/v1/debts` — deudas entre dos usuarios reales (por email), independientes de las cuentas
 - `POST /api/v1/debts/:id/mark-paid` — cualquiera de las dos partes la marca como pagada (queda `PAID_PENDING_CONFIRMATION`)
 - `POST /api/v1/debts/:id/confirm` / `POST /api/v1/debts/:id/reject` — solo la parte que **no** la marcó como pagada puede confirmar (→ `SETTLED`) o rechazar (vuelve a `PENDING`)
@@ -89,7 +89,7 @@ Default **COP**, con **USD** también soportado en cuentas, deudas, presupuestos
 
 - **Cuentas** y **deudas**: moneda explícita al crear (default COP).
 - **Presupuestos**: tienen su propia moneda; `spent` solo suma transacciones de cuentas en esa misma moneda, así un presupuesto "Comida" en COP y otro "Comida" en USD no se mezclan (unique constraint incluye `currency`, así que puedes tener ambos para la misma categoría/periodo).
-- **Metas**: si están ligadas a una cuenta, heredan su moneda automáticamente (ignora cualquier moneda que mande el cliente, y se re-deriva si cambias la cuenta ligada); si son independientes, se elige moneda al crear (default COP).
+- **Metas**: la moneda se elige al crear (default COP) y no cambia después; los aportes solo pueden venir de cuentas en esa misma moneda.
 
 ## Movimientos recurrentes y proyección
 

@@ -24,7 +24,13 @@ export class TransfersService {
     return TransferMapper.toResponseList(transfers);
   }
 
-  async create(userId: string, dto: CreateTransferDto): Promise<TransferResponseDto> {
+  // `options.goalId` solo lo usa GoalsService: aportar/retirar de una meta es
+  // una transferencia entre una cuenta real y la cuenta oculta de la meta.
+  async create(
+    userId: string,
+    dto: CreateTransferDto,
+    options: { goalId?: string } = {},
+  ): Promise<TransferResponseDto> {
     if (dto.fromAccountId === dto.toAccountId) {
       throw new BadRequestException('La cuenta origen y la cuenta destino deben ser distintas');
     }
@@ -48,6 +54,7 @@ export class TransfersService {
       exchangeRate,
       note: dto.note,
       occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
+      goalId: options.goalId,
     });
     return TransferMapper.toResponse(created);
   }
