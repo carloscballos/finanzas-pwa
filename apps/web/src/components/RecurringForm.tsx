@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Button } from './ui/Button'
 import { Form, FormField, FormError } from './ui/Form'
 import { SegmentedControl } from './ui/SegmentedControl'
+import { tomorrowDateInput } from '../lib/dates'
 import { sanitizeDecimalInput } from '../lib/money'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
@@ -27,6 +28,8 @@ export function RecurringForm({ onCreated }: { onCreated: (item: RecurringTransa
   const [amount, setAmount] = useState('')
   const [frequency, setFrequency] = useState<RecurrenceFrequency>('MONTHLY')
   const [note, setNote] = useState('')
+  const [autoApply, setAutoApply] = useState(false)
+  const [startDate, setStartDate] = useState(tomorrowDateInput())
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -65,6 +68,8 @@ export function RecurringForm({ onCreated }: { onCreated: (item: RecurringTransa
         amount: Number(amount),
         frequency,
         note: note || undefined,
+        autoApply: autoApply || undefined,
+        startDate: autoApply ? startDate : undefined,
       })
       onCreated(item)
     } catch (err) {
@@ -140,6 +145,26 @@ export function RecurringForm({ onCreated }: { onCreated: (item: RecurringTransa
       <FormField label="Nota (opcional)" htmlFor="rt-note" full>
         <input id="rt-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Arriendo, salario…" />
       </FormField>
+      <label className="ui-field-full" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <input type="checkbox" checked={autoApply} onChange={(e) => setAutoApply(e.target.checked)} />
+        Registrarlo automáticamente en cada fecha
+      </label>
+      {autoApply && (
+        <FormField label="Primera vez" htmlFor="rt-start" full>
+          <input
+            id="rt-start"
+            type="date"
+            min={tomorrowDateInput()}
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            required
+          />
+          <span style={{ fontSize: '0.8rem' }}>
+            Desde ahí se repite según «Cada cuánto» y se registra solo a las 6 a. m. Si es un gasto y no hay saldo, no se
+            crea y te avisamos.
+          </span>
+        </FormField>
+      )}
       <Button type="submit" disabled={creating}>
         {creating ? 'Creando…' : 'Crear pago fijo'}
       </Button>

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Layout } from '../components/Layout'
+import { AutoScheduleForm } from '../components/AutoScheduleForm'
 import { RecurringForm } from '../components/RecurringForm'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -22,7 +23,7 @@ import {
   type RecurrenceFrequency,
   type RecurringTransaction,
 } from '../lib/api'
-import { dateTimeInputToIso, formatDateOnly, nowDateTimeInput } from '../lib/dates'
+import { dateTimeInputToIso, formatCalendarDate, formatDateOnly, nowDateTimeInput } from '../lib/dates'
 import { formatMoneyMaybeHidden, sanitizeDecimalInput } from '../lib/money'
 import { usePrivacy } from '../context/PrivacyContext'
 import './ForecastPage.css'
@@ -106,6 +107,7 @@ export function ForecastPage() {
   const [error, setError] = useState<string | null>(null)
   const [creatingBudgetFor, setCreatingBudgetFor] = useState<string | null>(null)
   const [applying, setApplying] = useState<RecurringTransaction | null>(null)
+  const [scheduling, setScheduling] = useState<RecurringTransaction | null>(null)
 
   const { open: showForm, toggle: toggleForm, close: closeForm } = useCreateFormToggle()
 
@@ -129,6 +131,16 @@ export function ForecastPage() {
       const updated = await api.updateRecurringTransaction(token, item.id, { active: !item.active })
       setRecurring((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
       setSummary(await api.getForecastSummary(token))
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'No se pudo actualizar')
+    }
+  }
+
+  async function disableAuto(item: RecurringTransaction) {
+    if (!token) return
+    try {
+      const updated = await api.updateRecurringTransaction(token, item.id, { autoApply: false })
+      setRecurring((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'No se pudo actualizar')
     }
@@ -190,6 +202,22 @@ export function ForecastPage() {
             if (token) api.getForecastSummary(token).then(setSummary).catch(() => {})
           }}
         />
+      </Modal>
+
+      <Modal
+        open={scheduling !== null}
+        onClose={() => setScheduling(null)}
+        title={`Registro automático: ${scheduling?.category.name ?? ''}`}
+      >
+        {scheduling && (
+          <AutoScheduleForm
+            item={scheduling}
+            onDone={(updated) => {
+              setRecurring((prev) => prev.map((r) => (r.id === updated.id ? updated : r)))
+              setScheduling(null)
+            }}
+          />
+        )}
       </Modal>
 
       <Modal open={applying !== null} onClose={() => setApplying(null)} title={`Registrar: ${applying?.category.name ?? ''}`}>
@@ -271,8 +299,8 @@ export function ForecastPage() {
           <section className="forecast-section">
             <SectionHeader title="Ingresos y gastos fijos" />
             <p className="forecast-hint">
-              Son plantillas: no se registran solas. Cuando llegue el pago, toca «Registrar». Mientras estén incluidas
-              cuentan en la proyección de arriba.
+              Puedes registrar cada pago a mano con «Registrar», o activar «Automatizar» para que el sistema lo registre solo en
+              su fecha (a las 6 a. m.). Mientras estén incluidas cuentan en la proyección de arriba.
             </p>
             {recurring.length === 0 ? (
               <EmptyState>Todavía no tienes ingresos ni gastos fijos. Crea el primero con «+ Nuevo pago fijo».</EmptyState>
@@ -290,7 +318,10 @@ export function ForecastPage() {
                       }
                       title={
                         <>
-                          {item.category.name} {!item.active && <Badge>Fuera de la proyección</Badge>}
+                          {item.category.name} {!item.active && <Badge>Fuera de la proyección</Badge>}{' '}
+                          {item.autoApply && item.nextRunOn && (
+                            <Badge tone="ok">Automático · {formatCalendarDate(item.nextRunOn)}</Badge>
+                          )}
                         </>
                       }
                       subtitle={
@@ -319,6 +350,15 @@ export function ForecastPage() {
                           <Button variant="secondary" onClick={() => setApplying(item)}>
                             Registrar
                           </Button>
+                          {item.autoApply ? (
+                            <Button variant="secondary" onClick={() => disableAuto(item)}>
+                              Quitar automático
+                            </Button>
+                          ) : (
+                            <Button variant="secondary" onClick={() => setScheduling(item)}>
+                              Automatizar
+                            </Button>
+                          )}
                           <label className="forecast-include">
                             <input type="checkbox" checked={item.active} onChange={() => toggleActive(item)} />
                             Incluir

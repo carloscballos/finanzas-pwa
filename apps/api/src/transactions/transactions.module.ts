@@ -12,6 +12,6 @@ import { ReceiptExtractionService } from './receipt-extraction.service';
   imports: [AccountsModule, CategoriesModule, BudgetsModule, NotificationsModule],
   controllers: [TransactionsController],
   providers: [TransactionsService, TransactionsRepository, ReceiptExtractionService],
-  exports: [TransactionsRepository],
+  exports: [TransactionsRepository, TransactionsService],
 })
 export class TransactionsModule {}

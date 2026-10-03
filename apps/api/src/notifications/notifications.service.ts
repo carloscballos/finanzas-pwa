@@ -47,6 +47,11 @@ export class NotificationsService {
     }
   }
 
+  // Para tareas programadas que no deben repetirse (ej. el recordatorio diario).
+  wasSentSince(userId: string, type: NotificationType, since: Date): Promise<boolean> {
+    return this.notificationsRepository.existsSince(userId, type, since);
+  }
+
   async findMine(userId: string): Promise<NotificationsListResponseDto> {
     const cutoff = new Date(Date.now() - READ_RETENTION_DAYS * 24 * 60 * 60 * 1000);
     await this.notificationsRepository.removeReadOlderThan(userId, cutoff);

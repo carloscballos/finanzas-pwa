@@ -14,6 +14,22 @@
   gap: 0.5rem;
 }
 
+.forecast-list .ui-list-row {
+  flex-wrap: wrap;
+}
+
+/* El nombre conserva un mínimo legible; los botones bajan a otra línea si no caben. */
+.forecast-list .ui-list-row-main {
+  flex: 1 1 11rem;
+}
+
+.forecast-list .ui-list-row-actions {
+  flex-shrink: 1;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
 .forecast-row-actions {
   display: flex;
   gap: 0.5rem;

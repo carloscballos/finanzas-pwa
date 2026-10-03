@@ -61,6 +61,15 @@ export class RecurringTransactionResponseDto {
   })
   lastAppliedAt: Date | null;
 
+  @ApiProperty({ example: false, description: 'Si el sistema la registra solo en cada fecha' })
+  autoApply: boolean;
+
+  @ApiPropertyOptional({
+    example: '2026-11-05',
+    description: 'Próxima fecha de ejecución automática (YYYY-MM-DD, hora de Colombia)',
+  })
+  nextRunOn: string | null;
+
   @ApiProperty({ example: '2026-08-10T16:00:00.000Z' })
   createdAt: Date;
 

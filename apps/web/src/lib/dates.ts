@@ -76,6 +76,22 @@ export function todayDateInput(): string {
   return toDateInputValue(new Date())
 }
 
+// Mañana, como valor de <input type="date">, en la zona del navegador. La
+// ejecución automática de pagos fijos exige una primera fecha posterior a hoy.
+export function tomorrowDateInput(): string {
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  return toDateInputValue(tomorrow)
+}
+
+// Muestra una fecha de calendario "YYYY-MM-DD" que manda el backend (columnas
+// @db.Date, sin hora) tal cual, sin correrla un día por la zona horaria.
+export function formatCalendarDate(value: string): string {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' }).format(
+    new Date(`${value}T00:00:00Z`),
+  )
+}
+
 // Formats a stored ISO timestamp as a calendar day only (no time-of-day) —
 // consistent with how dateInputToIso anchors date-only values, so the day
 // shown always matches the day the user picked.

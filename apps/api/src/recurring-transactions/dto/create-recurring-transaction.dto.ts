@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { RecurrenceFrequency, TransactionType } from '@prisma/client';
-import { IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, IsUUID, Matches, MaxLength, Min } from 'class-validator';
 
 export class CreateRecurringTransactionDto {
   @ApiProperty({ format: 'uuid', description: 'Cuenta donde se creará el movimiento al aplicar' })
@@ -34,4 +34,20 @@ export class CreateRecurringTransactionDto {
   @IsOptional()
   @IsEnum(RecurrenceFrequency)
   frequency?: RecurrenceFrequency;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Si es true, el sistema registra el movimiento solo en cada fecha (requiere startDate)',
+  })
+  @IsOptional()
+  @IsBoolean()
+  autoApply?: boolean;
+
+  @ApiPropertyOptional({
+    example: '2026-11-05',
+    description: 'Primera fecha de la ejecución automática (YYYY-MM-DD, hora de Colombia). Debe ser posterior a hoy.',
+  })
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'startDate debe tener el formato YYYY-MM-DD' })
+  startDate?: string;
 }

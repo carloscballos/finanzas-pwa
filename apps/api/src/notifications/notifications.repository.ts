@@ -24,6 +24,14 @@ export class NotificationsRepository {
     });
   }
 
+  async existsSince(userId: string, type: NotificationType, since: Date): Promise<boolean> {
+    const found = await this.prisma.notification.findFirst({
+      where: { userId, type, createdAt: { gte: since } },
+      select: { id: true },
+    });
+    return found !== null;
+  }
+
   countUnread(userId: string): Promise<number> {
     return this.prisma.notification.count({ where: { userId, readAt: null } });
   }

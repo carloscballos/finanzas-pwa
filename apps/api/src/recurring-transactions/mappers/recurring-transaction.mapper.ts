@@ -1,4 +1,5 @@
 import { RecurringTransaction, TransactionType } from '@prisma/client';
+import { formatDateOnly } from '../../common/colombia-time';
 import { RecurringTransactionResponseDto } from '../dto/recurring-transaction-response.dto';
 
 export type RecurringTransactionWithRelations = RecurringTransaction & {
@@ -18,6 +19,8 @@ export class RecurringTransactionMapper {
       frequency: rt.frequency,
       active: rt.active,
       lastAppliedAt: rt.lastAppliedAt,
+      autoApply: rt.autoApply,
+      nextRunOn: rt.nextRunOn ? formatDateOnly(rt.nextRunOn) : null,
       createdAt: rt.createdAt,
       updatedAt: rt.updatedAt,
     };

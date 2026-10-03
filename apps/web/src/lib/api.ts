@@ -355,6 +355,10 @@ export interface RecurringTransaction {
   frequency: RecurrenceFrequency
   active: boolean
   lastAppliedAt: string | null
+  /** El sistema lo registra solo en cada fecha (cron diario). */
+  autoApply: boolean
+  /** Próxima fecha automática, "YYYY-MM-DD" (hora de Colombia). */
+  nextRunOn: string | null
   createdAt: string
   updatedAt: string
 }
@@ -366,12 +370,18 @@ export interface CreateRecurringTransactionInput {
   amount: number
   note?: string
   frequency?: RecurrenceFrequency
+  /** Con autoApply hay que enviar startDate ("YYYY-MM-DD", posterior a hoy). */
+  autoApply?: boolean
+  startDate?: string
 }
 
 export interface UpdateRecurringTransactionInput {
   amount?: number
   note?: string
   active?: boolean
+  /** true exige startDate; false borra el calendario automático. */
+  autoApply?: boolean
+  startDate?: string
 }
 
 export interface ApplyRecurringTransactionInput {
@@ -965,6 +975,9 @@ export type NotificationType =
   | 'BUDGET_WARNING'
   | 'BUDGET_EXCEEDED'
   | 'SHARED_ACCOUNT_TRANSACTION'
+  | 'DAILY_REMINDER'
+  | 'RECURRING_APPLIED'
+  | 'RECURRING_FAILED'
 
 export interface AppNotification {
   id: string

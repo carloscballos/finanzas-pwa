@@ -155,7 +155,7 @@ export class TransactionsService {
   // Efectos laterales de un movimiento que acaba de quedar confirmado: revisar
   // los presupuestos de quien lo registró y avisar a los demás miembros de la
   // cuenta. Ninguno lanza, así que no afectan al movimiento ya guardado.
-  private async afterMovementConfirmed(
+  async afterMovementConfirmed(
     userId: string,
     transaction: TransactionWithRelations,
   ): Promise<void> {

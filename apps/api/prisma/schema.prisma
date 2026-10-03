@@ -259,8 +259,9 @@ model Transaction {
 // Plantilla que el usuario aplica manualmente cuando quiere (no hay cron ni
 // generación automática): abre la plantilla, ajusta lo que haga falta y
 // "aplica" para crear un Transaction real ligado por recurringTransactionId.
-// frequency es solo informativa, usada por /forecast para la proyección
-// mensual; active indica si esta plantilla cuenta en esa proyección.
+// frequency alimenta la proyección mensual de /forecast (active indica si
+// cuenta en ella) y, si autoApply está activo, el calendario de ejecución
+// automática.
 model RecurringTransaction {
   id              String              @id @default(uuid())
   accountId       String
@@ -272,6 +273,15 @@ model RecurringTransaction {
   frequency       RecurrenceFrequency @default(MONTHLY)
   active          Boolean             @default(true)
   lastAppliedAt   DateTime?
+  // Aplicación automática (cron diario, ver RecurringAutoApplyService). Fechas
+  // de calendario en Colombia, sin hora (@db.Date). scheduleStart es la primera
+  // fecha y ancla el patrón (un mensual que empezó el 31 cae el último día de
+  // cada mes); nextRunOn es la próxima fecha pendiente; failureNotifiedFor es
+  // la fecha ya avisada como fallida, para no repetir el aviso cada día.
+  autoApply          Boolean             @default(false)
+  scheduleStart      DateTime?           @db.Date
+  nextRunOn          DateTime?           @db.Date
+  failureNotifiedFor DateTime?           @db.Date
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
@@ -280,6 +290,7 @@ model RecurringTransaction {
   createdBy    User          @relation(fields: [createdByUserId], references: [id])
   transactions Transaction[]
 
+  @@index([autoApply, nextRunOn])
   @@map("recurring_transactions")
 }
 
@@ -570,6 +581,9 @@ enum NotificationType {
   BUDGET_WARNING
   BUDGET_EXCEEDED
   SHARED_ACCOUNT_TRANSACTION
+  DAILY_REMINDER
+  RECURRING_APPLIED
+  RECURRING_FAILED
 }
 
 // Aviso dentro de la app para UN usuario (campana del encabezado). Se crea
