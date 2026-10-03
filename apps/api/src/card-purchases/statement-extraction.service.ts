@@ -167,7 +167,7 @@ export class StatementExtractionService {
     let response: Anthropic.Message;
     try {
       response = await client.messages.create({
-        model: 'claude-opus-5',
+        model: 'claude-sonnet-5-5',
         max_tokens: 8192,
         output_config: { format: { type: 'json_schema', schema: EXTRACTION_SCHEMA } },
         messages: [
