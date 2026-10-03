@@ -41,8 +41,8 @@ export function Fab({ actions }: { actions: FabAction[] }) {
         type="button"
         className="fab-trigger"
         aria-expanded={open}
-        aria-label={open ? 'Cerrar acciones rápidas' : 'Acciones rápidas'}
-        onClick={() => setOpen((v) => !v)}
+        aria-label={open ? 'Cerrar acciones rápidas' : actions.length === 1 ? actions[0].label : 'Acciones rápidas'}
+        onClick={() => (actions.length === 1 ? handleAction(actions[0]) : setOpen((v) => !v))}
       >
         {open ? <X size={24} /> : <Plus size={24} />}
       </button>

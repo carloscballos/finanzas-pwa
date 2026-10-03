@@ -4,7 +4,6 @@ import * as api from '../lib/api'
 import { ApiError, type Account, type Invitation } from '../lib/api'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
-import { Card } from './ui/Card'
 import { ListRow } from './ui/ListRow'
 import { UserAutocomplete } from './UserAutocomplete'
 
@@ -16,7 +15,6 @@ export function AccountMembers({
   onAccountChange: (account: Account) => void
 }) {
   const { user, token } = useAuth()
-  const [expanded, setExpanded] = useState(false)
   const [pendingInvites, setPendingInvites] = useState<Invitation[]>([])
   const [email, setEmail] = useState('')
   const [inviting, setInviting] = useState(false)
@@ -25,12 +23,12 @@ export function AccountMembers({
   const isOwner = account.role === 'OWNER'
 
   useEffect(() => {
-    if (!token || !expanded || !isOwner) return
+    if (!token || !isOwner) return
     api
       .getAccountInvitations(token, account.id)
       .then((invs) => setPendingInvites(invs.filter((i) => i.status === 'PENDING')))
       .catch(() => {})
-  }, [token, expanded, isOwner, account.id])
+  }, [token, isOwner, account.id])
 
   async function refreshAccount() {
     if (!token) return
@@ -77,13 +75,7 @@ export function AccountMembers({
   }
 
   return (
-    <Card className="members-section">
-      <div className="members-section-header" onClick={() => setExpanded((v) => !v)}>
-        <h2>Miembros ({account.memberCount})</h2>
-        <span>{expanded ? '▲' : '▼'}</span>
-      </div>
-
-      {expanded && (
+    <div className="members-section">
         <>
           <div className="members-list">
             {account.members.map((m) => {
@@ -139,7 +131,6 @@ export function AccountMembers({
             </>
           )}
         </>
-      )}
-    </Card>
+    </div>
   )
 }

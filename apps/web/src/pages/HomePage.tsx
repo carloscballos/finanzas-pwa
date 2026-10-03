@@ -27,6 +27,7 @@ import {
   type Invitation,
   type Loan,
 } from '../lib/api'
+import { onDataChanged } from '../lib/dataEvents'
 import './HomePage.css'
 
 type NewItem = 'account' | 'card' | 'budget' | 'goal' | 'debt' | 'loan'
@@ -150,6 +151,21 @@ export function HomePage() {
     }
   }, [token])
 
+  // Cuando se registra un movimiento desde el botón global, se refrescan solo
+  // los saldos, presupuestos y proyección (sin parpadeo de "Cargando…").
+  useEffect(() => {
+    if (!token) return
+    return onDataChanged(() => {
+      Promise.all([api.getAccounts(token), api.getBudgets(token), api.getForecastSummary(token)])
+        .then(([accs, bud, fc]) => {
+          setAccounts(accs)
+          setBudgets(bud)
+          setForecast(fc)
+        })
+        .catch(() => {})
+    })
+  }, [token])
+
   const regularAccounts = accounts.filter((a) => a.type !== 'CREDIT_CARD')
   const creditCards = accounts.filter((a) => a.type === 'CREDIT_CARD')
   const balancesByCurrency = sumByCurrency(
@@ -259,7 +275,7 @@ export function HomePage() {
 
           <HomeRow
             title="Tarjetas de crédito"
-            to="/accounts"
+            to="/cards"
             summary={
               Object.keys(availableByCurrency).length > 0 ? (
                 <>
@@ -409,17 +425,22 @@ export function HomePage() {
                   label={`${f.currency} · neto del mes`}
                   value={<Money amount={f.projectedMonthlyNet} currency={f.currency} tone="flow" />}
                   sub={
-                    <>
-                      +<Money amount={f.projectedMonthlyIncome} currency={f.currency} /> / -
-                      <Money amount={f.projectedMonthlyExpense} currency={f.currency} />
+                    <div className="home-tile-lines">
+                      <div>
+                        <span>Ingresos</span>
+                        <Money amount={f.projectedMonthlyIncome} currency={f.currency} tone="positive" />
+                      </div>
+                      <div>
+                        <span>Gastos</span>
+                        <Money amount={f.projectedMonthlyExpense} currency={f.currency} tone="negative" />
+                      </div>
                       {f.projectedMonthlyCardInstallments > 0 && (
-                        <>
-                          {' '}
-                          (incl. <Money amount={f.projectedMonthlyCardInstallments} currency={f.currency} /> en
-                          cuotas de tarjeta)
-                        </>
+                        <div>
+                          <span>· de eso, cuotas de tarjeta</span>
+                          <Money amount={f.projectedMonthlyCardInstallments} currency={f.currency} />
+                        </div>
                       )}
-                    </>
+                    </div>
                   }
                 />
               ))}
@@ -431,7 +452,7 @@ export function HomePage() {
       <Modal open={creating !== null} onClose={() => setCreating(null)} title={creating ? NEW_ITEM_TITLES[creating] : ''}>
         {(creating === 'account' || creating === 'card') && (
           <AccountForm
-            defaultType={creating === 'card' ? 'CREDIT_CARD' : 'SAVINGS'}
+            kind={creating === 'card' ? 'card' : 'account'}
             onCreated={(account) => {
               setAccounts((prev) => [...prev, account])
               setCreating(null)

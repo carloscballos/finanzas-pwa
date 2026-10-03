@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { ArrowLeftRight, Camera, FileUp, Receipt, ShoppingBag } from 'lucide-react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, ArrowLeftRight, Camera, ChevronDown, FileUp, Plus, Share2, ShoppingBag } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { AccountMembers } from '../components/AccountMembers'
+import { TransactionForm } from '../components/TransactionForm'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -11,9 +12,10 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Form, FormField, FormError } from '../components/ui/Form'
 import { IconChip } from '../components/ui/IconChip'
 import { ListRow } from '../components/ui/ListRow'
+import { Modal } from '../components/ui/Modal'
 import { Money } from '../components/ui/Money'
 import { ProgressBar } from '../components/ui/ProgressBar'
-import { SegmentedControl } from '../components/ui/SegmentedControl'
+import { SectionHeader } from '../components/ui/SectionHeader'
 import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
@@ -22,14 +24,11 @@ import {
   type Account,
   type CardPurchase,
   type Category,
-  type RecurrenceFrequency,
   type StatementPreviewItem,
   type Transaction,
-  type TransactionType,
 } from '../lib/api'
 import { ACCOUNT_TYPE_LABELS } from '../lib/accountTypeLabels'
 import {
-  dateInputToDateTimeInput,
   dateInputToIso,
   dateTimeInputToIso,
   formatDateOnly,
@@ -422,8 +421,16 @@ function multiplierFromUsdCopRate(fromCurrency: string, toCurrency: string, usdC
   return null
 }
 
+// Los movimientos se muestran de a 10 y se piden más con la flecha. La API
+// devuelve todos de una vez; esto solo limita lo que se pinta.
+const TX_PAGE_SIZE = 10
+
 export function AccountTransactionsPage() {
   const { accountId } = useParams<{ accountId: string }>()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [visibleTxCount, setVisibleTxCount] = useState(TX_PAGE_SIZE)
+  const [showShare, setShowShare] = useState(false)
   const { token } = useAuth()
   const { hideValues } = usePrivacy()
 
@@ -468,16 +475,8 @@ export function AccountTransactionsPage() {
   const [purchaseFormError, setPurchaseFormError] = useState<string | null>(null)
 
   const { open: showForm, toggle: toggleForm, close: closeForm } = useCreateFormToggle()
-  const [type, setType] = useState<TransactionType>('EXPENSE')
-  const [categoryId, setCategoryId] = useState('')
-  const [amount, setAmount] = useState('')
-  const [note, setNote] = useState('')
-  const [date, setDate] = useState(nowDateTimeInput)
-  const [saveAsTemplate, setSaveAsTemplate] = useState(false)
-  const [templateFrequency, setTemplateFrequency] = useState<RecurrenceFrequency>('MONTHLY')
-  const [creating, setCreating] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-  const [receiptLoading, setReceiptLoading] = useState(false)
+  // Foto de factura elegida con "Escanear": el formulario la lee al abrirse y pre-llena los campos.
+  const [scanFile, setScanFile] = useState<File | undefined>(undefined)
   const receiptInputRef = useRef<HTMLInputElement>(null)
 
   const [showTransferForm, setShowTransferForm] = useState(false)
@@ -491,6 +490,10 @@ export function AccountTransactionsPage() {
   const [usdCopRate, setUsdCopRate] = useState('')
   const [transferring, setTransferring] = useState(false)
   const [transferError, setTransferError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setVisibleTxCount(TX_PAGE_SIZE)
+  }, [accountId])
 
   useEffect(() => {
     if (!token || !accountId) return
@@ -728,6 +731,13 @@ export function AccountTransactionsPage() {
   const previewToAmount =
     transferAmount && previewRate ? Number(transferAmount) * previewRate : null
 
+  // Volver a donde se venía (Cuentas o Home). Si se abrió la URL directo no
+  // hay historial interno, y se cae a Cuentas.
+  function goBack() {
+    if (location.key !== 'default') navigate(-1)
+    else navigate('/accounts')
+  }
+
   const activeCardPurchases = cardPurchases.filter((p) => p.status === 'ACTIVE')
   const paidOffCardPurchases = cardPurchases.filter((p) => p.status === 'PAID_OFF')
   const activeMonthlyInstallments = activeCardPurchases.reduce((sum, p) => sum + p.installmentAmount, 0)
@@ -741,88 +751,23 @@ export function AccountTransactionsPage() {
     (a) => a.id !== accountId && account && a.currency === account.currency,
   )
 
-  const categoriesForType = categories.filter((c) => c.type === type)
-
-  function selectType(next: TransactionType) {
-    setType(next)
-    setCategoryId('')
-  }
-
-  // Solo sugiere: pre-llena el form de "Nuevo movimiento" con lo que la IA
-  // leyó de la foto, pero no crea nada — el usuario revisa/edita y decide si
-  // le da a "Registrar movimiento" como con cualquier otro movimiento.
-  async function handleReceiptFile(event: ChangeEvent<HTMLInputElement>) {
+  function handleReceiptFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     event.target.value = ''
-    if (!token || !file) return
-    setReceiptLoading(true)
-    try {
-      const extracted = await api.extractReceipt(token, file)
-      setType('EXPENSE')
-      setCategoryId(extracted.suggestedCategory?.id ?? '')
-      setAmount(extracted.amount ? String(extracted.amount) : '')
-      setNote(extracted.merchant)
-      // La factura solo da el día (si lo da) — la hora queda a mediodía y el
-      // usuario la ajusta si le importa.
-      setDate(extracted.occurredAt ? dateInputToDateTimeInput(extracted.occurredAt) : nowDateTimeInput())
-      if (!showForm) toggleForm()
-    } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'No se pudo leer la factura')
-    } finally {
-      setReceiptLoading(false)
-    }
+    if (!file) return
+    setScanFile(file)
+    if (!showForm) toggleForm()
   }
 
-  async function handleCreate(event: FormEvent) {
-    event.preventDefault()
-    if (!token || !accountId) return
-    if (!categoryId) {
-      setFormError('Elige una categoría')
-      return
-    }
-    setFormError(null)
-    setCreating(true)
-    try {
-      const tx = await api.createTransaction(token, {
-        accountId,
-        categoryId,
-        type,
-        amount: Number(amount),
-        note: note || undefined,
-        occurredAt: dateTimeInputToIso(date),
-      })
-      setTransactions((prev) => [tx, ...prev])
-      const updatedAccount = await api.getAccount(token, accountId)
-      setAccount(updatedAccount)
-      if (saveAsTemplate) {
-        try {
-          await api.createRecurringTransaction(token, {
-            accountId,
-            categoryId,
-            type,
-            amount: Number(amount),
-            note: note || undefined,
-            frequency: templateFrequency,
-          })
-        } catch (err) {
-          alert(
-            err instanceof ApiError
-              ? `El movimiento se registró, pero no se pudo guardar como plantilla: ${err.message}`
-              : 'El movimiento se registró, pero no se pudo guardar como plantilla recurrente',
-          )
-        }
-      }
-      setAmount('')
-      setNote('')
-      setCategoryId('')
-      setDate(nowDateTimeInput())
-      setSaveAsTemplate(false)
-      closeForm()
-    } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'No se pudo registrar el movimiento')
-    } finally {
-      setCreating(false)
-    }
+  async function handleTransactionCreated(tx: Transaction) {
+    setTransactions((prev) => [tx, ...prev])
+    closeForm()
+    if (token && accountId) setAccount(await api.getAccount(token, accountId))
+  }
+
+  function openNewTransaction() {
+    setScanFile(undefined)
+    toggleForm()
   }
 
   async function handleDelete(tx: Transaction) {
@@ -885,66 +830,175 @@ export function AccountTransactionsPage() {
 
   return (
     <Layout
+      hideQuickTransaction
       fabActions={
-        account
-          ? [
-              { label: 'Nuevo movimiento', icon: Receipt, onClick: toggleForm },
-              { label: 'Transferir', icon: ArrowLeftRight, onClick: () => setShowTransferForm(true) },
-              ...(account.type === 'CREDIT_CARD'
-                ? [{ label: 'Nueva compra', icon: ShoppingBag, onClick: () => setShowPurchaseForm(true) }]
-                : []),
-            ]
+        account?.type === 'CREDIT_CARD'
+          ? [{ label: 'Nueva compra', icon: ShoppingBag, onClick: () => setShowPurchaseForm(true) }]
           : []
       }
     >
-      <Link className="tx-back" to="/accounts">
-        ← Volver a cuentas
-      </Link>
+      <button type="button" className="tx-back" onClick={goBack}>
+        <ArrowLeft size={16} aria-hidden="true" /> Volver
+      </button>
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}
 
       {!loading && !error && account && (
         <>
-          <div className="tx-header">
-            <div>
-              <h1>{account.name}</h1>
-              <p className="ui-section-header-subtitle">{ACCOUNT_TYPE_LABELS[account.type]}</p>
+          <Card className="tx-account-card">
+            <div className="tx-account-top">
+              <div>
+                <h1>{account.name}</h1>
+                <p className="ui-section-header-subtitle">{ACCOUNT_TYPE_LABELS[account.type]}</p>
+              </div>
               <Money amount={account.currentBalance} currency={account.currency} tone="balance" size="lg" />
-              {account.type === 'CREDIT_CARD' && account.creditLimit !== null && (
-                <div className="account-credit-info">
-                  Disponible: {formatMoneyMaybeHidden(computeAvailableCredit(account.creditLimit, account.currentBalance), account.currency, hideValues)} de{' '}
-                  {formatMoneyMaybeHidden(account.creditLimit, account.currency, hideValues)}
-                  {account.paymentDueDay && ` · Paga el día ${account.paymentDueDay}`}
-                </div>
+            </div>
+            <div className="tx-account-meta">
+              <Badge tone={account.role === 'OWNER' ? 'ok' : 'neutral'}>
+                {account.role === 'OWNER' ? 'Propietario' : 'Miembro'}
+              </Badge>
+              {account.memberCount > 1 ? (
+                <Badge tone="neutral">Compartida · {account.memberCount}</Badge>
+              ) : (
+                <Badge tone="neutral">Personal</Badge>
               )}
-            </div>
-            <div className="tx-header-actions">
-              <input
-                ref={receiptInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                capture="environment"
-                style={{ display: 'none' }}
-                onChange={handleReceiptFile}
-              />
-              <Button variant="secondary" disabled={receiptLoading} onClick={() => receiptInputRef.current?.click()}>
-                {receiptLoading ? 'Leyendo…' : <><Camera size={16} /> Escanear factura</>}
-              </Button>
-              <Button
-                variant="secondary"
-                className={showTransferForm ? '' : 'toolbar-create-btn'}
-                onClick={() => setShowTransferForm((v) => !v)}
+              {account.role !== 'OWNER' && (
+                <span className="tx-account-owner">
+                  Dueño: {account.members.find((m) => m.role === 'OWNER')?.name ?? '—'}
+                </span>
+              )}
+              <button
+                type="button"
+                className="tx-share-btn"
+                onClick={() => setShowShare(true)}
+                title="Compartir cuenta"
+                aria-label="Compartir cuenta"
               >
-                {showTransferForm ? 'Cancelar' : 'Transferir'}
-              </Button>
-              <Button className={showForm ? '' : 'toolbar-create-btn'} onClick={toggleForm}>
-                {showForm ? 'Cancelar' : '+ Nuevo movimiento'}
-              </Button>
+                <Share2 size={18} />
+              </button>
             </div>
+            {account.type === 'CREDIT_CARD' && account.creditLimit !== null && (
+              <div className="account-credit-info">
+                Disponible: {formatMoneyMaybeHidden(computeAvailableCredit(account.creditLimit, account.currentBalance), account.currency, hideValues)} de{' '}
+                {formatMoneyMaybeHidden(account.creditLimit, account.currency, hideValues)}
+                {account.paymentDueDay && ` · Paga el día ${account.paymentDueDay}`}
+              </div>
+            )}
+          </Card>
+
+          <div className="tx-actions">
+            <input
+              ref={receiptInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={handleReceiptFile}
+            />
+            <Button variant="secondary" onClick={() => receiptInputRef.current?.click()}>
+              <Camera size={16} /> Escanear
+            </Button>
+            <Button variant="secondary" onClick={() => setShowTransferForm(true)}>
+              <ArrowLeftRight size={16} /> Transferir
+            </Button>
+            <Button onClick={openNewTransaction}>
+              <Plus size={16} /> Nuevo movimiento
+            </Button>
           </div>
 
-          <AccountMembers account={account} onAccountChange={setAccount} />
+          <SectionHeader title="Movimientos" />
+
+          {transactions.length === 0 && <EmptyState>Todavía no hay movimientos.</EmptyState>}
+
+          <div className="tx-list">
+            {transactions.slice(0, visibleTxCount).map((tx) => {
+              const isTransfer = !!tx.transferId
+              // Las patas de meta/préstamo/compra/deuda solo se editan/eliminan
+              // desde donde se originaron (no hay endpoint para borrarlas
+              // sueltas) — una transferencia sí tiene su propio DELETE
+              // (/transfers/:id, borra sus dos patas), así que no se bloquea.
+              const isLockedElsewhere = !!tx.goal || !!tx.loan || !!tx.cardPurchase || !!tx.debt
+              const emoji = isTransfer
+                ? '⇄'
+                : tx.goal
+                  ? '🎯'
+                  : tx.loan
+                    ? '🏦'
+                    : tx.cardPurchase
+                      ? '🛍️'
+                      : tx.debt
+                        ? '🤝'
+                        : tx.category?.emoji
+
+              return (
+                <ListRow
+                  key={tx.id}
+                  leading={<IconChip tone={tx.type === 'INCOME' ? 'ok' : 'error'}>{emoji}</IconChip>}
+                  title={
+                    isTransfer
+                      ? `Transferencia ${tx.type === 'EXPENSE' ? 'hacia' : 'desde'} ${tx.transferCounterpartyAccount?.name ?? ''}`
+                      : tx.goal
+                        ? `Meta: ${tx.goal.name}`
+                        : tx.loan
+                          ? `Préstamo: ${tx.loan.name}`
+                          : tx.cardPurchase
+                            ? `Compra: ${tx.cardPurchase.merchant}`
+                            : tx.debt
+                              ? `Deuda: ${tx.debt.counterpartyName}`
+                              : tx.category?.name
+                  }
+                  subtitle={
+                    (tx.note || account.memberCount > 1) && (
+                      <>
+                        {tx.note && <div className="tx-row-note">{tx.note}</div>}
+                        {account.memberCount > 1 && <div className="tx-row-creator">{tx.createdBy.name}</div>}
+                      </>
+                    )
+                  }
+                  trailing={
+                    <>
+                      <div className="tx-row-date">{formatDateTime(tx.occurredAt)}</div>
+                      <Money
+                        amount={tx.amount}
+                        currency={tx.account.currency}
+                        tone={tx.type === 'INCOME' ? 'positive' : 'negative'}
+                        showSign
+                      />
+                    </>
+                  }
+                  actions={
+                    isLockedElsewhere ? (
+                      <span className="tx-row-locked" title="Edítalo desde donde se originó">
+                        🔒
+                      </span>
+                    ) : (
+                      <button className="link-danger" onClick={() => handleDelete(tx)}>
+                        ✕
+                      </button>
+                    )
+                  }
+                />
+              )
+            })}
+          </div>
+
+          {transactions.length > visibleTxCount && (
+            <div className="tx-load-more">
+              <button
+                type="button"
+                className="tx-load-more-btn"
+                onClick={() => setVisibleTxCount((n) => n + TX_PAGE_SIZE)}
+                aria-label={`Mostrar ${Math.min(TX_PAGE_SIZE, transactions.length - visibleTxCount)} movimientos más`}
+              >
+                <ChevronDown size={22} aria-hidden="true" />
+              </button>
+              <span className="tx-load-more-note">
+                Mostrando {visibleTxCount} de {transactions.length}
+              </span>
+            </div>
+          )}
+
 
           {account.type === 'CREDIT_CARD' && (
             <section className="purchases-section">
@@ -1301,9 +1355,13 @@ export function AccountTransactionsPage() {
             </section>
           )}
 
-          {showTransferForm && (
-            <Card className="ui-form-card">
-              <Form onSubmit={handleTransfer}>
+
+          <Modal open={showShare} onClose={() => setShowShare(false)} title="Compartir cuenta">
+            <AccountMembers account={account} onAccountChange={setAccount} />
+          </Modal>
+
+          <Modal open={showTransferForm} onClose={() => setShowTransferForm(false)} title="Transferir">
+            <Form onSubmit={handleTransfer}>
                 <FormError>{transferError}</FormError>
                 <FormField label="Cuenta destino" htmlFor="transfer-to">
                   <select
@@ -1377,157 +1435,17 @@ export function AccountTransactionsPage() {
                   {transferring ? 'Transfiriendo…' : 'Transferir'}
                 </Button>
               </Form>
-            </Card>
-          )}
+          </Modal>
 
-          {showForm && (
-            <Card className="ui-form-card">
-              <Form onSubmit={handleCreate}>
-                <FormError>{formError}</FormError>
-                <div className="ui-field-full">
-                  <SegmentedControl<TransactionType>
-                    value={type}
-                    onChange={selectType}
-                    options={[
-                      { value: 'EXPENSE', label: 'Gasto', tone: 'error' },
-                      { value: 'INCOME', label: 'Ingreso', tone: 'ok' },
-                    ]}
-                  />
-                </div>
-                <FormField label="Categoría" htmlFor="tx-category">
-                  <select id="tx-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
-                    <option value="" disabled>
-                      Elige una
-                    </option>
-                    {categoriesForType.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.emoji ? `${c.emoji} ` : ''}
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                  {categoriesForType.length === 0 && (
-                    <span style={{ fontSize: '0.8rem' }}>
-                      No tienes categorías de {type === 'EXPENSE' ? 'gasto' : 'ingreso'} — créalas en{' '}
-                      <Link to="/categories">Categorías</Link>
-                    </span>
-                  )}
-                </FormField>
-                <FormField label="Monto" htmlFor="tx-amount">
-                  <input
-                    id="tx-amount"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={amount}
-                    onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value))}
-                    required
-                  />
-                </FormField>
-                <FormField label="Fecha y hora" htmlFor="tx-date">
-                  <input id="tx-date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} required />
-                </FormField>
-                <FormField label="Nota (opcional)" htmlFor="tx-note" full>
-                  <input id="tx-note" value={note} onChange={(e) => setNote(e.target.value)} />
-                </FormField>
-                <div className="ui-field-full tx-template-toggle">
-                  <label>
-                    <input type="checkbox" checked={saveAsTemplate} onChange={(e) => setSaveAsTemplate(e.target.checked)} />
-                    Guardar como plantilla recurrente
-                  </label>
-                  {saveAsTemplate && (
-                    <select
-                      aria-label="Frecuencia de la plantilla"
-                      value={templateFrequency}
-                      onChange={(e) => setTemplateFrequency(e.target.value as RecurrenceFrequency)}
-                    >
-                      <option value="MONTHLY">Mensual</option>
-                      <option value="SEMIMONTHLY">Quincenal</option>
-                      <option value="WEEKLY">Semanal</option>
-                      <option value="YEARLY">Anual</option>
-                    </select>
-                  )}
-                </div>
-                <Button type="submit" disabled={creating}>
-                  {creating ? 'Guardando…' : 'Registrar movimiento'}
-                </Button>
-              </Form>
-            </Card>
-          )}
+          <Modal open={showForm} onClose={closeForm} title="Nuevo movimiento">
+            <TransactionForm
+              accountId={account.id}
+              categories={categories}
+              scanFile={scanFile}
+              onCreated={handleTransactionCreated}
+            />
+          </Modal>
 
-          {transactions.length === 0 && <EmptyState>Todavía no hay movimientos.</EmptyState>}
-
-          <div className="tx-list">
-            {transactions.map((tx) => {
-              const isTransfer = !!tx.transferId
-              // Las patas de meta/préstamo/compra/deuda solo se editan/eliminan
-              // desde donde se originaron (no hay endpoint para borrarlas
-              // sueltas) — una transferencia sí tiene su propio DELETE
-              // (/transfers/:id, borra sus dos patas), así que no se bloquea.
-              const isLockedElsewhere = !!tx.goal || !!tx.loan || !!tx.cardPurchase || !!tx.debt
-              const emoji = isTransfer
-                ? '⇄'
-                : tx.goal
-                  ? '🎯'
-                  : tx.loan
-                    ? '🏦'
-                    : tx.cardPurchase
-                      ? '🛍️'
-                      : tx.debt
-                        ? '🤝'
-                        : tx.category?.emoji
-
-              return (
-                <ListRow
-                  key={tx.id}
-                  leading={<IconChip tone={tx.type === 'INCOME' ? 'ok' : 'error'}>{emoji}</IconChip>}
-                  title={
-                    isTransfer
-                      ? `Transferencia ${tx.type === 'EXPENSE' ? 'hacia' : 'desde'} ${tx.transferCounterpartyAccount?.name ?? ''}`
-                      : tx.goal
-                        ? `Meta: ${tx.goal.name}`
-                        : tx.loan
-                          ? `Préstamo: ${tx.loan.name}`
-                          : tx.cardPurchase
-                            ? `Compra: ${tx.cardPurchase.merchant}`
-                            : tx.debt
-                              ? `Deuda: ${tx.debt.counterpartyName}`
-                              : tx.category?.name
-                  }
-                  subtitle={
-                    (tx.note || account.memberCount > 1) && (
-                      <>
-                        {tx.note && <div className="tx-row-note">{tx.note}</div>}
-                        {account.memberCount > 1 && <div className="tx-row-creator">{tx.createdBy.name}</div>}
-                      </>
-                    )
-                  }
-                  trailing={
-                    <>
-                      <div className="tx-row-date">{formatDateTime(tx.occurredAt)}</div>
-                      <Money
-                        amount={tx.amount}
-                        currency={tx.account.currency}
-                        tone={tx.type === 'INCOME' ? 'positive' : 'negative'}
-                        showSign
-                      />
-                    </>
-                  }
-                  actions={
-                    isLockedElsewhere ? (
-                      <span className="tx-row-locked" title="Edítalo desde donde se originó">
-                        🔒
-                      </span>
-                    ) : (
-                      <button className="link-danger" onClick={() => handleDelete(tx)}>
-                        ✕
-                      </button>
-                    )
-                  }
-                />
-              )
-            })}
-          </div>
         </>
       )}
     </Layout>

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   Home,
   Wallet,
+  CreditCard,
   PiggyBank,
   Target,
   Tags,
@@ -19,6 +20,9 @@ import {
   EyeOff,
   Moon,
   Sun,
+  Plus,
+  Camera,
+  Image as ImageIcon,
   type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -28,6 +32,8 @@ import * as api from '../lib/api'
 import { formatMoney } from '../lib/money'
 import { MoreMenu, type MoreMenuItem } from './MoreMenu'
 import { Fab, type FabAction } from './Fab'
+import { QuickTransactionModal } from './QuickTransactionModal'
+import { Button } from './ui/Button'
 import './Layout.css'
 
 interface NavItem {
@@ -43,7 +49,10 @@ const PRIMARY_ITEMS: NavItem[] = [
   { to: '/goals', label: 'Metas', icon: Target },
 ]
 
+const CARDS_ITEM: NavItem = { to: '/cards', label: 'Tarjetas', icon: CreditCard }
+
 const SECONDARY_ITEMS: MoreMenuItem[] = [
+  CARDS_ITEM,
   { to: '/categories', label: 'Categorías', icon: Tags },
   { to: '/debts', label: 'Deudas', icon: HandCoins },
   { to: '/loans', label: 'Préstamos', icon: Landmark },
@@ -55,14 +64,22 @@ const SECONDARY_ITEMS: MoreMenuItem[] = [
 // En el sidebar de escritorio (≥1024px) sí entran los 10 items en una sola
 // columna, sin necesitar el overflow "Más" que sí hace falta en el header
 // horizontal de mobile/tablet.
-const ALL_NAV_ITEMS: NavItem[] = [...PRIMARY_ITEMS, ...SECONDARY_ITEMS]
+const ALL_NAV_ITEMS: NavItem[] = [
+  ...PRIMARY_ITEMS.slice(0, 2),
+  CARDS_ITEM,
+  ...PRIMARY_ITEMS.slice(2),
+  ...SECONDARY_ITEMS.slice(1),
+]
 
 export function Layout({
   children,
   fabActions = [],
+  hideQuickTransaction = false,
 }: {
   children: ReactNode
   fabActions?: FabAction[]
+  /** La página de una cuenta ya tiene su propio "Nuevo movimiento" (con la cuenta conocida). */
+  hideQuickTransaction?: boolean
 }) {
   const { user, token, logout } = useAuth()
   const { hideValues, toggleHideValues } = usePrivacy()
@@ -71,6 +88,10 @@ export function Layout({
   const location = useLocation()
   const [usdRate, setUsdRate] = useState<number | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [quickOpen, setQuickOpen] = useState(false)
+  const [quickScanFile, setQuickScanFile] = useState<File | undefined>(undefined)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
@@ -93,6 +114,30 @@ export function Layout({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [userMenuOpen])
 
+  function openQuick() {
+    setQuickScanFile(undefined)
+    setQuickOpen(true)
+  }
+
+  // El input de archivo se dispara dentro del toque del usuario (los navegadores
+  // móviles bloquean abrirlo después de un render); la factura se lee ya en el modal.
+  function handleQuickScanFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setQuickScanFile(file)
+    setQuickOpen(true)
+  }
+
+  const allFabActions: FabAction[] = hideQuickTransaction
+    ? fabActions
+    : [
+        { label: 'Nuevo movimiento', icon: Plus, onClick: openQuick },
+        { label: 'Tomar foto de factura', icon: Camera, onClick: () => cameraInputRef.current?.click() },
+        { label: 'Elegir imagen de factura', icon: ImageIcon, onClick: () => galleryInputRef.current?.click() },
+        ...fabActions,
+      ]
+
   const secondaryActive = SECONDARY_ITEMS.some((item) => item.to === location.pathname)
 
   return (
@@ -101,6 +146,12 @@ export function Layout({
         <NavLink to="/" className="layout-sidebar-brand">
           Finanzas
         </NavLink>
+
+        {!hideQuickTransaction && (
+          <Button className="layout-sidebar-quick" onClick={openQuick}>
+            <Plus size={16} /> Nuevo movimiento
+          </Button>
+        )}
 
         <nav className="layout-sidebar-nav" aria-label="Navegación principal">
           {ALL_NAV_ITEMS.map((item) => (
@@ -186,6 +237,17 @@ export function Layout({
           </nav>
 
           <div className="layout-user" ref={userMenuRef}>
+            {!hideQuickTransaction && (
+              <button
+                type="button"
+                className="layout-privacy-toggle layout-quick-header-btn"
+                onClick={openQuick}
+                title="Nuevo movimiento"
+                aria-label="Nuevo movimiento"
+              >
+                <Plus size={18} />
+              </button>
+            )}
             <button
               type="button"
               className="layout-privacy-toggle"
@@ -269,7 +331,16 @@ export function Layout({
 
       <MoreMenu items={SECONDARY_ITEMS} open={moreOpen} onClose={() => setMoreOpen(false)} />
 
-      <Fab actions={fabActions} />
+      <Fab actions={allFabActions} />
+
+      {!hideQuickTransaction && (
+        <>
+          <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment" hidden onChange={handleQuickScanFile} />
+          <input ref={galleryInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={handleQuickScanFile} />
+        </>
+      )}
+
+      <QuickTransactionModal open={quickOpen} onClose={() => setQuickOpen(false)} scanFile={quickScanFile} />
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { HomePage } from './pages/HomePage'
 import { AccountsPage } from './pages/AccountsPage'
+import { CardsPage } from './pages/CardsPage'
 import { AccountTransactionsPage } from './pages/AccountTransactionsPage'
 import { CategoriesPage } from './pages/CategoriesPage'
 import { BudgetsPage } from './pages/BudgetsPage'
@@ -23,6 +24,7 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/accounts" element={<AccountsPage />} />
+        <Route path="/cards" element={<CardsPage />} />
         <Route path="/accounts/:accountId/transactions" element={<AccountTransactionsPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/budgets" element={<BudgetsPage />} />

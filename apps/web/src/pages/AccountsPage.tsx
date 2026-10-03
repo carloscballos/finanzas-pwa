@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Wallet } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Trash2, Wallet } from 'lucide-react'
 import { AccountForm } from '../components/AccountForm'
 import { Layout } from '../components/Layout'
 import { Badge } from '../components/ui/Badge'
@@ -16,13 +16,12 @@ import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Account } from '../lib/api'
 import { ACCOUNT_TYPE_LABELS } from '../lib/accountTypeLabels'
-import { computeAvailableCredit, formatMoneyMaybeHidden } from '../lib/money'
-import { usePrivacy } from '../context/PrivacyContext'
+import { onDataChanged } from '../lib/dataEvents'
 import './AccountsPage.css'
 
 export function AccountsPage() {
   const { token } = useAuth()
-  const { hideValues } = usePrivacy()
+  const navigate = useNavigate()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -33,9 +32,19 @@ export function AccountsPage() {
     if (!token) return
     api
       .getAccounts(token)
-      .then(setAccounts)
+      .then((all) => setAccounts(all.filter((a) => a.type !== 'CREDIT_CARD')))
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Error al cargar cuentas'))
       .finally(() => setLoading(false))
+  }, [token])
+
+  useEffect(() => {
+    if (!token) return
+    return onDataChanged(() => {
+      api
+        .getAccounts(token)
+        .then((all) => setAccounts(all.filter((a) => a.type !== 'CREDIT_CARD')))
+        .catch(() => {})
+    })
   }, [token])
 
   function handleCreated(account: Account) {
@@ -75,30 +84,43 @@ export function AccountsPage() {
 
       <CardGrid>
         {accounts.map((account) => (
-          <Card key={account.id} accent>
-            <CardHeader title={account.name} />
+          <Card
+            key={account.id}
+            accent
+            interactive
+            role="link"
+            tabIndex={0}
+            onClick={() => navigate(`/accounts/${account.id}/transactions`)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && e.target === e.currentTarget) navigate(`/accounts/${account.id}/transactions`)
+            }}
+          >
+            <CardHeader
+              title={account.name}
+              actions={
+                account.role === 'OWNER' ? (
+                  <button
+                    type="button"
+                    className="icon-danger-btn"
+                    title="Eliminar cuenta"
+                    aria-label={`Eliminar la cuenta ${account.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete(account)
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                ) : undefined
+              }
+            />
             <span className="account-type">{ACCOUNT_TYPE_LABELS[account.type]}</span>
             <Money amount={account.currentBalance} currency={account.currency} tone="balance" size="lg" />
-            {account.type === 'CREDIT_CARD' && account.creditLimit !== null && (
-              <div className="account-credit-info">
-                Disponible: {formatMoneyMaybeHidden(computeAvailableCredit(account.creditLimit, account.currentBalance), account.currency, hideValues)} de{' '}
-                {formatMoneyMaybeHidden(account.creditLimit, account.currency, hideValues)}
-                {account.paymentDueDay && ` · Paga el día ${account.paymentDueDay}`}
-              </div>
-            )}
             <div className="account-meta">
               <Badge tone={account.role === 'OWNER' ? 'ok' : 'neutral'}>
                 {account.role === 'OWNER' ? 'Propietario' : 'Miembro'}
               </Badge>
               {account.memberCount > 1 && <Badge tone="neutral">Compartida · {account.memberCount}</Badge>}
-            </div>
-            <div className="account-actions">
-              <Link to={`/accounts/${account.id}/transactions`}>Ver movimientos</Link>
-              {account.role === 'OWNER' && (
-                <button className="link-danger" onClick={() => handleDelete(account)}>
-                  Eliminar
-                </button>
-              )}
             </div>
           </Card>
         ))}

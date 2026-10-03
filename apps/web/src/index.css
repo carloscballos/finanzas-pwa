@@ -197,16 +197,34 @@ select {
 input,
 select {
   width: 100%;
-  padding: 0.6rem 0.75rem;
+  height: 35px;
+  padding: 0 0.75rem;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-control);
   background: var(--bg);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+/* El <select> nativo ignora padding y altura según el navegador (Safari lo
+   dibuja más bajo que un <input>). Se le quita la apariencia nativa para que
+   mida igual que los campos de texto, y la flecha se dibuja con los tokens
+   del tema (así también cambia con claro/oscuro). */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.25rem;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text) 50%),
+    linear-gradient(135deg, var(--text) 50%, transparent 50%);
+  background-position: calc(100% - 1.1rem) 50%, calc(100% - 0.8rem) 50%;
+  background-size: 0.3rem 0.3rem, 0.3rem 0.3rem;
+  background-repeat: no-repeat;
+}
+
 input[type='checkbox'],
 input[type='radio'] {
   width: auto;
+  height: auto;
   padding: 0;
   border: none;
   background: none;
@@ -254,6 +272,32 @@ select:focus-visible {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+/* Botones de ícono para acciones de una tarjeta o fila (editar, eliminar). No
+   navegan: el resto de la tarjeta puede ser clicable. */
+.icon-btn,
+.icon-danger-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-control);
+  border: 1px solid transparent;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.icon-danger-btn:hover {
+  color: var(--badge-error-fg);
+  background: var(--badge-error-bg);
 }
 
 .btn-secondary {

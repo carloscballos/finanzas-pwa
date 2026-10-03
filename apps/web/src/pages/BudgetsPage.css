@@ -2,6 +2,12 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.budget-card-header h3 {
+  margin: 0 0 0.15rem;
+  font-size: 1.05rem;
 }
 
 .budget-period {
@@ -20,11 +26,59 @@
   font-weight: 600;
 }
 
-.link-neutral {
-  background: none;
-  border: none;
-  color: var(--accent);
+.budget-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.budget-summary-card {
+  gap: 0.6rem;
+}
+
+.budget-summary-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.budget-summary-main {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.budget-summary-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   font-size: 0.8rem;
-  cursor: pointer;
-  padding: 0.25rem 0;
+  color: var(--text);
+}
+
+.budget-summary-badges {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.budget-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.budget-row-actions {
+  display: flex;
+  gap: 0.15rem;
+  flex-shrink: 0;
 }

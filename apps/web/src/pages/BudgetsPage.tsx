@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { PiggyBank } from 'lucide-react'
+import { PiggyBank, Pencil, Trash2 } from 'lucide-react'
 import { BudgetForm } from '../components/BudgetForm'
 import { Layout } from '../components/Layout'
 import { Button } from '../components/ui/Button'
+import { Badge } from '../components/ui/Badge'
 import { Card } from '../components/ui/Card'
-import { CardGrid } from '../components/ui/CardGrid'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Form, FormField, FormError } from '../components/ui/Form'
 import { Modal } from '../components/ui/Modal'
@@ -16,12 +16,48 @@ import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Budget, type BudgetPeriod, type Category } from '../lib/api'
 import { sanitizeDecimalInput } from '../lib/money'
+import { onDataChanged } from '../lib/dataEvents'
 import './BudgetsPage.css'
 
 function barTone(percentUsed: number): ProgressTone {
   if (percentUsed >= 100) return 'error'
   if (percentUsed >= 70) return 'warn'
   return 'ok'
+}
+
+// Los periodos del backend son UTC (mes calendario / semana de lunes a lunes) y
+// periodEnd es el INICIO del siguiente periodo, así que se formatea en UTC para
+// que "se reinicia el 1 nov" no se corra un día en zonas al oeste de UTC.
+function formatResetDate(iso: string): string {
+  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(iso))
+}
+
+interface BudgetGroupSummary {
+  key: string
+  currency: string
+  period: BudgetPeriod
+  count: number
+  limit: number
+  spent: number
+  exceeded: number
+  atRisk: number
+}
+
+// Un resumen por moneda y periodo: sumar un presupuesto semanal con uno mensual
+// (o COP con USD) no significaría nada.
+function summarize(budgets: Budget[]): BudgetGroupSummary[] {
+  const groups = new Map<string, BudgetGroupSummary>()
+  for (const b of budgets) {
+    const key = `${b.currency}-${b.period}`
+    const g = groups.get(key) ?? { key, currency: b.currency, period: b.period, count: 0, limit: 0, spent: 0, exceeded: 0, atRisk: 0 }
+    g.count += 1
+    g.limit += b.limitAmount
+    g.spent += b.spent
+    if (b.percentUsed >= 100) g.exceeded += 1
+    else if (b.percentUsed >= 70) g.atRisk += 1
+    groups.set(key, g)
+  }
+  return Array.from(groups.values())
 }
 
 export function BudgetsPage() {
@@ -49,6 +85,16 @@ export function BudgetsPage() {
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Error al cargar presupuestos'))
       .finally(() => setLoading(false))
+  }, [token])
+
+  useEffect(() => {
+    if (!token) return
+    return onDataChanged(() => {
+      api
+        .getBudgets(token)
+        .then(setBudgets)
+        .catch(() => {})
+    })
   }, [token])
 
   function handleCreated(budget: Budget) {
@@ -115,24 +161,79 @@ export function BudgetsPage() {
 
       {!loading && !error && budgets.length === 0 && <EmptyState>Todavía no tienes presupuestos.</EmptyState>}
 
-      <CardGrid>
+      {budgets.length > 0 && (
+        <section className="budget-summary" aria-label="Resumen de presupuestos">
+          {summarize(budgets).map((g) => {
+            const percent = g.limit > 0 ? (g.spent / g.limit) * 100 : 0
+            const remaining = g.limit - g.spent
+            return (
+              <Card key={g.key} className="budget-summary-card">
+                <div className="budget-summary-label">
+                  {g.currency} · {g.period === 'MONTHLY' ? 'Mensual' : 'Semanal'}
+                </div>
+                <div className="budget-summary-main">
+                  <Money amount={g.spent} currency={g.currency} size="lg" />
+                  <span>
+                    gastado de <Money amount={g.limit} currency={g.currency} />
+                  </span>
+                </div>
+                <ProgressBar value={percent} tone={barTone(percent)} height={10} />
+                <div className="budget-summary-foot">
+                  <span>
+                    {remaining >= 0 ? (
+                      <>
+                        <Money amount={remaining} currency={g.currency} /> disponible
+                      </>
+                    ) : (
+                      <>
+                        Excedido por <Money amount={-remaining} currency={g.currency} tone="negative" />
+                      </>
+                    )}
+                  </span>
+                  <span className="budget-summary-badges">
+                    {g.count} presupuesto{g.count !== 1 ? 's' : ''}
+                    {g.exceeded > 0 && <Badge tone="error">{g.exceeded} excedido{g.exceeded !== 1 ? 's' : ''}</Badge>}
+                    {g.atRisk > 0 && <Badge tone="warn">{g.atRisk} cerca del límite</Badge>}
+                  </span>
+                </div>
+              </Card>
+            )
+          })}
+        </section>
+      )}
+
+      <div className="budget-list">
         {budgets.map((budget) => (
-          <Card key={budget.id}>
+          <Card key={budget.id} className="budget-row">
             <div className="budget-card-header">
               <div>
                 <h3>
                   {budget.category.emoji ? `${budget.category.emoji} ` : ''}
                   {budget.category.name}
                 </h3>
-                <span className="budget-period">{budget.period === 'MONTHLY' ? 'Mensual' : 'Semanal'}</span>
+                <span className="budget-period">
+                  {budget.period === 'MONTHLY' ? 'Mensual' : 'Semanal'} · se reinicia el {formatResetDate(budget.periodEnd)}
+                </span>
               </div>
               {editingId !== budget.id && (
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button className="link-neutral" onClick={() => startEdit(budget)}>
-                    Editar
+                <div className="budget-row-actions">
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    title="Editar presupuesto"
+                    aria-label={`Editar el presupuesto de ${budget.category.name}`}
+                    onClick={() => startEdit(budget)}
+                  >
+                    <Pencil size={16} />
                   </button>
-                  <button className="link-danger" onClick={() => handleDelete(budget)}>
-                    Eliminar
+                  <button
+                    type="button"
+                    className="icon-danger-btn"
+                    title="Eliminar presupuesto"
+                    aria-label={`Eliminar el presupuesto de ${budget.category.name}`}
+                    onClick={() => handleDelete(budget)}
+                  >
+                    <Trash2 size={16} />
                   </button>
                 </div>
               )}
@@ -198,7 +299,7 @@ export function BudgetsPage() {
             )}
           </Card>
         ))}
-      </CardGrid>
+      </div>
     </Layout>
   )
 }

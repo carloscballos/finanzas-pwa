@@ -45,8 +45,8 @@
 }
 
 .home-tile {
-  flex: 0 0 16rem;
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: 16rem;
   scroll-snap-align: start;
   display: flex;
   flex-direction: column;
@@ -58,6 +58,7 @@
 .home-tile-label {
   display: flex;
   align-items: center;
+  min-height: 1.6rem; /* igual con o sin insignia, para que los valores queden alineados entre tarjetas */
   justify-content: space-between;
   gap: 0.5rem;
   font-size: 0.75rem;
@@ -115,4 +116,17 @@
 button.home-tile-add {
   font-family: inherit;
   cursor: pointer;
+}
+
+/* Filas "concepto ........ monto" dentro de la tarjeta (proyección). */
+.home-tile-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.home-tile-lines > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
 }

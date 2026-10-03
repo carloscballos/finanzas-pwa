@@ -15,14 +15,6 @@
   margin-top: 0.25rem;
 }
 
-.account-actions {
-  margin-top: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.85rem;
-}
-
 .link-danger {
   background: none;
   border: none;
@@ -30,4 +22,8 @@
   font-size: 0.8rem;
   cursor: pointer;
   padding: 0.25rem 0;
+}
+
+.ui-card[role='link'] {
+  cursor: pointer;
 }

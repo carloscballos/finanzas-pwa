@@ -8,19 +8,21 @@ import { ACCOUNT_TYPE_LABELS } from '../lib/accountTypeLabels'
 import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
 import { sanitizeDecimalInput } from '../lib/money'
 
-const ACCOUNT_TYPES = Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]
+// Las tarjetas de crédito tienen su propio formulario (kind="card"); la lista de
+// tipos de una cuenta normal no las incluye.
+const ACCOUNT_TYPES = (Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]).filter((t) => t !== 'CREDIT_CARD')
 
 /** Formulario de nueva cuenta, compartido por la página de Cuentas y el Home (ambos lo muestran en un Modal). */
 export function AccountForm({
-  defaultType = 'SAVINGS',
+  kind = 'account',
   onCreated,
 }: {
-  defaultType?: AccountType
+  kind?: 'account' | 'card'
   onCreated: (account: Account) => void
 }) {
   const { token } = useAuth()
   const [name, setName] = useState('')
-  const [type, setType] = useState<AccountType>(defaultType)
+  const [type, setType] = useState<AccountType>(kind === 'card' ? 'CREDIT_CARD' : 'SAVINGS')
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY)
   const [initialBalance, setInitialBalance] = useState('0')
   const [creditLimit, setCreditLimit] = useState('')
@@ -59,18 +61,20 @@ export function AccountForm({
           onChange={(e) => setName(e.target.value)}
           required
           autoFocus
-          placeholder="Ahorros Banorte"
+          placeholder={kind === 'card' ? 'Visa Platino' : 'Ahorros Banorte'}
         />
       </FormField>
-      <FormField label="Tipo" htmlFor="acc-type">
-        <select id="acc-type" value={type} onChange={(e) => setType(e.target.value as AccountType)}>
-          {ACCOUNT_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {ACCOUNT_TYPE_LABELS[t]}
-            </option>
-          ))}
-        </select>
-      </FormField>
+      {kind === 'account' && (
+        <FormField label="Tipo" htmlFor="acc-type">
+          <select id="acc-type" value={type} onChange={(e) => setType(e.target.value as AccountType)}>
+            {ACCOUNT_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {ACCOUNT_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </select>
+        </FormField>
+      )}
       <FormField label="Moneda" htmlFor="acc-currency">
         <select id="acc-currency" value={currency} onChange={(e) => setCurrency(e.target.value as typeof currency)}>
           {CURRENCIES.map((c) => (
@@ -124,7 +128,7 @@ export function AccountForm({
         </>
       )}
       <Button type="submit" disabled={creating}>
-        {creating ? 'Creando…' : 'Crear cuenta'}
+        {creating ? 'Creando…' : kind === 'card' ? 'Crear tarjeta' : 'Crear cuenta'}
       </Button>
     </Form>
   )

@@ -474,3 +474,16 @@
 .layout-bottom-nav-item.active {
   color: var(--accent);
 }
+
+/* "Nuevo movimiento" global: botón primario arriba del menú lateral. */
+.layout-sidebar-quick {
+  width: 100%;
+  margin: 0 0 var(--space-3);
+}
+
+/* En celular el botón flotante ya hace de "Nuevo movimiento"; el del encabezado es para tablet. */
+@media (max-width: 767px) {
+  .layout-quick-header-btn {
+    display: none;
+  }
+}

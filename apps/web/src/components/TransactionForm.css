@@ -1,0 +1,32 @@
+.tx-template-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.tx-template-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 400;
+}
+
+.tx-scan-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tx-scan-status {
+  font-size: 0.85rem;
+  color: var(--text);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-control);
+  padding: 0.5rem 0.75rem;
+}
+
+.tx-scan-status-error {
+  background: var(--badge-warn-bg);
+  color: var(--badge-warn-fg);
+}

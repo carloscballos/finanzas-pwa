@@ -62,6 +62,13 @@
   overflow-y: auto;
 }
 
+/* Formularios dentro del modal: un campo por línea, también en pantallas
+   anchas (fuera del modal los formularios siguen en dos columnas). */
+.ui-modal-body .ui-form {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
 /* Celular: hoja pegada al borde inferior, como el resto de patrones táctiles. */
 @media (max-width: 767px) {
   .ui-modal {
