@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DebtPaymentStatus, DebtStatus, NotificationType, TransactionType } from '@prisma/client';
+import { formatMoney } from '../common/format-money';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
 import { AccountsService } from '../accounts/accounts.service';
@@ -65,8 +66,8 @@ export class DebtsService {
       type: NotificationType.DEBT_CREATED,
       title:
         dto.direction === DebtDirection.THEY_OWE_ME
-          ? `${actorName} registró que le debes ${this.money(Number(created.amount), created.currency)}`
-          : `${actorName} registró que te debe ${this.money(Number(created.amount), created.currency)}`,
+          ? `${actorName} registró que le debes ${formatMoney(Number(created.amount), created.currency)}`
+          : `${actorName} registró que te debe ${formatMoney(Number(created.amount), created.currency)}`,
       body: dto.description,
       link: '/debts',
     });
@@ -130,7 +131,7 @@ export class DebtsService {
 
     await this.notificationsService.notify(counterpartyUserId, {
       type: NotificationType.DEBT_PAYMENT_PENDING,
-      title: `${this.partyName(updated, userId)} registró un abono de ${this.money(amount, debt.currency)}`,
+      title: `${this.partyName(updated, userId)} registró un abono de ${formatMoney(amount, debt.currency)}`,
       body: 'Confírmalo o recházalo en Deudas',
       link: '/debts',
     });
@@ -171,7 +172,7 @@ export class DebtsService {
     );
     await this.notificationsService.notify(payment.createdByUserId, {
       type: NotificationType.DEBT_PAYMENT_CONFIRMED,
-      title: `${this.partyName(updated, userId)} confirmó tu abono de ${this.money(Number(payment.amount), debt.currency)}`,
+      title: `${this.partyName(updated, userId)} confirmó tu abono de ${formatMoney(Number(payment.amount), debt.currency)}`,
       link: '/debts',
     });
     return DebtMapper.toResponse(updated, userId);
@@ -187,7 +188,7 @@ export class DebtsService {
     const updated = await this.debtsRepository.resolvePayment(id, paymentId, DebtPaymentStatus.REJECTED);
     await this.notificationsService.notify(payment.createdByUserId, {
       type: NotificationType.DEBT_PAYMENT_REJECTED,
-      title: `${this.partyName(updated, userId)} rechazó tu abono de ${this.money(Number(payment.amount), debt.currency)}`,
+      title: `${this.partyName(updated, userId)} rechazó tu abono de ${formatMoney(Number(payment.amount), debt.currency)}`,
       link: '/debts',
     });
     return DebtMapper.toResponse(updated, userId);
@@ -207,10 +208,6 @@ export class DebtsService {
   // Nombre de quien actúa (el usuario `userId`) tal como aparece en la deuda.
   private partyName(debt: DebtWithParties, userId: string): string {
     return (debt.creditorId === userId ? debt.creditor : debt.debtor)?.name ?? 'Alguien';
-  }
-
-  private money(amount: number, currency: string): string {
-    return new Intl.NumberFormat('es-CO', { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount);
   }
 
   // Cuenta inexistente y deuda ajena se tratan igual (404) para no revelar

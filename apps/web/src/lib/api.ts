@@ -962,6 +962,9 @@ export type NotificationType =
   | 'DEBT_PAYMENT_PENDING'
   | 'DEBT_PAYMENT_CONFIRMED'
   | 'DEBT_PAYMENT_REJECTED'
+  | 'BUDGET_WARNING'
+  | 'BUDGET_EXCEEDED'
+  | 'SHARED_ACCOUNT_TRANSACTION'
 
 export interface AppNotification {
   id: string

@@ -27,6 +27,9 @@
   margin-bottom: var(--space-3);
   position: relative;
   z-index: 46;
+  /* Cerrado, los botones están invisibles pero ocupan espacio: sin esto el
+     contenedor tapa lo que hay encima del "+" y se come los toques. */
+  pointer-events: none;
 }
 
 .fab-action {
@@ -41,6 +44,13 @@
   transform: translateY(8px) scale(0.9);
   pointer-events: none;
   transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.fab-actions:not(.open) {
+  /* Refuerzo: cerrado, nada de esto es tocable ni visible para lectores de
+     pantalla. El retraso deja terminar el desvanecimiento al cerrar. */
+  visibility: hidden;
+  transition: visibility 0s linear 0.2s;
 }
 
 .fab-actions.open .fab-action {

@@ -1,5 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { TransactionType, TransactionStatus } from '@prisma/client';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { NotificationType, TransactionType, TransactionStatus } from '@prisma/client';
+import { formatMoney } from '../common/format-money';
+import { BudgetAlertsService } from '../budgets/budget-alerts.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { CategoriesService } from '../categories/categories.service';
 import { TransactionsRepository } from './transactions.repository';
@@ -13,11 +16,15 @@ import { ReceiptExtractionService, type ReceiptMediaType } from './receipt-extra
 
 @Injectable()
 export class TransactionsService {
+  private readonly logger = new Logger(TransactionsService.name);
+
   constructor(
     private readonly transactionsRepository: TransactionsRepository,
     private readonly accountsService: AccountsService,
     private readonly categoriesService: CategoriesService,
     private readonly receiptExtractionService: ReceiptExtractionService,
+    private readonly budgetAlertsService: BudgetAlertsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findAll(
@@ -80,6 +87,9 @@ export class TransactionsService {
     }
 
     const created = await this.transactionsRepository.create(userId, dto);
+    if (created.status === TransactionStatus.CONFIRMED) {
+      await this.afterMovementConfirmed(userId, created);
+    }
     return TransactionMapper.toResponse(created);
   }
 
@@ -128,6 +138,11 @@ export class TransactionsService {
     }
 
     const updated = await this.transactionsRepository.update(id, dto);
+    // Los pagos del Shortcut de Wallet nacen PENDING y se confirman con un
+    // update: ahí es cuando recién cuentan para presupuestos y miembros.
+    if (existing.status === TransactionStatus.PENDING && updated.status === TransactionStatus.CONFIRMED) {
+      await this.afterMovementConfirmed(userId, updated);
+    }
     return TransactionMapper.toResponse(updated);
   }
 
@@ -135,6 +150,41 @@ export class TransactionsService {
     const existing = await this.getAccessibleTransaction(userId, id);
     this.assertEditable(existing);
     await this.transactionsRepository.delete(id);
+  }
+
+  // Efectos laterales de un movimiento que acaba de quedar confirmado: revisar
+  // los presupuestos de quien lo registró y avisar a los demás miembros de la
+  // cuenta. Ninguno lanza, así que no afectan al movimiento ya guardado.
+  private async afterMovementConfirmed(
+    userId: string,
+    transaction: TransactionWithRelations,
+  ): Promise<void> {
+    if (transaction.type === TransactionType.EXPENSE && transaction.categoryId) {
+      await this.budgetAlertsService.checkAfterExpense(userId, {
+        categoryId: transaction.categoryId,
+        currency: transaction.account.currency,
+        amount: Number(transaction.amount),
+        occurredAt: transaction.occurredAt,
+      });
+    }
+
+    try {
+      const account = await this.accountsService.getAccessibleAccount(userId, transaction.accountId);
+      const others = account.members.filter((member) => member.userId !== userId);
+      const what = transaction.type === TransactionType.EXPENSE ? 'un gasto' : 'un ingreso';
+      await Promise.all(
+        others.map((member) =>
+          this.notificationsService.notify(member.userId, {
+            type: NotificationType.SHARED_ACCOUNT_TRANSACTION,
+            title: `${transaction.createdBy.name} registró ${what} de ${formatMoney(Number(transaction.amount), transaction.account.currency)} en ${account.name}`,
+            body: transaction.note ?? undefined,
+            link: `/accounts/${account.id}/transactions`,
+          }),
+        ),
+      );
+    } catch (error) {
+      this.logger.error(`No se pudo avisar a los miembros de la cuenta ${transaction.accountId}`, error);
+    }
   }
 
   // Puramente de lectura — no crea ni modifica nada. Solo sugiere valores

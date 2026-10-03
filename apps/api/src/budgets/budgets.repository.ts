@@ -35,6 +35,18 @@ export class BudgetsRepository {
     });
   }
 
+  // Un mismo gasto puede afectar a un presupuesto semanal y a uno mensual.
+  findAllByCategoryAndCurrency(
+    userId: string,
+    categoryId: string,
+    currency: string,
+  ): Promise<BudgetWithCategory[]> {
+    return this.prisma.budget.findMany({
+      where: { userId, categoryId, currency },
+      include: WITH_CATEGORY,
+    });
+  }
+
   create(userId: string, dto: CreateBudgetDto): Promise<BudgetWithCategory> {
     return this.prisma.budget.create({
       data: {
