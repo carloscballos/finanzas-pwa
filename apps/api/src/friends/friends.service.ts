@@ -1,3 +1,5 @@
+import { NotificationType } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { FriendsRepository } from './friends.repository';
@@ -11,6 +13,7 @@ export class FriendsService {
   constructor(
     private readonly friendsRepository: FriendsRepository,
     private readonly usersService: UsersService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findReceived(userId: string): Promise<FriendRequestResponseDto[]> {
@@ -51,6 +54,11 @@ export class FriendsService {
     }
 
     const created = await this.friendsRepository.create(userId, target.id);
+    await this.notificationsService.notify(target.id, {
+      type: NotificationType.FRIEND_REQUEST_RECEIVED,
+      title: `${created.requestedBy.name} quiere ser tu amigo`,
+      link: '/friends',
+    });
     return FriendRequestMapper.toResponse(created);
   }
 
@@ -60,6 +68,11 @@ export class FriendsService {
       throw new ConflictException('Esta solicitud ya no está pendiente');
     }
     const updated = await this.friendsRepository.updateStatus(id, 'ACCEPTED');
+    await this.notificationsService.notify(updated.requestedByUserId, {
+      type: NotificationType.FRIEND_REQUEST_ACCEPTED,
+      title: `${updated.requestedTo.name} aceptó tu solicitud de amistad`,
+      link: '/friends',
+    });
     return FriendRequestMapper.toResponse(updated);
   }
 

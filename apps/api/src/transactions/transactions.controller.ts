@@ -10,12 +10,15 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+import { TransactionStatus } from '@prisma/client';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Auth } from '../common/decorators/auth.decorator';
+import { ApiKeyScope, TRANSACTIONS_CREATE_SCOPE } from '../common/decorators/api-key-scope.decorator';
 import { CurrentUser, type AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -59,7 +62,12 @@ export class TransactionsController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Registrar un movimiento (ingreso o gasto)' })
+  @ApiKeyScope(TRANSACTIONS_CREATE_SCOPE)
+  @ApiOperation({
+    summary: 'Registrar un movimiento (ingreso o gasto)',
+    description:
+      'Con el token del Shortcut (Apple Wallet) solo se registra un pago PENDIENTE: se ignoran cuenta, categoría y estado, y se completan al revisarlo en la app.',
+  })
   @ApiResponse({ status: 201, type: TransactionResponseDto })
   @ApiResponse({
     status: 400,
@@ -70,7 +78,18 @@ export class TransactionsController {
   create(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateTransactionDto,
+    @Req() request: { viaApiKey?: boolean },
   ): Promise<TransactionResponseDto> {
+    if (request.viaApiKey) {
+      const { type, amount, note, occurredAt } = dto;
+      return this.transactionsService.create(user.id, {
+        type,
+        amount,
+        note,
+        occurredAt,
+        status: TransactionStatus.PENDING,
+      });
+    }
     return this.transactionsService.create(user.id, dto);
   }
 

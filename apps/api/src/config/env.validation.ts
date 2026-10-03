@@ -18,4 +18,10 @@ export const envValidationSchema = Joi.object({
   // Railway (ver "Despliegue" en este archivo) — si no, el próximo deploy
   // crashea al arrancar por esta misma validación.
   ANTHROPIC_API_KEY: Joi.string().optional(),
+  // Web Push (VAPID). Opcionales: sin ellas no se envía ningún push y
+  // GET /push/public-key responde enabled:false; la campana dentro de la app
+  // sigue funcionando. Los tres van juntos. Ojo: agregarlas también en Railway.
+  VAPID_PUBLIC_KEY: Joi.string().optional(),
+  VAPID_PRIVATE_KEY: Joi.string().optional(),
+  VAPID_SUBJECT: Joi.string().optional(),
 });

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { envValidationSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
@@ -20,6 +22,8 @@ import { TransfersModule } from './transfers/transfers.module';
 import { LoansModule } from './loans/loans.module';
 import { CardPurchasesModule } from './card-purchases/card-purchases.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { PushModule } from './push/push.module';
 
 @Module({
   imports: [
@@ -39,6 +43,8 @@ import { ApiKeysModule } from './api-keys/api-keys.module';
         },
       }),
     }),
+    // Límite general por IP; /auth/login y /auth/register tienen uno más estricto.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     PrismaModule,
     HealthModule,
     AuthModule,
@@ -57,6 +63,9 @@ import { ApiKeysModule } from './api-keys/api-keys.module';
     LoansModule,
     CardPurchasesModule,
     ApiKeysModule,
+    NotificationsModule,
+    PushModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

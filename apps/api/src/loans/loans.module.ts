@@ -8,5 +8,6 @@ import { LoansRepository } from './loans.repository';
   imports: [AccountsModule],
   controllers: [LoansController],
   providers: [LoansService, LoansRepository],
+  exports: [LoansService],
 })
 export class LoansModule {}

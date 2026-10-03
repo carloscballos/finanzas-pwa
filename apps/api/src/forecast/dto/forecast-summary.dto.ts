@@ -9,7 +9,7 @@ export class ForecastSummaryDto {
 
   @ApiProperty({
     example: 3200,
-    description: 'Gasto mensual proyectado: movimientos recurrentes activos + cuota mensual de compras a cuotas activas',
+    description: 'Gasto mensual proyectado: movimientos recurrentes activos + cuotas de compras a cuotas y de préstamos activos',
   })
   projectedMonthlyExpense: number;
 
@@ -18,6 +18,12 @@ export class ForecastSummaryDto {
     description: 'De projectedMonthlyExpense, cuánto corresponde a cuotas de compras a crédito activas (ya incluido, se muestra aparte para transparencia)',
   })
   projectedMonthlyCardInstallments: number;
+
+  @ApiProperty({
+    example: 300,
+    description: 'De projectedMonthlyExpense, cuánto corresponde a cuotas de préstamos activos (ya incluido, se muestra aparte)',
+  })
+  projectedMonthlyLoanInstallments: number;
 
   @ApiProperty({ example: 1800 })
   projectedMonthlyNet: number;

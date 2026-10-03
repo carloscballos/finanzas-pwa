@@ -1,3 +1,5 @@
+import { NotificationType } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AccountsService } from '../accounts/accounts.service';
 import { UsersService } from '../users/users.service';
@@ -12,6 +14,7 @@ export class AccountInvitationsService {
     private readonly invitationsRepository: AccountInvitationsRepository,
     private readonly accountsService: AccountsService,
     private readonly usersService: UsersService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findMine(userId: string): Promise<InvitationResponseDto[]> {
@@ -49,6 +52,11 @@ export class AccountInvitationsService {
       invitedUserId: invitedUser.id,
       invitedByUserId: userId,
     });
+    await this.notificationsService.notify(invitedUser.id, {
+      type: NotificationType.ACCOUNT_INVITATION_RECEIVED,
+      title: `${created.invitedBy.name} te invitó a la cuenta ${created.account.name}`,
+      link: '/invitations',
+    });
     return InvitationMapper.toResponse(created);
   }
 
@@ -58,6 +66,11 @@ export class AccountInvitationsService {
       throw new ConflictException('Esta invitación ya no está pendiente');
     }
     const updated = await this.invitationsRepository.accept(invitation);
+    await this.notificationsService.notify(updated.invitedByUserId, {
+      type: NotificationType.ACCOUNT_INVITATION_ACCEPTED,
+      title: `${updated.invitedUser.name} aceptó unirse a ${updated.account.name}`,
+      link: `/accounts/${updated.accountId}/transactions`,
+    });
     return InvitationMapper.toResponse(updated);
   }
 

@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { DebtPaymentStatus, DebtStatus, TransactionType } from '@prisma/client';
+import { DebtPaymentStatus, DebtStatus, NotificationType, TransactionType } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { DebtsRepository, DebtPaymentTransactionInfo } from './debts.repository';
@@ -14,6 +15,7 @@ export class DebtsService {
     private readonly debtsRepository: DebtsRepository,
     private readonly usersService: UsersService,
     private readonly accountsService: AccountsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findAllForUser(userId: string): Promise<DebtResponseDto[]> {
@@ -57,6 +59,16 @@ export class DebtsService {
       amount: dto.amount,
       currency: dto.currency,
       description: dto.description,
+    });
+    const actorName = this.partyName(created, userId);
+    await this.notificationsService.notify(counterpartyUserId, {
+      type: NotificationType.DEBT_CREATED,
+      title:
+        dto.direction === DebtDirection.THEY_OWE_ME
+          ? `${actorName} registró que le debes ${this.money(Number(created.amount), created.currency)}`
+          : `${actorName} registró que te debe ${this.money(Number(created.amount), created.currency)}`,
+      body: dto.description,
+      link: '/debts',
     });
     return DebtMapper.toResponse(created, userId);
   }
@@ -116,6 +128,13 @@ export class DebtsService {
       counterpartyUserId ? null : txInfo,
     );
 
+    await this.notificationsService.notify(counterpartyUserId, {
+      type: NotificationType.DEBT_PAYMENT_PENDING,
+      title: `${this.partyName(updated, userId)} registró un abono de ${this.money(amount, debt.currency)}`,
+      body: 'Confírmalo o recházalo en Deudas',
+      link: '/debts',
+    });
+
     return DebtMapper.toResponse(updated, userId);
   }
 
@@ -150,6 +169,11 @@ export class DebtsService {
       Number(payment.amount),
       confirmTx,
     );
+    await this.notificationsService.notify(payment.createdByUserId, {
+      type: NotificationType.DEBT_PAYMENT_CONFIRMED,
+      title: `${this.partyName(updated, userId)} confirmó tu abono de ${this.money(Number(payment.amount), debt.currency)}`,
+      link: '/debts',
+    });
     return DebtMapper.toResponse(updated, userId);
   }
 
@@ -161,6 +185,11 @@ export class DebtsService {
     }
 
     const updated = await this.debtsRepository.resolvePayment(id, paymentId, DebtPaymentStatus.REJECTED);
+    await this.notificationsService.notify(payment.createdByUserId, {
+      type: NotificationType.DEBT_PAYMENT_REJECTED,
+      title: `${this.partyName(updated, userId)} rechazó tu abono de ${this.money(Number(payment.amount), debt.currency)}`,
+      link: '/debts',
+    });
     return DebtMapper.toResponse(updated, userId);
   }
 
@@ -173,6 +202,15 @@ export class DebtsService {
       throw new ConflictException('No puedes eliminar una deuda que ya está liquidada');
     }
     await this.debtsRepository.delete(id);
+  }
+
+  // Nombre de quien actúa (el usuario `userId`) tal como aparece en la deuda.
+  private partyName(debt: DebtWithParties, userId: string): string {
+    return (debt.creditorId === userId ? debt.creditor : debt.debtor)?.name ?? 'Alguien';
+  }
+
+  private money(amount: number, currency: string): string {
+    return new Intl.NumberFormat('es-CO', { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount);
   }
 
   // Cuenta inexistente y deuda ajena se tratan igual (404) para no revelar

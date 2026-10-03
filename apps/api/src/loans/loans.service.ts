@@ -34,6 +34,17 @@ export class LoansService {
     return LoanMapper.toResponseList(loans);
   }
 
+  /** Cuota mensual de los préstamos activos, por moneda (para la proyección). */
+  async getActiveMonthlyInstallmentTotals(userId: string): Promise<{ currency: string; total: number }[]> {
+    const loans = await this.loansRepository.findAllForUser(userId);
+    const byCurrency = new Map<string, number>();
+    for (const loan of loans) {
+      if (loan.status !== 'ACTIVE') continue;
+      byCurrency.set(loan.currency, round2((byCurrency.get(loan.currency) ?? 0) + Number(loan.installmentAmount)));
+    }
+    return Array.from(byCurrency.entries()).map(([currency, total]) => ({ currency, total }));
+  }
+
   async findOne(userId: string, id: string): Promise<LoanResponseDto> {
     const loan = await this.getOwnedLoan(userId, id);
     return LoanMapper.toResponse(loan);

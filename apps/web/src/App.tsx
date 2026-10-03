@@ -14,6 +14,7 @@ import { FriendsPage } from './pages/FriendsPage'
 import { InvitationsPage } from './pages/InvitationsPage'
 import { ForecastPage } from './pages/ForecastPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { NotificationSettingsPage } from './pages/NotificationSettingsPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
         <Route path="/invitations" element={<InvitationsPage />} />
         <Route path="/forecast" element={<ForecastPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings/notifications" element={<NotificationSettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

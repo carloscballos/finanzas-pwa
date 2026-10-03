@@ -82,3 +82,74 @@
 .loan-field-hint {
   font-size: 0.8rem;
 }
+
+/* Préstamos rediseñado (filas anchas). Las clases `loan-*` de arriba las
+   siguen usando CardPurchaseCard (AccountTransactionsPage) y LoanForm: no borrar. */
+.loan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.loan-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.loan-row-header h3 {
+  margin: 0 0 0.15rem;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.loan-row-actions {
+  display: flex;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.loan-percent {
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.loan-row-pay {
+  display: flex;
+  margin-top: 0.25rem;
+}
+
+.loan-paid-section {
+  margin: 1.5rem 0;
+}
+
+.loan-paid-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: none;
+  padding: 0.25rem 0;
+  margin-bottom: 0.75rem;
+  color: var(--text-h);
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.loan-paid-toggle:hover {
+  color: var(--accent);
+}
+
+.loan-paid-chevron {
+  transition: transform 0.15s ease;
+}
+
+.loan-paid-chevron.open {
+  transform: rotate(180deg);
+}

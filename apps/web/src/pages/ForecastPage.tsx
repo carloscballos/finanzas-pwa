@@ -1,29 +1,26 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Trash2 } from 'lucide-react'
 import { Layout } from '../components/Layout'
+import { RecurringForm } from '../components/RecurringForm'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
-import { Card } from '../components/ui/Card'
-import { CardGrid } from '../components/ui/CardGrid'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Form, FormField, FormError } from '../components/ui/Form'
 import { IconChip } from '../components/ui/IconChip'
 import { ListRow } from '../components/ui/ListRow'
+import { Modal } from '../components/ui/Modal'
 import { Money } from '../components/ui/Money'
 import { SectionHeader } from '../components/ui/SectionHeader'
-import { SegmentedControl } from '../components/ui/SegmentedControl'
+import { SummaryCard, SummaryGrid } from '../components/ui/SummaryCard'
 import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import {
   ApiError,
-  type Account,
   type BudgetSuggestion,
-  type Category,
   type ForecastSummary,
   type RecurrenceFrequency,
   type RecurringTransaction,
-  type TransactionType,
 } from '../lib/api'
 import { dateTimeInputToIso, formatDateOnly, nowDateTimeInput } from '../lib/dates'
 import { formatMoneyMaybeHidden, sanitizeDecimalInput } from '../lib/money'
@@ -31,10 +28,72 @@ import { usePrivacy } from '../context/PrivacyContext'
 import './ForecastPage.css'
 
 const FREQUENCY_LABELS: Record<RecurrenceFrequency, string> = {
-  WEEKLY: 'Semanal',
+  WEEKLY: 'Cada semana',
   SEMIMONTHLY: 'Quincenal',
-  MONTHLY: 'Mensual',
-  YEARLY: 'Anual',
+  MONTHLY: 'Cada mes',
+  YEARLY: 'Cada año',
+}
+
+// Mismo criterio que el backend (ForecastService.toMonthlyEquivalent).
+function monthlyEquivalent(amount: number, frequency: RecurrenceFrequency): number {
+  if (frequency === 'WEEKLY') return (amount * 52) / 12
+  if (frequency === 'SEMIMONTHLY') return amount * 2
+  if (frequency === 'YEARLY') return amount / 12
+  return amount
+}
+
+function ApplyForm({ item, onDone }: { item: RecurringTransaction; onDone: () => void }) {
+  const { token } = useAuth()
+  const [amount, setAmount] = useState(String(item.amount))
+  const [note, setNote] = useState(item.note ?? '')
+  const [date, setDate] = useState(nowDateTimeInput())
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (!token) return
+    setSaving(true)
+    setError(null)
+    try {
+      await api.applyRecurringTransaction(token, item.id, {
+        amount: Number(amount),
+        note: note || undefined,
+        occurredAt: dateTimeInputToIso(date),
+      })
+      onDone()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo guardar el movimiento')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Form onSubmit={submit}>
+      <FormError>{error}</FormError>
+      <FormField label={`Monto (${item.account.currency})`} htmlFor="apply-amount">
+        <input
+          id="apply-amount"
+          type="number"
+          step="0.01"
+          min="0.01"
+          value={amount}
+          onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value))}
+          required
+        />
+      </FormField>
+      <FormField label="Fecha y hora" htmlFor="apply-date">
+        <input id="apply-date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} required />
+      </FormField>
+      <FormField label="Nota (opcional)" htmlFor="apply-note" full>
+        <input id="apply-note" value={note} onChange={(e) => setNote(e.target.value)} />
+      </FormField>
+      <Button type="submit" disabled={saving}>
+        {saving ? 'Guardando…' : 'Registrar movimiento'}
+      </Button>
+    </Form>
+  )
 }
 
 export function ForecastPage() {
@@ -43,89 +102,26 @@ export function ForecastPage() {
   const [summary, setSummary] = useState<ForecastSummary[]>([])
   const [suggestions, setSuggestions] = useState<BudgetSuggestion[]>([])
   const [recurring, setRecurring] = useState<RecurringTransaction[]>([])
-  const [accounts, setAccounts] = useState<Account[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [creatingBudgetFor, setCreatingBudgetFor] = useState<string | null>(null)
+  const [applying, setApplying] = useState<RecurringTransaction | null>(null)
 
   const { open: showForm, toggle: toggleForm, close: closeForm } = useCreateFormToggle()
-  const [accountId, setAccountId] = useState('')
-  const [type, setType] = useState<TransactionType>('EXPENSE')
-  const [categoryId, setCategoryId] = useState('')
-  const [amount, setAmount] = useState('')
-  const [frequency, setFrequency] = useState<RecurrenceFrequency>('MONTHLY')
-  const [note, setNote] = useState('')
-  const [creating, setCreating] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-
-  const [applyingId, setApplyingId] = useState<string | null>(null)
-  const [applyAmount, setApplyAmount] = useState('')
-  const [applyNote, setApplyNote] = useState('')
-  const [applyDate, setApplyDate] = useState('')
-  const [applying, setApplying] = useState(false)
-  const [applyError, setApplyError] = useState<string | null>(null)
 
   function loadAll() {
     if (!token) return
-    Promise.all([
-      api.getForecastSummary(token),
-      api.getBudgetSuggestions(token),
-      api.getRecurringTransactions(token),
-      api.getAccounts(token),
-      api.getCategories(token),
-    ])
-      .then(([s, sug, r, a, c]) => {
+    Promise.all([api.getForecastSummary(token), api.getBudgetSuggestions(token), api.getRecurringTransactions(token)])
+      .then(([s, sug, r]) => {
         setSummary(s)
         setSuggestions(sug)
         setRecurring(r)
-        setAccounts(a)
-        setCategories(c)
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Error al cargar la proyección'))
       .finally(() => setLoading(false))
   }
 
   useEffect(loadAll, [token])
-
-  const categoriesForType = categories.filter((c) => c.type === type)
-
-  function selectType(next: TransactionType) {
-    setType(next)
-    setCategoryId('')
-  }
-
-  async function handleCreate(event: FormEvent) {
-    event.preventDefault()
-    if (!token) return
-    if (!accountId || !categoryId) {
-      setFormError('Elige cuenta y categoría')
-      return
-    }
-    setFormError(null)
-    setCreating(true)
-    try {
-      const item = await api.createRecurringTransaction(token, {
-        accountId,
-        categoryId,
-        type,
-        amount: Number(amount),
-        frequency,
-        note: note || undefined,
-      })
-      setRecurring((prev) => [item, ...prev])
-      setAccountId('')
-      setCategoryId('')
-      setAmount('')
-      setNote('')
-      closeForm()
-      loadAll()
-    } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'No se pudo crear el movimiento recurrente')
-    } finally {
-      setCreating(false)
-    }
-  }
 
   async function toggleActive(item: RecurringTransaction) {
     if (!token) return
@@ -140,46 +136,13 @@ export function ForecastPage() {
 
   async function handleDelete(item: RecurringTransaction) {
     if (!token) return
-    if (!confirm(`¿Eliminar la plantilla "${item.category.name}"? No borra los movimientos ya creados a partir de ella.`))
-      return
+    if (!confirm(`¿Eliminar "${item.category.name}"? No borra los movimientos que ya registraste con él.`)) return
     try {
       await api.deleteRecurringTransaction(token, item.id)
       setRecurring((prev) => prev.filter((r) => r.id !== item.id))
       setSummary(await api.getForecastSummary(token))
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'No se pudo eliminar')
-    }
-  }
-
-  function openApply(item: RecurringTransaction) {
-    setApplyingId(item.id)
-    setApplyAmount(String(item.amount))
-    setApplyNote(item.note ?? '')
-    setApplyDate(nowDateTimeInput())
-    setApplyError(null)
-  }
-
-  function closeApply() {
-    setApplyingId(null)
-  }
-
-  async function submitApply(event: FormEvent, item: RecurringTransaction) {
-    event.preventDefault()
-    if (!token) return
-    setApplying(true)
-    setApplyError(null)
-    try {
-      await api.applyRecurringTransaction(token, item.id, {
-        amount: Number(applyAmount),
-        note: applyNote || undefined,
-        occurredAt: dateTimeInputToIso(applyDate),
-      })
-      setRecurring(await api.getRecurringTransactions(token))
-      setApplyingId(null)
-    } catch (err) {
-      setApplyError(err instanceof ApiError ? err.message : 'No se pudo guardar el movimiento')
-    } finally {
-      setApplying(false)
     }
   }
 
@@ -194,8 +157,7 @@ export function ForecastPage() {
         currency: suggestion.currency,
         period: 'MONTHLY',
       })
-      const refreshed = await api.getBudgetSuggestions(token)
-      setSuggestions(refreshed)
+      setSuggestions(await api.getBudgetSuggestions(token))
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'No se pudo crear el presupuesto')
     } finally {
@@ -203,148 +165,145 @@ export function ForecastPage() {
     }
   }
 
+  // Ingresos primero, y dentro de cada grupo los incluidos antes que los excluidos.
+  const sortedRecurring = [...recurring].sort(
+    (a, b) => Number(b.active) - Number(a.active) || (a.type === b.type ? 0 : a.type === 'INCOME' ? -1 : 1),
+  )
+
   return (
     <Layout>
-      <SectionHeader as="h1" title="Proyección">
-        <Button onClick={toggleForm}>{showForm ? 'Cancelar' : '+ Nuevo recurrente'}</Button>
+      <SectionHeader
+        as="h1"
+        title="Proyección"
+        subtitle="Cuánto te queda en un mes típico: tus ingresos y gastos fijos, más las cuotas de tus tarjetas y préstamos."
+      >
+        <Button className="toolbar-create-btn" onClick={toggleForm}>
+          + Nuevo pago fijo
+        </Button>
       </SectionHeader>
+
+      <Modal open={showForm} onClose={closeForm} title="Nuevo ingreso o gasto fijo">
+        <RecurringForm
+          onCreated={(item) => {
+            setRecurring((prev) => [item, ...prev])
+            closeForm()
+            if (token) api.getForecastSummary(token).then(setSummary).catch(() => {})
+          }}
+        />
+      </Modal>
+
+      <Modal open={applying !== null} onClose={() => setApplying(null)} title={`Registrar: ${applying?.category.name ?? ''}`}>
+        {applying && (
+          <ApplyForm
+            item={applying}
+            onDone={() => {
+              setApplying(null)
+              if (token) api.getRecurringTransactions(token).then(setRecurring).catch(() => {})
+            }}
+          />
+        )}
+      </Modal>
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}
 
-      {showForm && (
-        <Card className="ui-form-card">
-          <Form onSubmit={handleCreate}>
-            <FormError>{formError}</FormError>
-            <div className="ui-field-full">
-              <SegmentedControl<TransactionType>
-                value={type}
-                onChange={selectType}
-                options={[
-                  { value: 'EXPENSE', label: 'Gasto', tone: 'error' },
-                  { value: 'INCOME', label: 'Ingreso', tone: 'ok' },
-                ]}
-              />
-            </div>
-            <FormField label="Cuenta" htmlFor="rt-account">
-              <select id="rt-account" value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
-                <option value="" disabled>
-                  Elige una
-                </option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} ({a.currency})
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="Categoría" htmlFor="rt-category">
-              <select id="rt-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
-                <option value="" disabled>
-                  Elige una
-                </option>
-                {categoriesForType.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.emoji ? `${c.emoji} ` : ''}
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              {categoriesForType.length === 0 && (
-                <span style={{ fontSize: '0.8rem' }}>
-                  No tienes categorías de {type === 'EXPENSE' ? 'gasto' : 'ingreso'} — créalas en{' '}
-                  <Link to="/categories">Categorías</Link>
-                </span>
-              )}
-            </FormField>
-            <FormField label="Monto" htmlFor="rt-amount">
-              <input
-                id="rt-amount"
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={amount}
-                onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value))}
-                required
-              />
-            </FormField>
-            <FormField label="Frecuencia" htmlFor="rt-frequency">
-              <select id="rt-frequency" value={frequency} onChange={(e) => setFrequency(e.target.value as RecurrenceFrequency)}>
-                <option value="MONTHLY">Mensual</option>
-                <option value="SEMIMONTHLY">Quincenal</option>
-                <option value="WEEKLY">Semanal</option>
-                <option value="YEARLY">Anual</option>
-              </select>
-            </FormField>
-            <FormField label="Nota (opcional)" htmlFor="rt-note" full>
-              <input id="rt-note" value={note} onChange={(e) => setNote(e.target.value)} />
-            </FormField>
-            <Button type="submit" disabled={creating}>
-              {creating ? 'Creando…' : 'Crear plantilla'}
-            </Button>
-          </Form>
-        </Card>
-      )}
-
       {!loading && !error && (
         <>
-          <section className="forecast-section">
-            <SectionHeader title="Resumen mensual proyectado" />
-            {summary.length === 0 ? (
-              <EmptyState>Sin movimientos recurrentes activos todavía — créalos arriba para ver una proyección.</EmptyState>
-            ) : (
-              <CardGrid minWidth={260}>
-                {summary.map((s) => (
-                  <Card key={s.currency}>
-                    <div className="summary-card-currency">{s.currency}</div>
-                    <div className="summary-row">
-                      <span>Ingreso recurrente</span>
-                      <Money amount={s.projectedMonthlyIncome} currency={s.currency} tone="positive" />
-                    </div>
-                    <div className="summary-row">
-                      <span>Gasto proyectado</span>
-                      <Money amount={s.projectedMonthlyExpense} currency={s.currency} tone="negative" />
-                    </div>
-                    {s.projectedMonthlyCardInstallments > 0 && (
-                      <div className="summary-row">
-                        <span>· de las cuales, cuotas de tarjeta de crédito</span>
-                        <Money amount={s.projectedMonthlyCardInstallments} currency={s.currency} tone="negative" />
-                      </div>
-                    )}
-                    <div className="summary-row net">
-                      <span>Neto mensual</span>
-                      <Money amount={s.projectedMonthlyNet} currency={s.currency} tone="flow" />
-                    </div>
-                  </Card>
-                ))}
-              </CardGrid>
-            )}
-          </section>
+          {summary.length === 0 ? (
+            <EmptyState>
+              Agrega tus ingresos y gastos fijos (salario, arriendo, suscripciones…) para ver cuánto te queda cada mes.
+            </EmptyState>
+          ) : (
+            <SummaryGrid label="Resumen mensual proyectado">
+              {summary.map((s) => {
+                const spentPercent = s.projectedMonthlyIncome > 0 ? (s.projectedMonthlyExpense / s.projectedMonthlyIncome) * 100 : 100
+                return (
+                  <SummaryCard
+                    key={s.currency}
+                    label={`${s.currency} · Te queda en un mes típico`}
+                    main={
+                      <>
+                        <Money amount={s.projectedMonthlyNet} currency={s.currency} tone="flow" size="lg" />
+                        <span>
+                          {s.projectedMonthlyNet < 0 ? 'te falta al mes' : 'al mes'}
+                        </span>
+                      </>
+                    }
+                    progress={{
+                      value: Math.min(spentPercent, 100),
+                      tone: spentPercent >= 100 ? 'error' : spentPercent >= 80 ? 'warn' : 'ok',
+                    }}
+                    footLeft={
+                      <>
+                        Entra <Money amount={s.projectedMonthlyIncome} currency={s.currency} tone="positive" />
+                      </>
+                    }
+                    footRight={
+                      <>
+                        Sale <Money amount={s.projectedMonthlyExpense} currency={s.currency} tone="negative" />
+                        {(s.projectedMonthlyCardInstallments > 0 || s.projectedMonthlyLoanInstallments > 0) && (
+                          <span className="forecast-foot-note">
+                            (incluye
+                            {s.projectedMonthlyLoanInstallments > 0 && (
+                              <>
+                                {' '}
+                                <Money amount={s.projectedMonthlyLoanInstallments} currency={s.currency} /> en préstamos
+                              </>
+                            )}
+                            {s.projectedMonthlyLoanInstallments > 0 && s.projectedMonthlyCardInstallments > 0 && ' y'}
+                            {s.projectedMonthlyCardInstallments > 0 && (
+                              <>
+                                {' '}
+                                <Money amount={s.projectedMonthlyCardInstallments} currency={s.currency} /> en cuotas de tarjeta
+                              </>
+                            )}
+                            )
+                          </span>
+                        )}
+                      </>
+                    }
+                  />
+                )
+              })}
+            </SummaryGrid>
+          )}
 
           <section className="forecast-section">
-            <SectionHeader title="Movimientos recurrentes" />
-            <p className="recurring-row-meta" style={{ marginBottom: '0.75rem' }}>
-              Son plantillas: no se generan solas. Ábrelas cuando quieras registrar el movimiento.
+            <SectionHeader title="Ingresos y gastos fijos" />
+            <p className="forecast-hint">
+              Son plantillas: no se registran solas. Cuando llegue el pago, toca «Registrar». Mientras estén incluidas
+              cuentan en la proyección de arriba.
             </p>
             {recurring.length === 0 ? (
-              <EmptyState>No tienes plantillas de movimientos recurrentes.</EmptyState>
+              <EmptyState>Todavía no tienes ingresos ni gastos fijos. Crea el primero con «+ Nuevo pago fijo».</EmptyState>
             ) : (
-              <div className="recurring-list">
-                {recurring.map((item) => (
-                  <div key={item.id}>
+              <div className="forecast-list">
+                {sortedRecurring.map((item) => {
+                  const monthly = monthlyEquivalent(item.amount, item.frequency)
+                  return (
                     <ListRow
+                      key={item.id}
                       leading={
                         item.category.emoji && (
                           <IconChip tone={item.type === 'INCOME' ? 'ok' : 'error'}>{item.category.emoji}</IconChip>
                         )
                       }
-                      title={item.category.name}
+                      title={
+                        <>
+                          {item.category.name} {!item.active && <Badge>Fuera de la proyección</Badge>}
+                        </>
+                      }
                       subtitle={
                         <>
                           {item.account.name} · {FREQUENCY_LABELS[item.frequency]}
+                          {item.frequency !== 'MONTHLY' && (
+                            <>
+                              {' '}
+                              (≈ {formatMoneyMaybeHidden(monthly, item.account.currency, hideValues)}/mes)
+                            </>
+                          )}
                           {' · '}
-                          {item.lastAppliedAt ? `Última vez: ${formatDateOnly(item.lastAppliedAt)}` : 'Nunca aplicada'}
-                          {!item.active && ' · Fuera de la proyección'}
+                          {item.lastAppliedAt ? `Último: ${formatDateOnly(item.lastAppliedAt)}` : 'Aún sin registrar'}
                         </>
                       }
                       trailing={
@@ -356,73 +315,46 @@ export function ForecastPage() {
                         />
                       }
                       actions={
-                        <div className="recurring-row-actions">
-                          <Button onClick={() => openApply(item)}>Aplicar</Button>
-                          <Button variant="secondary" onClick={() => toggleActive(item)}>
-                            {item.active ? 'Quitar de proyección' : 'Incluir en proyección'}
+                        <div className="forecast-row-actions">
+                          <Button variant="secondary" onClick={() => setApplying(item)}>
+                            Registrar
                           </Button>
-                          <button className="link-danger" onClick={() => handleDelete(item)}>
-                            Eliminar
+                          <label className="forecast-include">
+                            <input type="checkbox" checked={item.active} onChange={() => toggleActive(item)} />
+                            Incluir
+                          </label>
+                          <button
+                            type="button"
+                            className="icon-danger-btn"
+                            title="Eliminar"
+                            aria-label={`Eliminar ${item.category.name}`}
+                            onClick={() => handleDelete(item)}
+                          >
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       }
                       muted={!item.active}
                     />
-                    {applyingId === item.id && (
-                      <form className="apply-form" onSubmit={(e) => submitApply(e, item)}>
-                        <FormError>{applyError}</FormError>
-                        <FormField label="Monto" htmlFor={`apply-amount-${item.id}`}>
-                          <input
-                            id={`apply-amount-${item.id}`}
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            value={applyAmount}
-                            onChange={(e) => setApplyAmount(sanitizeDecimalInput(e.target.value))}
-                            required
-                          />
-                        </FormField>
-                        <FormField label="Fecha y hora" htmlFor={`apply-date-${item.id}`}>
-                          <input
-                            id={`apply-date-${item.id}`}
-                            type="datetime-local"
-                            value={applyDate}
-                            onChange={(e) => setApplyDate(e.target.value)}
-                            required
-                          />
-                        </FormField>
-                        <FormField label="Nota (opcional)" htmlFor={`apply-note-${item.id}`} full>
-                          <input id={`apply-note-${item.id}`} value={applyNote} onChange={(e) => setApplyNote(e.target.value)} />
-                        </FormField>
-                        <div className="recurring-row-actions">
-                          <Button type="submit" disabled={applying}>
-                            {applying ? 'Guardando…' : 'Guardar movimiento'}
-                          </Button>
-                          <Button variant="secondary" type="button" onClick={closeApply}>
-                            Cancelar
-                          </Button>
-                        </div>
-                      </form>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </section>
 
           <section className="forecast-section">
-            <SectionHeader title="Presupuestos sugeridos" />
-            <p className="recurring-row-meta" style={{ marginBottom: '0.75rem' }}>
+            <SectionHeader title="Presupuestos que podrías crear" />
+            <p className="forecast-hint">
               {suggestions.length === 0
-                ? 'Se calcula sobre tu gasto real de los últimos meses completos (hasta 3).'
+                ? 'Se calculan con tu gasto real de los últimos meses completos (hasta 3).'
                 : suggestions[0].monthsOfHistory === 1
-                  ? 'Basado en tu gasto real de tu último mes completo — con más meses de historial, el promedio se afina.'
-                  : `Basado en tu gasto real promedio de los últimos ${suggestions[0].monthsOfHistory} meses completos.`}
+                  ? 'Según lo que gastaste el último mes completo; con más meses de historial el promedio se afina.'
+                  : `Según tu gasto promedio de los últimos ${suggestions[0].monthsOfHistory} meses completos.`}
             </p>
             {suggestions.length === 0 ? (
               <EmptyState>Todavía no hay suficiente historial de gastos para sugerir presupuestos.</EmptyState>
             ) : (
-              <div className="suggestions-list">
+              <div className="forecast-list">
                 {suggestions.map((s) => {
                   const key = `${s.category.id}:${s.currency}`
                   return (
@@ -430,19 +362,15 @@ export function ForecastPage() {
                       key={key}
                       leading={s.category.emoji && <IconChip tone="error">{s.category.emoji}</IconChip>}
                       title={s.category.name}
-                      subtitle={
-                        <>
-                          Promedio: {formatMoneyMaybeHidden(s.averageMonthlySpend, s.currency, hideValues)}/mes
-                        </>
-                      }
+                      subtitle={<>Gastas ≈ {formatMoneyMaybeHidden(s.averageMonthlySpend, s.currency, hideValues)} al mes</>}
                       trailing={
                         s.existingBudget ? (
                           <Badge tone="ok">
-                            Ya tienes presupuesto de {formatMoneyMaybeHidden(s.existingBudget.limitAmount, s.currency, hideValues)}
+                            Ya tienes uno de {formatMoneyMaybeHidden(s.existingBudget.limitAmount, s.currency, hideValues)}
                           </Badge>
                         ) : (
                           <Button disabled={creatingBudgetFor === key} onClick={() => handleCreateSuggestedBudget(s)}>
-                            Crear presupuesto de {formatMoneyMaybeHidden(Math.ceil(s.averageMonthlySpend), s.currency, hideValues)}
+                            Crear de {formatMoneyMaybeHidden(Math.ceil(s.averageMonthlySpend), s.currency, hideValues)}
                           </Button>
                         )
                       }

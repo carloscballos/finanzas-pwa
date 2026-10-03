@@ -437,6 +437,7 @@ export interface ForecastSummary {
   projectedMonthlyIncome: number
   projectedMonthlyExpense: number
   projectedMonthlyCardInstallments: number
+  projectedMonthlyLoanInstallments: number
   projectedMonthlyNet: number
 }
 
@@ -925,17 +926,91 @@ export function getBudgetSuggestions(token: string) {
   return request<BudgetSuggestion[]>('/api/v1/forecast/budget-suggestions', { token })
 }
 
-export interface ApiKeyResponse {
+/** Respuesta al generar: el token completo solo viene esta vez. */
+export interface GeneratedApiKey {
   token: string
+  hint: string
+  createdAt: string
+}
+
+/** El token activo, sin el token en sí. */
+export interface CurrentApiKey {
+  hint: string
   createdAt: string
 }
 
 export function generateApiKey(token: string) {
-  return request<ApiKeyResponse>('/api/v1/api-keys/generate', { method: 'POST', token })
+  return request<GeneratedApiKey>('/api/v1/api-keys/generate', { method: 'POST', token })
 }
 
 export function getCurrentApiKey(token: string) {
-  return request<ApiKeyResponse | null>('/api/v1/api-keys/current', { token })
+  return request<CurrentApiKey | null>('/api/v1/api-keys/current', { token })
+}
+
+export function revokeApiKey(token: string) {
+  return request<void>('/api/v1/api-keys/current', { method: 'DELETE', token })
 }
 
 export { ApiError }
+
+export type NotificationType =
+  | 'FRIEND_REQUEST_RECEIVED'
+  | 'FRIEND_REQUEST_ACCEPTED'
+  | 'ACCOUNT_INVITATION_RECEIVED'
+  | 'ACCOUNT_INVITATION_ACCEPTED'
+  | 'DEBT_CREATED'
+  | 'DEBT_PAYMENT_PENDING'
+  | 'DEBT_PAYMENT_CONFIRMED'
+  | 'DEBT_PAYMENT_REJECTED'
+
+export interface AppNotification {
+  id: string
+  type: NotificationType
+  title: string
+  body: string | null
+  /** Ruta del frontend a la que lleva el aviso. */
+  link: string | null
+  read: boolean
+  createdAt: string
+}
+
+export interface NotificationsList {
+  items: AppNotification[]
+  unreadCount: number
+}
+
+export function getNotifications(token: string) {
+  return request<NotificationsList>('/api/v1/notifications', { token })
+}
+
+export function markNotificationRead(token: string, id: string) {
+  return request<void>(`/api/v1/notifications/${id}/read`, { method: 'POST', token })
+}
+
+export function markAllNotificationsRead(token: string) {
+  return request<void>('/api/v1/notifications/read-all', { method: 'POST', token })
+}
+
+export function deleteNotification(token: string, id: string) {
+  return request<void>(`/api/v1/notifications/${id}`, { method: 'DELETE', token })
+}
+
+export interface PushConfig {
+  enabled: boolean
+  publicKey?: string
+}
+
+export function getPushConfig(token: string) {
+  return request<PushConfig>('/api/v1/push/config', { token })
+}
+
+export function subscribePush(token: string, subscription: PushSubscriptionJSON) {
+  return request<void>('/api/v1/push/subscriptions', { method: 'POST', body: subscription, token })
+}
+
+export function unsubscribePush(token: string, endpoint: string) {
+  return request<void>(`/api/v1/push/subscriptions?endpoint=${encodeURIComponent(endpoint)}`, {
+    method: 'DELETE',
+    token,
+  })
+}

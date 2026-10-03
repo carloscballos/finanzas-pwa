@@ -77,7 +77,8 @@ export class AccountsRepository {
 
     const grouped = await this.prisma.transaction.groupBy({
       by: ['accountId', 'type'],
-      where: { accountId: { in: accountIds } },
+      // Los pagos pendientes (Wallet) todavía no mueven el saldo.
+      where: { accountId: { in: accountIds }, status: 'CONFIRMED' },
       _sum: { amount: true },
     });
 

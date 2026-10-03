@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Trash2, UserPlus } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { UserAutocomplete } from '../components/UserAutocomplete'
 import { Badge } from '../components/ui/Badge'
@@ -6,8 +7,11 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Form, FormField, FormError } from '../components/ui/Form'
+import { IconChip } from '../components/ui/IconChip'
 import { ListRow } from '../components/ui/ListRow'
+import { Modal } from '../components/ui/Modal'
 import { SectionHeader } from '../components/ui/SectionHeader'
+import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Friend, type FriendRequest } from '../lib/api'
@@ -22,6 +26,7 @@ export function FriendsPage() {
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
+  const { open: showForm, toggle: toggleForm, close: closeForm } = useCreateFormToggle()
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
@@ -49,6 +54,7 @@ export function FriendsPage() {
       const request = await api.sendFriendRequest(token, email)
       setSent((prev) => [request, ...prev])
       setEmail('')
+      closeForm()
     } catch (err) {
       setSendError(err instanceof ApiError ? err.message : 'No se pudo enviar la solicitud')
     } finally {
@@ -107,21 +113,31 @@ export function FriendsPage() {
     }
   }
 
-  return (
-    <Layout>
-      <SectionHeader as="h1" title="Amigos" />
+  const initial = (name: string) => name.trim().charAt(0).toUpperCase() || '?'
 
-      <Card className="ui-form-card">
+  return (
+    <Layout fabActions={[{ label: 'Agregar amigo', icon: UserPlus, onClick: toggleForm }]}>
+      <SectionHeader
+        as="h1"
+        title="Amigos"
+        subtitle="Aparecen primero al buscar personas para deudas e invitaciones. Ser amigo no da acceso a tus datos."
+      >
+        <Button className="toolbar-create-btn" onClick={toggleForm}>
+          + Agregar amigo
+        </Button>
+      </SectionHeader>
+
+      <Modal open={showForm} onClose={closeForm} title="Agregar amigo">
         <Form onSubmit={handleSend}>
           <FormError>{sendError}</FormError>
-          <FormField label="Agregar amigo por email" htmlFor="friend-email" full>
+          <FormField label="Email o nombre" htmlFor="friend-email" full>
             <UserAutocomplete id="friend-email" value={email} onChange={setEmail} placeholder="alguien@example.com" />
           </FormField>
           <Button type="submit" disabled={sending}>
             {sending ? 'Enviando…' : 'Enviar solicitud'}
           </Button>
         </Form>
-      </Card>
+      </Modal>
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}
@@ -129,67 +145,53 @@ export function FriendsPage() {
       {!loading && !error && (
         <>
           {received.length > 0 && (
-            <section className="friends-section">
-              <SectionHeader title="Solicitudes recibidas" />
+            <section className="friends-received" aria-label="Solicitudes recibidas">
+              <h2>Solicitudes recibidas ({received.length})</h2>
               <div className="friends-list">
                 {received.map((r) => (
-                  <ListRow
-                    key={r.id}
-                    title={r.requestedBy.name}
-                    subtitle={r.requestedBy.email}
-                    actions={
-                      <>
-                        <Button disabled={busyId === r.id} onClick={() => handleAccept(r)}>
-                          Aceptar
-                        </Button>
-                        <Button variant="secondary" disabled={busyId === r.id} onClick={() => handleDecline(r)}>
-                          Rechazar
-                        </Button>
-                      </>
-                    }
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {sent.length > 0 && (
-            <section className="friends-section">
-              <SectionHeader title="Solicitudes enviadas" />
-              <div className="friends-list">
-                {sent.map((r) => (
-                  <ListRow
-                    key={r.id}
-                    title={r.requestedTo.name}
-                    subtitle={r.requestedTo.email}
-                    actions={
-                      <>
-                        <Badge tone="warn">Pendiente</Badge>
-                        <button className="link-danger" disabled={busyId === r.id} onClick={() => handleCancel(r)}>
-                          Cancelar
-                        </button>
-                      </>
-                    }
-                  />
+                  <Card key={r.id} className="friends-received-card">
+                    <div className="friends-person">
+                      <IconChip>{initial(r.requestedBy.name)}</IconChip>
+                      <div>
+                        <strong>{r.requestedBy.name}</strong>
+                        <div className="friends-email">{r.requestedBy.email}</div>
+                      </div>
+                    </div>
+                    <div className="friends-actions">
+                      <Button disabled={busyId === r.id} onClick={() => handleAccept(r)}>
+                        Aceptar
+                      </Button>
+                      <Button variant="secondary" disabled={busyId === r.id} onClick={() => handleDecline(r)}>
+                        Rechazar
+                      </Button>
+                    </div>
+                  </Card>
                 ))}
               </div>
             </section>
           )}
 
           <section className="friends-section">
-            <SectionHeader title="Mis amigos" />
+            <SectionHeader title={`Mis amigos (${friends.length})`} />
             {friends.length === 0 ? (
-              <EmptyState>Todavía no tienes amigos agregados.</EmptyState>
+              <EmptyState>Todavía no tienes amigos agregados. Usa «+ Agregar amigo» para enviar una solicitud.</EmptyState>
             ) : (
               <div className="friends-list">
                 {friends.map((f) => (
                   <ListRow
                     key={f.id}
+                    leading={<IconChip>{initial(f.name)}</IconChip>}
                     title={f.name}
                     subtitle={f.email}
                     actions={
-                      <button className="link-danger" onClick={() => handleRemove(f)}>
-                        Quitar
+                      <button
+                        type="button"
+                        className="icon-danger-btn"
+                        title="Quitar amigo"
+                        aria-label={`Quitar a ${f.name}`}
+                        onClick={() => handleRemove(f)}
+                      >
+                        <Trash2 size={16} />
                       </button>
                     }
                   />
@@ -197,6 +199,28 @@ export function FriendsPage() {
               </div>
             )}
           </section>
+
+          {sent.length > 0 && (
+            <section className="friends-section">
+              <SectionHeader title={`Solicitudes enviadas (${sent.length})`} />
+              <div className="friends-list">
+                {sent.map((r) => (
+                  <ListRow
+                    key={r.id}
+                    leading={<IconChip tone="neutral">{initial(r.requestedTo.name)}</IconChip>}
+                    title={r.requestedTo.name}
+                    subtitle={r.requestedTo.email}
+                    trailing={<Badge tone="warn">Pendiente</Badge>}
+                    actions={
+                      <button type="button" className="link-danger" disabled={busyId === r.id} onClick={() => handleCancel(r)}>
+                        Cancelar
+                      </button>
+                    }
+                  />
+                ))}
+              </div>
+            </section>
+          )}
         </>
       )}
     </Layout>

@@ -1,12 +1,21 @@
-import { Injectable, ExecutionContext, UnauthorizedException, CanActivate } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { ApiKeysService } from '../../api-keys/api-keys.service';
+import { API_KEY_SCOPE_METADATA } from '../../common/decorators/api-key-scope.decorator';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwtService: JwtService,
     private readonly apiKeysService: ApiKeysService,
+    private readonly reflector: Reflector,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -19,25 +28,35 @@ export class JwtAuthGuard implements CanActivate {
 
     const [scheme, token] = authHeader.split(' ');
 
-    if (scheme !== 'Bearer') {
+    if (scheme !== 'Bearer' || !token) {
       throw new UnauthorizedException('Esquema de autorización inválido');
     }
 
-    // Primero intenta validar como JWT
-    try {
-      const payload = this.jwtService.verify(token);
-      request.user = { id: payload.sub };
-      return true;
-    } catch {
-      // Si JWT falla, intenta como API key
-      const userId = await this.apiKeysService.validateToken(token);
-      if (!userId) {
-        throw new UnauthorizedException('Token inválido o revocado');
+    // Un JWT siempre tiene puntos (header.payload.firma); un token de API no.
+    // Así un JWT vencido se rechaza sin consultar la base.
+    if (token.includes('.')) {
+      try {
+        const payload = this.jwtService.verify(token);
+        request.user = { id: payload.sub };
+        return true;
+      } catch {
+        throw new UnauthorizedException('Sesión inválida o vencida');
       }
-
-      // Inyecta el usuario en el request para que los decoradores lo encuentren
-      request.user = { id: userId };
-      return true;
     }
+
+    const apiKey = await this.apiKeysService.validateToken(token);
+    if (!apiKey) {
+      throw new UnauthorizedException('Token inválido o revocado');
+    }
+
+    // Un token de API (Shortcut) solo entra a los endpoints que declaran su alcance.
+    const requiredScope = this.reflector.get<string | undefined>(API_KEY_SCOPE_METADATA, context.getHandler());
+    if (requiredScope !== apiKey.scope) {
+      throw new ForbiddenException('Este token solo permite registrar pagos pendientes desde el Shortcut');
+    }
+
+    request.user = { id: apiKey.userId };
+    request.viaApiKey = true;
+    return true;
   }
 }

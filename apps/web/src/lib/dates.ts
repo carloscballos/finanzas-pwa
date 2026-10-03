@@ -82,3 +82,15 @@ export function todayDateInput(): string {
 export function formatDateOnly(iso: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(iso))
 }
+
+// Días que faltan para el próximo "día del mes" (ej. día de pago de una tarjeta
+// o de un préstamo). Hoy cuenta como 0; si el día ya pasó este mes, cuenta el
+// del mes siguiente. Los días que no existen en el mes (31 en abril) se
+// desbordan al siguiente, igual que `new Date(y, m, 31)`.
+export function daysUntilDayOfMonth(day: number): number {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const thisMonth = new Date(now.getFullYear(), now.getMonth(), day)
+  const due = thisMonth >= today ? thisMonth : new Date(now.getFullYear(), now.getMonth() + 1, day)
+  return Math.round((due.getTime() - today.getTime()) / 86_400_000)
+}

@@ -28,6 +28,7 @@ import {
   type Loan,
 } from '../lib/api'
 import { onDataChanged } from '../lib/dataEvents'
+import { daysUntilDayOfMonth } from '../lib/dates'
 import './HomePage.css'
 
 type NewItem = 'account' | 'card' | 'budget' | 'goal' | 'debt' | 'loan'
@@ -73,16 +74,6 @@ function CurrencyTotals({
       ))}
     </>
   )
-}
-
-// Días hasta el próximo día de pago de la tarjeta (hoy cuenta como 0).
-function daysUntilDue(dueDay: number): number {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const dueThisMonth = new Date(now.getFullYear(), now.getMonth(), dueDay)
-  const due =
-    dueThisMonth >= today ? dueThisMonth : new Date(now.getFullYear(), now.getMonth() + 1, dueDay)
-  return Math.round((due.getTime() - today.getTime()) / 86_400_000)
 }
 
 function budgetTone(percentUsed: number) {
@@ -292,7 +283,7 @@ export function HomePage() {
               const available = (a.creditLimit ?? 0) + a.currentBalance
               const used = Math.max(0, -a.currentBalance)
               const percentUsed = hasLimit && a.creditLimit! > 0 ? (used / a.creditLimit!) * 100 : 0
-              const dueIn = a.paymentDueDay != null ? daysUntilDue(a.paymentDueDay) : null
+              const dueIn = a.paymentDueDay != null ? daysUntilDayOfMonth(a.paymentDueDay) : null
               return (
                 <TileCard
                   key={a.id}
@@ -447,6 +438,12 @@ export function HomePage() {
                         <span>Gastos</span>
                         <Money amount={f.projectedMonthlyExpense} currency={f.currency} tone="negative" />
                       </div>
+                      {f.projectedMonthlyLoanInstallments > 0 && (
+                        <div>
+                          <span>· de eso, cuotas de préstamos</span>
+                          <Money amount={f.projectedMonthlyLoanInstallments} currency={f.currency} />
+                        </div>
+                      )}
                       {f.projectedMonthlyCardInstallments > 0 && (
                         <div>
                           <span>· de eso, cuotas de tarjeta</span>

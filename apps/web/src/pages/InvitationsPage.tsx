@@ -51,12 +51,16 @@ export function InvitationsPage() {
 
   return (
     <Layout>
-      <SectionHeader as="h1" title="Invitaciones" />
+      <SectionHeader
+        as="h1"
+        title="Invitaciones"
+        subtitle="Cuentas compartidas a las que te invitaron. Al aceptar, ves y registras movimientos en esa cuenta."
+      />
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}
 
-      {!loading && !error && invitations.length === 0 && <EmptyState>No tienes invitaciones.</EmptyState>}
+      {!loading && !error && invitations.length === 0 && <EmptyState>No tienes invitaciones. Cuando alguien te invite a una cuenta compartida, aparecerá aquí.</EmptyState>}
 
       <div className="invitations-list">
         {pending.map((inv) => {

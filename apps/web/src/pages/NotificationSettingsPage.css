@@ -1,0 +1,75 @@
+.notif-settings {
+  max-width: 40rem;
+}
+
+.notif-settings .card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.notif-settings-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.notif-settings-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: var(--radius-control);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.notif-settings-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  color: var(--text-h);
+}
+
+.notif-settings-text small {
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.notif-settings-note {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.notif-settings-install ol {
+  margin: var(--space-2) 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-h);
+}
+
+.notif-settings-install svg {
+  vertical-align: -2px;
+}
+
+.notif-settings-error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--badge-error-bg);
+  color: var(--badge-error-fg);
+  font-size: 0.85rem;
+}

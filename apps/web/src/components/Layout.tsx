@@ -9,7 +9,6 @@ import {
   HandCoins,
   Landmark,
   Users,
-  Mail,
   TrendingUp,
   MoreHorizontal,
   ChevronDown,
@@ -27,6 +26,8 @@ import { formatMoney } from '../lib/money'
 import { MoreMenu, type MoreMenuItem } from './MoreMenu'
 import { Fab, type FabAction } from './Fab'
 import { UserMenu } from './UserMenu'
+import { NotificationBell } from './NotificationBell'
+import { PushSync } from './PushSync'
 import { QuickTransactionModal } from './QuickTransactionModal'
 import { Button } from './ui/Button'
 import './Layout.css'
@@ -51,7 +52,6 @@ const SECONDARY_ITEMS: MoreMenuItem[] = [
   { to: '/debts', label: 'Deudas', icon: HandCoins },
   { to: '/loans', label: 'Préstamos', icon: Landmark },
   { to: '/friends', label: 'Amigos', icon: Users },
-  { to: '/invitations', label: 'Invitaciones', icon: Mail },
   { to: '/forecast', label: 'Proyección', icon: TrendingUp },
 ]
 
@@ -121,10 +121,14 @@ export function Layout({
 
   return (
     <div className="layout">
+      <PushSync />
       <aside className="layout-sidebar">
-        <NavLink to="/" className="layout-sidebar-brand">
-          Finanzas
-        </NavLink>
+        <div className="layout-sidebar-top">
+          <NavLink to="/" className="layout-sidebar-brand">
+            Finanzas
+          </NavLink>
+          <NotificationBell placement="down-left" />
+        </div>
 
         {!hideQuickTransaction && (
           <Button className="layout-sidebar-quick" onClick={openQuick}>
@@ -212,6 +216,7 @@ export function Layout({
                 <Plus size={18} />
               </button>
             )}
+            <NotificationBell />
             <button
               type="button"
               className="layout-privacy-toggle"

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronRight, KeyRound, LogOut, Moon, Settings, Sun, Tags, type LucideIcon } from 'lucide-react'
+import { BellRing, ChevronDown, ChevronRight, KeyRound, LogOut, Mail, Moon, Settings, Sun, Tags, type LucideIcon } from 'lucide-react'
 import { Modal } from './ui/Modal'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -21,6 +21,18 @@ const SETTINGS_OPTIONS: { to: string; icon: LucideIcon; title: string; descripti
     icon: Tags,
     title: 'Categorías',
     description: 'Organiza tus gastos e ingresos',
+  },
+  {
+    to: '/invitations',
+    icon: Mail,
+    title: 'Invitaciones',
+    description: 'Cuentas compartidas a las que te invitaron',
+  },
+  {
+    to: '/settings/notifications',
+    icon: BellRing,
+    title: 'Notificaciones',
+    description: 'Activa los avisos push en este dispositivo',
   },
   {
     to: '/settings',

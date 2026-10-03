@@ -2,54 +2,34 @@
   margin-bottom: 2rem;
 }
 
-.summary-card-currency {
-  font-size: 0.8rem;
+.forecast-hint {
+  font-size: 0.85rem;
   color: var(--text);
-  margin-bottom: 0.5rem;
+  margin: 0 0 0.75rem;
 }
 
-.summary-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.9rem;
-  padding: 0.25rem 0;
-}
-
-.summary-row.net {
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--border-color);
-  font-weight: 700;
-}
-
-.recurring-list,
-.suggestions-list {
+.forecast-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.apply-form {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 0.75rem;
-  background: var(--bg);
-  border: 1px solid var(--border-color);
-  border-top: none;
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
-  padding: 0.75rem 1rem 1rem;
-  margin-top: -0.5rem;
-}
-
-.recurring-row-meta {
-  font-size: 0.75rem;
-  color: var(--text);
-}
-
-.recurring-row-actions {
+.forecast-row-actions {
   display: flex;
   gap: 0.5rem;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.forecast-include {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.forecast-foot-note {
+  font-size: 0.75rem;
 }

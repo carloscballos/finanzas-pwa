@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { RecurrenceFrequency } from '@prisma/client';
 import { RecurringTransactionsRepository } from '../recurring-transactions/recurring-transactions.repository';
 import { CardPurchasesService } from '../card-purchases/card-purchases.service';
+import { LoansService } from '../loans/loans.service';
 import { ForecastRepository } from './forecast.repository';
 import { ForecastSummaryDto } from './dto/forecast-summary.dto';
 import { BudgetSuggestionDto } from './dto/budget-suggestion.dto';
@@ -27,19 +28,21 @@ export class ForecastService {
     private readonly forecastRepository: ForecastRepository,
     private readonly recurringRepository: RecurringTransactionsRepository,
     private readonly cardPurchasesService: CardPurchasesService,
+    private readonly loansService: LoansService,
   ) {}
 
   async getSummary(userId: string): Promise<ForecastSummaryDto[]> {
-    const [recurring, installmentTotals] = await Promise.all([
+    const [recurring, installmentTotals, loanTotals] = await Promise.all([
       this.recurringRepository.findAllForUser(userId),
       this.cardPurchasesService.getActiveMonthlyInstallmentTotals(userId),
+      this.loansService.getActiveMonthlyInstallmentTotals(userId),
     ]);
-    const byCurrency = new Map<string, { income: number; expense: number; installments: number }>();
+    const byCurrency = new Map<string, { income: number; expense: number; installments: number; loans: number }>();
 
     for (const item of recurring) {
       if (!item.active) continue;
       const monthly = toMonthlyEquivalent(Number(item.amount), item.frequency);
-      const bucket = byCurrency.get(item.account.currency) ?? { income: 0, expense: 0, installments: 0 };
+      const bucket = byCurrency.get(item.account.currency) ?? { income: 0, expense: 0, installments: 0, loans: 0 };
       if (item.type === 'INCOME') {
         bucket.income += monthly;
       } else {
@@ -53,17 +56,26 @@ export class ForecastService {
     // expense para que projectedMonthlyExpense sea el total real, y se
     // exponen aparte en installments para que se pueda mostrar el desglose.
     for (const { currency, total } of installmentTotals) {
-      const bucket = byCurrency.get(currency) ?? { income: 0, expense: 0, installments: 0 };
+      const bucket = byCurrency.get(currency) ?? { income: 0, expense: 0, installments: 0, loans: 0 };
       bucket.expense += total;
       bucket.installments += total;
       byCurrency.set(currency, bucket);
     }
 
-    return Array.from(byCurrency.entries()).map(([currency, { income, expense, installments }]) => ({
+    // Igual con las cuotas de préstamos activos.
+    for (const { currency, total } of loanTotals) {
+      const bucket = byCurrency.get(currency) ?? { income: 0, expense: 0, installments: 0, loans: 0 };
+      bucket.expense += total;
+      bucket.loans += total;
+      byCurrency.set(currency, bucket);
+    }
+
+    return Array.from(byCurrency.entries()).map(([currency, { income, expense, installments, loans }]) => ({
       currency,
       projectedMonthlyIncome: round2(income),
       projectedMonthlyExpense: round2(expense),
       projectedMonthlyCardInstallments: round2(installments),
+      projectedMonthlyLoanInstallments: round2(loans),
       projectedMonthlyNet: round2(income - expense),
     }));
   }

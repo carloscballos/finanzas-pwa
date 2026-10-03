@@ -26,6 +26,18 @@ export class AccountsService {
     return AccountMapper.toResponseList(accounts, userId, balances);
   }
 
+  /**
+   * Cuenta provisional para un pago pendiente que llega sin cuenta (Shortcut de
+   * Wallet): la primera cuenta propia que no sea tarjeta. Se cambia al confirmarlo.
+   */
+  async findDefaultAccountId(userId: string): Promise<string | null> {
+    const accounts = await this.accountsRepository.findAllForUser(userId);
+    const own = accounts.find(
+      (a) => a.type !== 'CREDIT_CARD' && a.members.some((m) => m.userId === userId && m.role === 'OWNER'),
+    );
+    return own?.id ?? null;
+  }
+
   async findOne(userId: string, accountId: string): Promise<AccountResponseDto> {
     const account = await this.getAccountForMember(userId, accountId);
     const balances = await this.computeCurrentBalances([account]);

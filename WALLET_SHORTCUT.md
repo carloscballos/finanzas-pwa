@@ -6,10 +6,10 @@ Registra pagos de Wallet en tu app con un Shortcut ultra-simple.
 
 ### 1. Generar token en la app
 
-1. Abre **Finanzas PWA** → Configuración (o Settings)
-2. Busca **"Generar token para Shortcut"**
-3. Copia el token (algo como: `sk_live_abc123xyz...`)
-4. **Guárdalo en un lugar seguro** (lo usarás en el siguiente paso)
+1. Abre **Finanzas PWA** → tu nombre (abajo a la izquierda) → **Configuración** → **Código de acceso (token)**
+2. Toca **Generar token**
+3. Cópialo (empieza por `fin_`). **Se muestra una sola vez**: si no lo copias, genera otro
+4. Pégalo en el Shortcut (siguiente paso)
 
 ### 2. Crear el Shortcut de Pagos
 
@@ -30,15 +30,16 @@ PASO 2: Obtener URL
   - Método: POST
   - Headers (presiona el engranaje/⚙️):
     * Content-Type: application/json
-    * Authorization: Bearer sk_live_abc123xyz...
-      (reemplaza "sk_live..." con tu token copiado arriba)
+    * Authorization: Bearer fin_...
+      (reemplaza "fin_..." con tu token copiado arriba)
   - Body (cuerpo):
     {
       "type": "EXPENSE",
       "amount": AMOUNT,
-      "occurredAt": Hora actual,
-      "status": "PENDING"
+      "occurredAt": Hora actual
     }
+    (no hace falta cuenta ni categoría: el pago queda pendiente y las eliges
+    al confirmarlo en la app; con este token siempre se guarda como pendiente)
 
 PASO 3: Mostrar resultado
   Busca en Shortcuts: "Mostrar resultado"
@@ -76,21 +77,25 @@ PASO 3: Mostrar resultado
 
 ## 🔒 Seguridad
 
-- **Token**: almacenado en el Shortcut (puedes revocarlo desde la app en cualquier momento)
-- **HTTPS**: todas las conexiones cifradas
-- **Sin credenciales**: no almacenas email/contraseña en el dispositivo
-- **Revocación**: genera un token nuevo desde la app si el anterior se compromete
+- **Alcance limitado**: el token solo puede registrar pagos *pendientes*. No lee cuentas ni saldos, y no confirma, edita ni borra nada. Cualquier otra ruta responde 403.
+- **Solo se guarda su hash**: la app no puede volver a mostrarte el token (por eso se ve una sola vez).
+- **Un token por usuario**: generar uno nuevo revoca el anterior. También puedes **Revocar** sin generar otro.
+- **HTTPS** en todas las conexiones, y límite de intentos por IP.
+- Los pagos pendientes **no mueven el saldo** hasta que los confirmas.
 
 ## ⚠️ Troubleshooting
 
 **"Error de sintaxis en el Shortcut"**
 - Verifica que el JSON del Body esté bien formateado
-- Asegúrate de reemplazar `sk_live_abc...` con tu token real
+- Asegúrate de reemplazar `fin_...` con tu token real
 - Las comillas y comas deben estar exactas
 
+**"Error 403"**
+- El token solo sirve para `POST /api/v1/transactions`; revisa la URL y el método
+
 **"Error 401 - Token inválido"**
-- Tu token expiró o es incorrecto
-- Genera un token nuevo en la app (Configuración → "Generar token para Shortcut")
+- Tu token fue revocado (o lo cambiaste por uno nuevo) o está mal copiado
+- Genera un token nuevo en la app (Configuración → Código de acceso)
 - Copia el nuevo token en el Shortcut
 
 **"Error de conexión"**

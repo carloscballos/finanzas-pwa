@@ -52,7 +52,8 @@ export class TransactionsRepository {
       where: {
         categoryId: filters.categoryId,
         type: filters.type,
-        status: filters.status,
+        // Sin filtro explícito, los pendientes no aparecen mezclados con los movimientos.
+        status: filters.status ?? 'CONFIRMED',
         occurredAt:
           filters.startDate || filters.endDate
             ? { gte: filters.startDate, lt: filters.endDate }

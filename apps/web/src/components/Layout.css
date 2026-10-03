@@ -33,6 +33,15 @@
   }
 }
 
+.layout-sidebar-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  padding-right: var(--space-2);
+}
+
 .layout-sidebar-brand {
   font-family: var(--font-display);
   font-weight: 600;
@@ -40,7 +49,6 @@
   color: var(--accent);
   text-decoration: none;
   padding: 0 var(--space-2);
-  margin-bottom: var(--space-5);
 }
 
 .layout-sidebar-nav {

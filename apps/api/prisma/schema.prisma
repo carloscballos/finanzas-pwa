@@ -124,6 +124,8 @@ model User {
   cardPurchases         CardPurchase[]
   debtPayments          DebtPayment[]
   apiKeys               ApiKey[]
+  notifications         Notification[]
+  pushSubscriptions     PushSubscription[]
 
   @@map("users")
 }
@@ -131,7 +133,12 @@ model User {
 model ApiKey {
   id        String   @id @default(uuid())
   userId    String
-  token     String   @unique @db.Char(64)
+  // Solo el hash SHA-256 del token; el token en claro se muestra una vez al generarlo.
+  tokenHash String   @unique @db.Char(64)
+  // Últimas 4 letras del token, para reconocerlo en pantalla.
+  hint      String   @default("")
+  // Qué puede hacer con este token (ver ApiKeyScope en common/decorators).
+  scope     String   @default("transactions:create")
   label     String   @default("Shortcut")
   createdAt DateTime @default(now())
   revokedAt DateTime?
@@ -549,4 +556,57 @@ model Transfer {
   legs        Transaction[]
 
   @@map("transfers")
+}
+
+enum NotificationType {
+  FRIEND_REQUEST_RECEIVED
+  FRIEND_REQUEST_ACCEPTED
+  ACCOUNT_INVITATION_RECEIVED
+  ACCOUNT_INVITATION_ACCEPTED
+  DEBT_CREATED
+  DEBT_PAYMENT_PENDING
+  DEBT_PAYMENT_CONFIRMED
+  DEBT_PAYMENT_REJECTED
+}
+
+// Aviso dentro de la app para UN usuario (campana del encabezado). Se crea
+// como efecto lateral de eventos que involucran a otra persona (solicitudes,
+// invitaciones, deudas, abonos); nunca bloquea la operación que lo origina
+// (ver NotificationsService.notify). `link` es una ruta del frontend.
+// Cuando se agregue push (Web Push / APNs), cada fila sigue siendo la fuente
+// de verdad y el push solo es otro canal de entrega.
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+// Un navegador/dispositivo suscrito a Web Push (una fila por `endpoint`, que
+// es único y lo asigna Apple/Google/Mozilla). Un usuario puede tener varias
+// (celular + computador). Se borra sola cuando el servicio de push responde
+// 404/410 (suscripción vencida o desinstalada) — ver PushService.
+model PushSubscription {
+  id         String   @id @default(uuid())
+  userId     String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }

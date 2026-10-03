@@ -49,6 +49,16 @@ export class TransactionsService {
       throw new BadRequestException('accountId es requerido para transacciones confirmadas');
     }
 
+    // Un pago pendiente puede llegar sin cuenta (Shortcut de Wallet): se guarda
+    // en una cuenta provisional y el usuario elige la real al confirmarlo.
+    if (!dto.accountId) {
+      const defaultAccountId = await this.accountsService.findDefaultAccountId(userId);
+      if (!defaultAccountId) {
+        throw new BadRequestException('Crea una cuenta en la app antes de registrar pagos desde el Shortcut');
+      }
+      dto = { ...dto, accountId: defaultAccountId };
+    }
+
     if (dto.accountId) {
       await this.accountsService.getAccessibleAccount(userId, dto.accountId);
     }
@@ -64,7 +74,8 @@ export class TransactionsService {
       this.assertTypeMatches(dto.type, category.type);
     }
 
-    if (dto.type === TransactionType.EXPENSE && dto.accountId) {
+    // Un pago pendiente todavía no mueve saldo: se valida al confirmarlo.
+    if (dto.type === TransactionType.EXPENSE && dto.accountId && dto.status !== TransactionStatus.PENDING) {
       await this.accountsService.assertSufficientFunds(userId, dto.accountId, dto.amount);
     }
 

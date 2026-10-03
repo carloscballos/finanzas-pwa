@@ -7,3 +7,39 @@
   flex-direction: column;
   gap: 0.75rem;
 }
+
+/* Solicitudes que me toca responder: resaltadas, como "Por confirmar" en Deudas. */
+.friends-received {
+  margin: 0 0 1.5rem;
+}
+
+.friends-received h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.friends-received-card {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border-color: var(--badge-warn-fg);
+  background: var(--badge-warn-bg);
+}
+
+.friends-person {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.friends-email {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.friends-actions {
+  display: flex;
+  gap: 0.5rem;
+}

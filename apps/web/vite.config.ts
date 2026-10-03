@@ -30,6 +30,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // Handlers de Web Push (public/push-sw.js). Al ser importScripts, el
+        // navegador lo revisa byte a byte en cada chequeo de actualización del SW.
+        importScripts: ['push-sw.js'],
       },
     }),
   ],
