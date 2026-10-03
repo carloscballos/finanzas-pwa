@@ -1,6 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsString, IsUrl, MaxLength, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUrl, MaxLength, ValidateNested } from 'class-validator';
 
 // Forma de `PushSubscription.toJSON()` del navegador.
 class PushKeysDto {
@@ -22,6 +22,13 @@ export class SubscribePushDto {
   @IsUrl({ protocols: ['https'], require_protocol: true, require_tld: false })
   @MaxLength(2048)
   endpoint: string;
+
+  // `PushSubscription.toJSON()` lo incluye siempre (casi siempre null). Se acepta
+  // para que el ValidationPipe (forbidNonWhitelisted) no rechace el JSON crudo
+  // del navegador, pero no se guarda.
+  @ApiPropertyOptional({ nullable: true, description: 'Ignorado' })
+  @IsOptional()
+  expirationTime?: number | null;
 
   @ApiProperty({ type: PushKeysDto })
   @ValidateNested()

@@ -36,8 +36,17 @@ export class PushService implements OnModuleInit {
       this.logger.warn('Claves VAPID no configuradas: el envío de push está desactivado');
       return;
     }
-    webpush.setVapidDetails(subject, publicKey, privateKey);
-    this.publicKey = publicKey;
+    // Una clave o subject mal puesto (ej. el correo sin `mailto:`) no debe tumbar
+    // toda la API: setVapidDetails lanza, y en producción eso dejó el servicio
+    // en crash loop. Se deja el push apagado y se avisa en el log.
+    try {
+      webpush.setVapidDetails(subject, publicKey, privateKey);
+      this.publicKey = publicKey;
+    } catch (error) {
+      this.logger.error(
+        `Configuración VAPID inválida, push desactivado (VAPID_SUBJECT debe empezar por "mailto:" o "https://"): ${(error as Error).message}`,
+      );
+    }
   }
 
   getPublicConfig(): PushConfigResponseDto {

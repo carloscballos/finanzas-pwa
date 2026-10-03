@@ -55,6 +55,14 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   return bytes
 }
 
+// toJSON() también trae `expirationTime` y todo es opcional en su tipo: se
+// arma a mano solo lo que el backend necesita.
+function toInput(subscription: PushSubscription): api.PushSubscriptionInput {
+  const { endpoint, keys } = subscription.toJSON()
+  if (!endpoint || !keys?.p256dh || !keys.auth) throw new Error('La suscripción del navegador está incompleta.')
+  return { endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth } }
+}
+
 /**
  * Pide permiso (debe llamarse desde un toque del usuario: iOS lo exige),
  * suscribe este dispositivo y lo registra en el backend.
@@ -80,7 +88,7 @@ export async function enablePush(token: string, publicKey: string): Promise<void
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     }))
 
-  await api.subscribePush(token, subscription.toJSON())
+  await api.subscribePush(token, toInput(subscription))
 }
 
 /** Da de baja este dispositivo (navegador y backend). */
@@ -100,5 +108,5 @@ export async function disablePush(token: string): Promise<void> {
 export async function syncPush(token: string): Promise<void> {
   if (getPushSupport() !== 'supported' || Notification.permission !== 'granted') return
   const subscription = await getCurrentSubscription()
-  if (subscription) await api.subscribePush(token, subscription.toJSON())
+  if (subscription) await api.subscribePush(token, toInput(subscription))
 }

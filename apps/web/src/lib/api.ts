@@ -1004,7 +1004,12 @@ export function getPushConfig(token: string) {
   return request<PushConfig>('/api/v1/push/config', { token })
 }
 
-export function subscribePush(token: string, subscription: PushSubscriptionJSON) {
+export interface PushSubscriptionInput {
+  endpoint: string
+  keys: { p256dh: string; auth: string }
+}
+
+export function subscribePush(token: string, subscription: PushSubscriptionInput) {
   return request<void>('/api/v1/push/subscriptions', { method: 'POST', body: subscription, token })
 }
 

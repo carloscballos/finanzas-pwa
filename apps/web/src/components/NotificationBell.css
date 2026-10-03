@@ -189,3 +189,16 @@
   background: var(--badge-error-bg);
   color: var(--badge-error-fg);
 }
+
+/* Celular: la campana queda a la derecha del encabezado y un panel de 22rem
+   se saldría por la izquierda. Se fija a la pantalla, con margen a los lados. */
+@media (max-width: 767px) {
+  .notif-panel {
+    position: fixed;
+    top: var(--notif-top, 4rem);
+    left: var(--space-3);
+    right: var(--space-3);
+    width: auto;
+    max-height: calc(100dvh - var(--notif-top, 4rem) - var(--bottom-nav-height) - env(safe-area-inset-bottom) - var(--space-4));
+  }
+}

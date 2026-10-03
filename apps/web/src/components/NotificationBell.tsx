@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, CheckCheck, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -29,6 +29,9 @@ export function NotificationBell({ placement = 'down-right' }: { placement?: 'do
   const [data, setData] = useState<api.NotificationsList>({ items: [], unreadCount: 0 })
   const [open, setOpen] = useState(false)
   const [failed, setFailed] = useState(false)
+  // En celular el panel ocupa todo el ancho (position: fixed) y necesita saber
+  // dónde termina la campana para colgarse justo debajo.
+  const [panelTop, setPanelTop] = useState(64)
   const rootRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(() => {
@@ -111,7 +114,11 @@ export function NotificationBell({ placement = 'down-right' }: { placement?: 'do
         className="notif-bell-trigger"
         onClick={() => {
           setOpen((v) => !v)
-          if (!open) load()
+          if (!open) {
+            const rect = rootRef.current?.getBoundingClientRect()
+            if (rect) setPanelTop(rect.bottom + 8)
+            load()
+          }
         }}
         aria-label={label}
         aria-expanded={open}
@@ -127,7 +134,12 @@ export function NotificationBell({ placement = 'down-right' }: { placement?: 'do
       </button>
 
       {open && (
-        <div className={`notif-panel notif-panel-${placement}`} role="dialog" aria-label="Notificaciones">
+        <div
+          className={`notif-panel notif-panel-${placement}`}
+          style={{ '--notif-top': `${panelTop}px` } as CSSProperties}
+          role="dialog"
+          aria-label="Notificaciones"
+        >
           <div className="notif-panel-head">
             <strong>Notificaciones</strong>
             {unreadCount > 0 && (
