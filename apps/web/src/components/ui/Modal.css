@@ -1,0 +1,87 @@
+.ui-modal {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  background: var(--card-bg);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+  padding: 0;
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: hidden;
+}
+
+.ui-modal[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.ui-modal::backdrop {
+  background: rgba(43, 38, 32, 0.45);
+}
+
+.ui-modal-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.ui-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ui-modal-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.ui-modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.ui-modal-close:hover {
+  border-color: var(--accent);
+}
+
+.ui-modal-body {
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+
+/* Celular: hoja pegada al borde inferior, como el resto de patrones táctiles. */
+@media (max-width: 767px) {
+  .ui-modal {
+    width: 100vw;
+    max-width: 100vw;
+    margin: auto 0 0;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+    border-bottom: none;
+    max-height: 78dvh;
+  }
+
+  .ui-modal-header {
+    padding: 0.75rem 1rem;
+  }
+
+  .ui-modal-body {
+    padding: 1rem;
+  }
+
+  .ui-modal-body .ui-form {
+    gap: 0.7rem;
+  }
+}

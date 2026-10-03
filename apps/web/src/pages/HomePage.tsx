@@ -1,25 +1,17 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import {
-  ChevronLeft,
-  ChevronRight,
-  Wallet,
-  Receipt,
-  Target,
-  PiggyBank,
-  Landmark,
-  TrendingUp,
-} from 'lucide-react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import { AccountForm } from '../components/AccountForm'
+import { BudgetForm } from '../components/BudgetForm'
+import { DebtForm } from '../components/DebtForm'
+import { GoalForm } from '../components/GoalForm'
+import { LoanForm } from '../components/LoanForm'
 import { Layout } from '../components/Layout'
 import { Badge } from '../components/ui/Badge'
-import { CardGrid } from '../components/ui/CardGrid'
-import { EmptyState } from '../components/ui/EmptyState'
-import { IconChip } from '../components/ui/IconChip'
+import { Button } from '../components/ui/Button'
+import { AddTile, HomeRow, TileCard } from '../components/ui/HomeRow'
 import { ListRow } from '../components/ui/ListRow'
+import { Modal } from '../components/ui/Modal'
 import { Money } from '../components/ui/Money'
 import { SectionHeader } from '../components/ui/SectionHeader'
-import { StatCard } from '../components/ui/StatCard'
-import { Button } from '../components/ui/Button'
 import { PendingTransactionsDrawer } from '../components/PendingTransactionsDrawer'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
@@ -33,13 +25,23 @@ import {
   type FriendRequest,
   type Goal,
   type Invitation,
-  type Transaction,
+  type Loan,
 } from '../lib/api'
-import { formatDateOnly } from '../lib/dates'
 import './HomePage.css'
 
-const RECENT_TRANSACTIONS_LIMIT = 8
-const BUDGET_RISK_THRESHOLD = 70
+type NewItem = 'account' | 'card' | 'budget' | 'goal' | 'debt' | 'loan'
+
+const NEW_ITEM_TITLES: Record<NewItem, string> = {
+  account: 'Nueva cuenta',
+  card: 'Nueva tarjeta de crédito',
+  budget: 'Nuevo presupuesto',
+  goal: 'Nueva meta',
+  debt: 'Nueva deuda',
+  loan: 'Nuevo préstamo',
+}
+
+const BUDGET_WARN_THRESHOLD = 70
+const CARD_DUE_SOON_DAYS = 5
 
 function sumByCurrency(amounts: { amount: number; currency: string }[]): Record<string, number> {
   const totals: Record<string, number> = {}
@@ -49,50 +51,64 @@ function sumByCurrency(amounts: { amount: number; currency: string }[]): Record<
   return totals
 }
 
-// Mes calendario en la zona horaria LOCAL del navegador: desde que los
-// movimientos llevan hora real (datetime-local), un gasto a las 10pm del 31
-// en Bogotá es 03:00 UTC del día 1 — con límites UTC caería en el mes
-// siguiente aunque la lista lo muestre el 31. Los límites se mandan al
-// backend como instantes ISO, así que el filtro sigue siendo exacto.
-// (Los presupuestos del backend sí siguen usando mes UTC — ver
-// period-window.util.ts — ese es un cambio aparte.)
-function startOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1)
+// Una línea de totales por moneda para el resumen del encabezado de cada fila:
+// "COP $ 8.420.000 · USD US$ 866,00".
+function CurrencyTotals({
+  totals,
+  tone = 'neutral',
+}: {
+  totals: Record<string, number>
+  tone?: 'neutral' | 'balance' | 'positive' | 'negative'
+}) {
+  const entries = Object.entries(totals)
+  if (entries.length === 0) return null
+  return (
+    <>
+      {entries.map(([currency, amount], i) => (
+        <Fragment key={currency}>
+          {i > 0 && ' · '}
+          <Money amount={amount} currency={currency} tone={tone} />
+        </Fragment>
+      ))}
+    </>
+  )
 }
 
-function addMonths(date: Date, delta: number): Date {
-  return new Date(date.getFullYear(), date.getMonth() + delta, 1)
+// Días hasta el próximo día de pago de la tarjeta (hoy cuenta como 0).
+function daysUntilDue(dueDay: number): number {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const dueThisMonth = new Date(now.getFullYear(), now.getMonth(), dueDay)
+  const due =
+    dueThisMonth >= today ? dueThisMonth : new Date(now.getFullYear(), now.getMonth() + 1, dueDay)
+  return Math.round((due.getTime() - today.getTime()) / 86_400_000)
 }
 
-function formatMonthLabel(date: Date): string {
-  const label = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(date)
-  return label.charAt(0).toUpperCase() + label.slice(1)
+function budgetTone(percentUsed: number) {
+  if (percentUsed >= 100) return 'error' as const
+  if (percentUsed >= BUDGET_WARN_THRESHOLD) return 'warn' as const
+  return 'ok' as const
 }
 
 export function HomePage() {
   const { user, token } = useAuth()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [categories, setCategories] = useState<Category[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [goals, setGoals] = useState<Goal[]>([])
   const [debts, setDebts] = useState<Debt[]>([])
+  const [loans, setLoans] = useState<Loan[]>([])
   const [forecast, setForecast] = useState<ForecastSummary[]>([])
   const [invitations, setInvitations] = useState<Invitation[]>([])
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()))
-  const [monthLoading, setMonthLoading] = useState(true)
-  const [monthError, setMonthError] = useState<string | null>(null)
   const [pendingCount, setPendingCount] = useState(0)
   const [showPendingDrawer, setShowPendingDrawer] = useState(false)
+  // Qué modal de creación está abierto (null = ninguno). 'card' es el form de
+  // cuenta ya preseleccionado en tarjeta de crédito.
+  const [creating, setCreating] = useState<NewItem | null>(null)
 
-  const isCurrentMonth = monthStart.getTime() === startOfMonth(new Date()).getTime()
-
-  // Todo lo que es "estado actual" (saldos, presupuestos, metas, deudas,
-  // proyección, solicitudes) no depende del mes elegido — se carga una vez.
-  // Solo los movimientos se filtran por mes, en el efecto de abajo.
   useEffect(() => {
     if (!token) return
     let ignore = false
@@ -104,18 +120,20 @@ export function HomePage() {
       api.getBudgets(token),
       api.getGoals(token),
       api.getDebts(token),
+      api.getLoans(token),
       api.getForecastSummary(token),
       api.getMyInvitations(token),
       api.getReceivedFriendRequests(token),
       api.getPendingTransactions(token),
     ])
-      .then(([accs, cats, bud, gls, dbts, fc, invs, freqs, pending]) => {
+      .then(([accs, cats, bud, gls, dbts, lns, fc, invs, freqs, pending]) => {
         if (ignore) return
         setAccounts(accs)
         setCategories(cats)
         setBudgets(bud)
         setGoals(gls)
         setDebts(dbts)
+        setLoans(lns)
         setForecast(fc)
         setInvitations(invs.filter((i) => i.status === 'PENDING'))
         setFriendRequests(freqs)
@@ -132,394 +150,330 @@ export function HomePage() {
     }
   }, [token])
 
-  // `ignore` descarta la respuesta de un mes que ya no es el visible: al
-  // pasar varios meses rápido con las flechas, las peticiones se solapan y
-  // sin esto la que llegara de última "ganaba" aunque fuera de otro mes —
-  // el encabezado decía un mes y los números eran de otro.
-  useEffect(() => {
-    if (!token) return
-    let ignore = false
-    setMonthLoading(true)
-    setMonthError(null)
-    api
-      .getTransactions(token, {
-        startDate: monthStart.toISOString(),
-        endDate: addMonths(monthStart, 1).toISOString(),
-      })
-      .then((txs) => {
-        if (!ignore) setTransactions(txs)
-      })
-      .catch((err) => {
-        if (!ignore) setMonthError(err instanceof ApiError ? err.message : 'Error al cargar los movimientos del mes')
-      })
-      .finally(() => {
-        if (!ignore) setMonthLoading(false)
-      })
-    return () => {
-      ignore = true
-    }
-  }, [token, monthStart])
-
-  const personalAccounts = accounts.filter((a) => a.memberCount <= 1 && a.type !== 'CREDIT_CARD')
-  const sharedAccounts = accounts.filter((a) => a.memberCount > 1 && a.type !== 'CREDIT_CARD')
-  const creditCardAccounts = accounts.filter((a) => a.type === 'CREDIT_CARD')
-  const personalBalancesByCurrency = sumByCurrency(
-    personalAccounts.map((a) => ({ amount: a.currentBalance, currency: a.currency })),
+  const regularAccounts = accounts.filter((a) => a.type !== 'CREDIT_CARD')
+  const creditCards = accounts.filter((a) => a.type === 'CREDIT_CARD')
+  const balancesByCurrency = sumByCurrency(
+    regularAccounts.map((a) => ({ amount: a.currentBalance, currency: a.currency })),
   )
-  const sharedBalancesByCurrency = sumByCurrency(
-    sharedAccounts.map((a) => ({ amount: a.currentBalance, currency: a.currency })),
+  // Cupo disponible = límite + saldo (el saldo de una tarjeta es negativo
+  // cuando hay compras pendientes). Sin límite configurado no hay contra qué
+  // calcularlo, así que esa tarjeta no suma al total del encabezado.
+  const availableByCurrency = sumByCurrency(
+    creditCards
+      .filter((a) => a.creditLimit != null)
+      .map((a) => ({ amount: (a.creditLimit ?? 0) + a.currentBalance, currency: a.currency })),
   )
-  const creditCardBalancesByCurrency = sumByCurrency(
-    creditCardAccounts.map((a) => ({ amount: a.currentBalance, currency: a.currency })),
+  const activeLoans = loans.filter((l) => l.status === 'ACTIVE')
+  const loanBalancesByCurrency = sumByCurrency(
+    activeLoans.map((l) => ({ amount: l.remainingBalance, currency: l.currency })),
   )
-  const budgetsAtRisk = budgets
-    .filter((b) => b.percentUsed >= BUDGET_RISK_THRESHOLD)
-    .sort((a, b) => b.percentUsed - a.percentUsed)
   const pendingDebts = debts.filter((d) => d.status !== 'SETTLED')
   const owedToMe = sumByCurrency(
-    pendingDebts.filter((d) => d.direction === 'THEY_OWE_ME').map((d) => ({ amount: d.amount, currency: d.currency })),
+    pendingDebts
+      .filter((d) => d.direction === 'THEY_OWE_ME')
+      .map((d) => ({ amount: d.remainingBalance, currency: d.currency })),
   )
   const owedByMe = sumByCurrency(
-    pendingDebts.filter((d) => d.direction === 'I_OWE_THEM').map((d) => ({ amount: d.amount, currency: d.currency })),
+    pendingDebts
+      .filter((d) => d.direction === 'I_OWE_THEM')
+      .map((d) => ({ amount: d.remainingBalance, currency: d.currency })),
   )
-  // transferId se excluye de estos totales: mover dinero entre tus propias
-  // cuentas no es ingreso ni gasto real, solo reubicación. Lo mismo aplica al
-  // pagar la cuota de una compra de tarjeta (EXPENSE en la cuenta que paga +
-  // INCOME en la tarjeta, como un transfer) — solo cuenta como gasto real la
-  // pata de la compra en sí (el EXPENSE inicial en la tarjeta), no cada pago
-  // de cuota, o se contaría la misma compra varias veces.
-  const creditCardAccountIds = new Set(
-    accounts.filter((a) => a.type === 'CREDIT_CARD').map((a) => a.id),
-  )
-  const monthFlows = transactions.filter((tx) => {
-    if (tx.transferId) return false
-    if (tx.cardPurchase) return tx.type === 'EXPENSE' && creditCardAccountIds.has(tx.account.id)
-    return true
-  })
-  const monthIncomeByCurrency = sumByCurrency(
-    monthFlows.filter((tx) => tx.type === 'INCOME').map((tx) => ({ amount: tx.amount, currency: tx.account.currency })),
-  )
-  const monthExpenseByCurrency = sumByCurrency(
-    monthFlows.filter((tx) => tx.type === 'EXPENSE').map((tx) => ({ amount: tx.amount, currency: tx.account.currency })),
-  )
-  const monthCurrencies = Array.from(new Set([...Object.keys(monthIncomeByCurrency), ...Object.keys(monthExpenseByCurrency)]))
-  const recentTransactions = transactions.slice(0, RECENT_TRANSACTIONS_LIMIT)
   const pendingRequestsCount = invitations.length + friendRequests.length
-  const newTransactionHref = accounts.length === 1 ? `/accounts/${accounts[0].id}/transactions?new=1` : '/accounts'
 
-  const quickActions = [
-    { to: '/accounts?new=1', label: 'Nueva cuenta', icon: Wallet, tone: 'accent' as const },
-    { to: newTransactionHref, label: 'Nuevo movimiento', icon: Receipt, tone: 'ok' as const },
-    { to: '/goals?new=1', label: 'Nueva meta', icon: Target, tone: 'warn' as const },
-    { to: '/budgets?new=1', label: 'Nuevo presupuesto', icon: PiggyBank, tone: 'neutral' as const },
-    { to: '/loans?new=1', label: 'Nuevo préstamo', icon: Landmark, tone: 'error' as const },
-    { to: '/forecast', label: 'Ver proyección', icon: TrendingUp, tone: 'accent' as const },
-  ]
+  let debtsSummary: ReactNode = null
+  if (Object.keys(owedToMe).length > 0 || Object.keys(owedByMe).length > 0) {
+    debtsSummary = (
+      <>
+        {Object.keys(owedToMe).length > 0 && (
+          <>
+            Te deben <CurrencyTotals totals={owedToMe} tone="positive" />
+          </>
+        )}
+        {Object.keys(owedToMe).length > 0 && Object.keys(owedByMe).length > 0 && ' · '}
+        {Object.keys(owedByMe).length > 0 && (
+          <>
+            Debes <CurrencyTotals totals={owedByMe} tone="negative" />
+          </>
+        )}
+      </>
+    )
+  }
 
   return (
     <Layout>
-      <SectionHeader as="h1" title={`Hola, ${user?.name?.split(' ')[0]}`} subtitle="Este es tu resumen financiero" />
-
-      <div className="home-quick-actions">
-        {quickActions.map((action) => (
-          <Link className="home-quick-action" to={action.to} key={action.label}>
-            <IconChip tone={action.tone}>
-              <action.icon size={18} strokeWidth={2} />
-            </IconChip>
-            <span>{action.label}</span>
-          </Link>
-        ))}
-      </div>
-
-      {pendingCount > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+      <SectionHeader as="h1" title={`Hola, ${user?.name?.split(' ')[0]}`} subtitle="Este es tu resumen financiero">
+        {pendingCount > 0 && (
           <Button onClick={() => setShowPendingDrawer(true)} variant="secondary">
             {pendingCount} pago{pendingCount !== 1 ? 's' : ''} pendiente{pendingCount !== 1 ? 's' : ''}
           </Button>
-        </div>
-      )}
+        )}
+      </SectionHeader>
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}
 
       {!loading && !error && (
         <>
-          <div className="home-month-nav">
-            <button
-              type="button"
-              className="home-month-nav-btn"
-              onClick={() => setMonthStart((m) => addMonths(m, -1))}
-              aria-label="Mes anterior"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <span className="home-month-label">{formatMonthLabel(monthStart)}</span>
-            <button
-              type="button"
-              className="home-month-nav-btn"
-              onClick={() => setMonthStart((m) => addMonths(m, 1))}
-              aria-label="Mes siguiente"
-            >
-              <ChevronRight size={18} />
-            </button>
-            {!isCurrentMonth && (
-              <button type="button" className="home-month-reset" onClick={() => setMonthStart(startOfMonth(new Date()))}>
-                Mes actual
-              </button>
-            )}
-          </div>
-          {monthError && <div className="auth-error">{monthError}</div>}
-
-          <section className="home-section">
-            <SectionHeader title="Saldo total" />
-            {accounts.length === 0 ? (
-              <EmptyState>Todavía no tienes cuentas — créalas en Cuentas.</EmptyState>
-            ) : (
-              <>
-                {personalAccounts.length > 0 && (
-                  <div className="home-balance-group">
-                    <div className="home-balance-group-label">Cuentas personales</div>
-                    <CardGrid minWidth={240}>
-                      {Object.entries(personalBalancesByCurrency).map(([currency, total]) => (
-                        <StatCard
-                          key={currency}
-                          label={currency}
-                          value={<Money amount={total} currency={currency} tone="balance" size="lg" />}
-                        />
-                      ))}
-                    </CardGrid>
-                  </div>
-                )}
-                {sharedAccounts.length > 0 && (
-                  <div className="home-balance-group">
-                    <div className="home-balance-group-label">Cuentas compartidas</div>
-                    <CardGrid minWidth={240}>
-                      {Object.entries(sharedBalancesByCurrency).map(([currency, total]) => (
-                        <StatCard
-                          key={currency}
-                          label={currency}
-                          value={<Money amount={total} currency={currency} tone="balance" size="lg" />}
-                        />
-                      ))}
-                    </CardGrid>
-                  </div>
-                )}
-                {creditCardAccounts.length > 0 && (
-                  <div className="home-balance-group">
-                    <div className="home-balance-group-label">Tarjetas de crédito (deudas)</div>
-                    <CardGrid minWidth={240}>
-                      {Object.entries(creditCardBalancesByCurrency).map(([currency, total]) => (
-                        <StatCard
-                          key={currency}
-                          label={currency}
-                          value={<Money amount={total} currency={currency} tone={total < 0 ? 'positive' : 'negative'} size="lg" />}
-                          sub={total < 0 ? 'Cupo disponible' : 'Saldo adeudado'}
-                        />
-                      ))}
-                    </CardGrid>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
-
-          {!monthLoading && monthCurrencies.length > 0 && (
-            <section className="home-section">
-              <SectionHeader title={`Resumen de ${formatMonthLabel(monthStart)}`} />
-              <CardGrid minWidth={240}>
-                {monthCurrencies.map((currency) => {
-                  const income = monthIncomeByCurrency[currency] ?? 0
-                  const expense = monthExpenseByCurrency[currency] ?? 0
-                  return (
-                    <StatCard
-                      key={currency}
-                      label={currency}
-                      value={<Money amount={income - expense} currency={currency} tone="flow" size="lg" />}
-                      sub={
-                        <>
-                          +<Money amount={income} currency={currency} /> / -
-                          <Money amount={expense} currency={currency} />
-                        </>
-                      }
-                    />
-                  )
-                })}
-              </CardGrid>
-            </section>
-          )}
-
           {pendingRequestsCount > 0 && (
-            <section className="home-section">
-              <SectionHeader title="Solicitudes pendientes" />
-              <div className="home-requests-list">
-                {invitations.map((inv) => (
-                  <ListRow
-                    key={`inv-${inv.id}`}
-                    href="/invitations"
-                    title={
-                      <>
-                        Invitación a <strong>{inv.account.name}</strong> de {inv.invitedBy.name}
-                      </>
-                    }
-                    trailing={<Badge tone="warn">Ver</Badge>}
-                  />
-                ))}
-                {friendRequests.map((r) => (
-                  <ListRow
-                    key={`fr-${r.id}`}
-                    href="/friends"
-                    title={
-                      <>
-                        Solicitud de amistad de <strong>{r.requestedBy.name}</strong>
-                      </>
-                    }
-                    trailing={<Badge tone="warn">Ver</Badge>}
-                  />
-                ))}
-              </div>
-            </section>
+            <div className="home-requests-list">
+              {invitations.map((inv) => (
+                <ListRow
+                  key={`inv-${inv.id}`}
+                  href="/invitations"
+                  title={
+                    <>
+                      Invitación a <strong>{inv.account.name}</strong> de {inv.invitedBy.name}
+                    </>
+                  }
+                  trailing={<Badge tone="warn">Ver</Badge>}
+                />
+              ))}
+              {friendRequests.map((r) => (
+                <ListRow
+                  key={`fr-${r.id}`}
+                  href="/friends"
+                  title={
+                    <>
+                      Solicitud de amistad de <strong>{r.requestedBy.name}</strong>
+                    </>
+                  }
+                  trailing={<Badge tone="warn">Ver</Badge>}
+                />
+              ))}
+            </div>
           )}
+
+          <HomeRow title="Cuentas" to="/accounts" summary={<CurrencyTotals totals={balancesByCurrency} tone="balance" />}>
+            {regularAccounts.map((a) => (
+              <TileCard
+                key={a.id}
+                to={`/accounts/${a.id}/transactions`}
+                label={a.name}
+                badge={a.memberCount > 1 ? <Badge tone="neutral">Compartida</Badge> : undefined}
+                value={<Money amount={a.currentBalance} currency={a.currency} tone="balance" />}
+                sub={a.currency}
+              />
+            ))}
+            <AddTile onClick={() => setCreating('account')} label="Nueva cuenta" />
+          </HomeRow>
+
+          <HomeRow
+            title="Tarjetas de crédito"
+            to="/accounts"
+            summary={
+              Object.keys(availableByCurrency).length > 0 ? (
+                <>
+                  Cupo disponible <CurrencyTotals totals={availableByCurrency} />
+                </>
+              ) : undefined
+            }
+          >
+            {creditCards.map((a) => {
+              const hasLimit = a.creditLimit != null
+              const available = (a.creditLimit ?? 0) + a.currentBalance
+              const used = Math.max(0, -a.currentBalance)
+              const percentUsed = hasLimit && a.creditLimit! > 0 ? (used / a.creditLimit!) * 100 : 0
+              const dueIn = a.paymentDueDay != null ? daysUntilDue(a.paymentDueDay) : null
+              return (
+                <TileCard
+                  key={a.id}
+                  to={`/accounts/${a.id}/transactions`}
+                  label={a.name}
+                  badge={
+                    dueIn != null && dueIn <= CARD_DUE_SOON_DAYS ? (
+                      <Badge tone="warn">{dueIn === 0 ? 'Vence hoy' : `Vence en ${dueIn} d`}</Badge>
+                    ) : undefined
+                  }
+                  value={
+                    hasLimit ? (
+                      <Money amount={available} currency={a.currency} tone="balance" />
+                    ) : (
+                      <Money amount={used} currency={a.currency} tone={used > 0 ? 'negative' : 'neutral'} />
+                    )
+                  }
+                  sub={
+                    hasLimit ? (
+                      <>
+                        Disponible de <Money amount={a.creditLimit!} currency={a.currency} />
+                      </>
+                    ) : (
+                      'Saldo adeudado'
+                    )
+                  }
+                  progress={hasLimit ? { value: percentUsed, tone: budgetTone(percentUsed) } : undefined}
+                />
+              )
+            })}
+            <AddTile onClick={() => setCreating('card')} label="Nueva tarjeta" />
+          </HomeRow>
+
+          <HomeRow title="Presupuestos" to="/budgets">
+            {budgets.map((b) => (
+              <TileCard
+                key={b.id}
+                to="/budgets"
+                label={`${b.category.emoji ? `${b.category.emoji} ` : ''}${b.category.name}`}
+                value={<Money amount={b.remaining} currency={b.currency} tone="balance" />}
+                sub={
+                  <>
+                    {b.remaining < 0 ? 'Pasado de ' : 'Restan de '}
+                    <Money amount={b.limitAmount} currency={b.currency} />
+                  </>
+                }
+                progress={{ value: b.percentUsed, tone: budgetTone(b.percentUsed) }}
+              />
+            ))}
+            <AddTile onClick={() => setCreating('budget')} label="Nuevo presupuesto" />
+          </HomeRow>
+
+          <HomeRow title="Metas" to="/goals">
+            {goals.map((g) => (
+              <TileCard
+                key={g.id}
+                to="/goals"
+                label={g.name}
+                value={`${g.percentComplete}%`}
+                sub={
+                  <>
+                    <Money amount={g.currentAmount} currency={g.currency} /> de{' '}
+                    <Money amount={g.targetAmount} currency={g.currency} />
+                  </>
+                }
+                progress={{ value: g.percentComplete }}
+              />
+            ))}
+            <AddTile onClick={() => setCreating('goal')} label="Nueva meta" />
+          </HomeRow>
+
+          <HomeRow title="Deudas" to="/debts" summary={debtsSummary}>
+            {pendingDebts.map((d) => (
+              <TileCard
+                key={d.id}
+                to="/debts"
+                label={d.counterparty.name}
+                badge={<Badge tone={d.direction === 'THEY_OWE_ME' ? 'ok' : 'error'}>{d.direction === 'THEY_OWE_ME' ? 'Te debe' : 'Debes'}</Badge>}
+                value={
+                  <Money
+                    amount={d.remainingBalance}
+                    currency={d.currency}
+                    tone={d.direction === 'THEY_OWE_ME' ? 'positive' : 'negative'}
+                  />
+                }
+                sub={d.description ?? 'Pendiente'}
+                progress={{ value: d.percentPaid }}
+              />
+            ))}
+            <AddTile onClick={() => setCreating('debt')} label="Nueva deuda" />
+          </HomeRow>
+
+          <HomeRow
+            title="Préstamos"
+            to="/loans"
+            summary={
+              Object.keys(loanBalancesByCurrency).length > 0 ? (
+                <>
+                  Saldo <CurrencyTotals totals={loanBalancesByCurrency} />
+                </>
+              ) : undefined
+            }
+          >
+            {activeLoans.map((l) => (
+              <TileCard
+                key={l.id}
+                to="/loans"
+                label={l.name}
+                badge={
+                  <span>
+                    {l.installmentsPaid}/{l.installmentsTotal}
+                  </span>
+                }
+                value={<Money amount={l.remainingBalance} currency={l.currency} />}
+                sub={
+                  <>
+                    Próxima cuota ≈{' '}
+                    <Money amount={l.nextInstallment?.total ?? l.installmentAmount} currency={l.currency} />
+                  </>
+                }
+                progress={{ value: l.percentPaid }}
+              />
+            ))}
+            <AddTile onClick={() => setCreating('loan')} label="Nuevo préstamo" />
+          </HomeRow>
 
           {forecast.length > 0 && (
-            <section className="home-section">
-              <SectionHeader title="Proyección mensual">
-                <Link to="/forecast">Ver detalle →</Link>
-              </SectionHeader>
-              <CardGrid minWidth={240}>
-                {forecast.map((f) => (
-                  <StatCard
-                    key={f.currency}
-                    label={f.currency}
-                    value={<Money amount={f.projectedMonthlyNet} currency={f.currency} tone="flow" size="lg" />}
-                    sub={
-                      <>
-                        +<Money amount={f.projectedMonthlyIncome} currency={f.currency} /> / -
-                        <Money amount={f.projectedMonthlyExpense} currency={f.currency} />
-                        {f.projectedMonthlyCardInstallments > 0 && (
-                          <>
-                            {' '}
-                            (incl. <Money amount={f.projectedMonthlyCardInstallments} currency={f.currency} /> en
-                            cuotas de tarjeta de crédito)
-                          </>
-                        )}
-                      </>
-                    }
-                  />
-                ))}
-              </CardGrid>
-            </section>
+            <HomeRow title="Proyección mensual" to="/forecast">
+              {forecast.map((f) => (
+                <TileCard
+                  key={f.currency}
+                  to="/forecast"
+                  label={`${f.currency} · neto del mes`}
+                  value={<Money amount={f.projectedMonthlyNet} currency={f.currency} tone="flow" />}
+                  sub={
+                    <>
+                      +<Money amount={f.projectedMonthlyIncome} currency={f.currency} /> / -
+                      <Money amount={f.projectedMonthlyExpense} currency={f.currency} />
+                      {f.projectedMonthlyCardInstallments > 0 && (
+                        <>
+                          {' '}
+                          (incl. <Money amount={f.projectedMonthlyCardInstallments} currency={f.currency} /> en
+                          cuotas de tarjeta)
+                        </>
+                      )}
+                    </>
+                  }
+                />
+              ))}
+            </HomeRow>
           )}
-
-          {budgetsAtRisk.length > 0 && (
-            <section className="home-section">
-              <SectionHeader title="Presupuestos en riesgo">
-                <Link to="/budgets">Ver todos →</Link>
-              </SectionHeader>
-              <div className="home-list">
-                {budgetsAtRisk.map((b) => (
-                  <ListRow
-                    key={b.id}
-                    title={`${b.category.emoji ? `${b.category.emoji} ` : ''}${b.category.name}`}
-                    trailing={<Badge tone={b.percentUsed >= 100 ? 'error' : 'warn'}>{b.percentUsed}% usado</Badge>}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {goals.length > 0 && (
-            <section className="home-section">
-              <SectionHeader title="Metas de ahorro">
-                <Link to="/goals">Ver todas →</Link>
-              </SectionHeader>
-              <div className="home-list">
-                {goals.map((g) => (
-                  <ListRow key={g.id} title={g.name} trailing={`${g.percentComplete}%`} />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {pendingDebts.length > 0 && (
-            <section className="home-section">
-              <SectionHeader title="Deudas pendientes">
-                <Link to="/debts">Ver todas →</Link>
-              </SectionHeader>
-              <CardGrid minWidth={240}>
-                {Object.entries(owedToMe).map(([currency, total]) => (
-                  <StatCard
-                    key={`owed-to-me-${currency}`}
-                    label={`Te deben (${currency})`}
-                    value={<Money amount={total} currency={currency} tone="positive" size="lg" />}
-                  />
-                ))}
-                {Object.entries(owedByMe).map(([currency, total]) => (
-                  <StatCard
-                    key={`owed-by-me-${currency}`}
-                    label={`Debes (${currency})`}
-                    value={<Money amount={total} currency={currency} tone="negative" size="lg" />}
-                  />
-                ))}
-              </CardGrid>
-            </section>
-          )}
-
-          <section className="home-section" aria-busy={monthLoading}>
-            <SectionHeader title={`Movimientos de ${formatMonthLabel(monthStart)}`} />
-            {monthLoading ? (
-              <p>Cargando…</p>
-            ) : recentTransactions.length === 0 ? (
-              <EmptyState>No hay movimientos en este mes.</EmptyState>
-            ) : (
-              <>
-                <div className="home-list">
-                  {recentTransactions.map((tx) => {
-                    const emoji = tx.transferId
-                      ? '⇄'
-                      : tx.goal
-                        ? '🎯'
-                        : tx.loan
-                          ? '🏦'
-                          : tx.cardPurchase
-                            ? '🛍️'
-                            : (tx.category?.emoji ?? '💰')
-                    const label = tx.transferId
-                      ? `Transferencia (${tx.account.name})`
-                      : tx.goal
-                        ? `${tx.goal.name} (${tx.account.name})`
-                        : tx.loan
-                          ? `${tx.loan.name} (${tx.account.name})`
-                          : tx.cardPurchase
-                            ? `${tx.cardPurchase.merchant} (${tx.account.name})`
-                            : `${tx.category?.name} · ${tx.account.name}`
-                    return (
-                      <ListRow
-                        key={tx.id}
-                        leading={<IconChip tone={tx.type === 'INCOME' ? 'ok' : 'error'}>{emoji}</IconChip>}
-                        title={label}
-                        subtitle={formatDateOnly(tx.occurredAt)}
-                        trailing={
-                          <Money
-                            amount={tx.amount}
-                            currency={tx.account.currency}
-                            tone={tx.type === 'INCOME' ? 'positive' : 'negative'}
-                            showSign
-                          />
-                        }
-                      />
-                    )
-                  })}
-                </div>
-                {transactions.length > RECENT_TRANSACTIONS_LIMIT && (
-                  <p className="home-more-note">
-                    Mostrando {RECENT_TRANSACTIONS_LIMIT} de {transactions.length} movimientos de este mes.
-                  </p>
-                )}
-              </>
-            )}
-          </section>
         </>
       )}
+
+      <Modal open={creating !== null} onClose={() => setCreating(null)} title={creating ? NEW_ITEM_TITLES[creating] : ''}>
+        {(creating === 'account' || creating === 'card') && (
+          <AccountForm
+            defaultType={creating === 'card' ? 'CREDIT_CARD' : 'SAVINGS'}
+            onCreated={(account) => {
+              setAccounts((prev) => [...prev, account])
+              setCreating(null)
+            }}
+          />
+        )}
+        {creating === 'budget' && (
+          <BudgetForm
+            categories={categories}
+            onCreated={(budget) => {
+              setBudgets((prev) => [...prev, budget])
+              setCreating(null)
+            }}
+          />
+        )}
+        {creating === 'goal' && (
+          <GoalForm
+            accounts={accounts}
+            onCreated={(goal) => {
+              setGoals((prev) => [...prev, goal])
+              setCreating(null)
+            }}
+          />
+        )}
+        {creating === 'debt' && (
+          <DebtForm
+            onCreated={(debt) => {
+              setDebts((prev) => [debt, ...prev])
+              setCreating(null)
+            }}
+          />
+        )}
+        {creating === 'loan' && (
+          <LoanForm
+            accounts={accounts}
+            onCreated={(loan) => {
+              setLoans((prev) => [loan, ...prev])
+              setCreating(null)
+            }}
+          />
+        )}
+      </Modal>
 
       {token && (
         <PendingTransactionsDrawer

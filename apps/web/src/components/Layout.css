@@ -407,6 +407,7 @@
 
 .layout-content {
   flex: 1;
+  min-width: 0; /* sin esto, una fila con overflow-x (Home) ensancha toda la página */
   padding: var(--space-4);
   padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
 }

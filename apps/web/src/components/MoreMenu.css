@@ -1,7 +1,7 @@
 .more-menu-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(8, 6, 13, 0.35);
+  background: rgba(43, 38, 32, 0.35);
   z-index: 40;
   animation: more-menu-fade-in 0.15s ease;
 }

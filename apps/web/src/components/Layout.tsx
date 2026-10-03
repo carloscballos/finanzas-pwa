@@ -17,10 +17,13 @@ import {
   Settings,
   Eye,
   EyeOff,
+  Moon,
+  Sun,
   type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { usePrivacy } from '../context/PrivacyContext'
+import { useTheme } from '../context/ThemeContext'
 import * as api from '../lib/api'
 import { formatMoney } from '../lib/money'
 import { MoreMenu, type MoreMenuItem } from './MoreMenu'
@@ -63,6 +66,8 @@ export function Layout({
 }) {
   const { user, token, logout } = useAuth()
   const { hideValues, toggleHideValues } = usePrivacy()
+  const { theme, toggleTheme } = useTheme()
+  const themeLabel = theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'
   const location = useLocation()
   const [usdRate, setUsdRate] = useState<number | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -120,6 +125,10 @@ export function Layout({
           >
             {hideValues ? <EyeOff size={16} /> : <Eye size={16} />}
             {hideValues ? 'Mostrar valores' : 'Ocultar valores'}
+          </button>
+          <button type="button" className="layout-sidebar-privacy" onClick={toggleTheme} title={themeLabel}>
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            {theme === 'dark' ? 'Tema claro' : 'Tema oscuro'}
           </button>
           {usdRate !== null && (
             <div
@@ -185,6 +194,15 @@ export function Layout({
               aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
             >
               {hideValues ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+            <button
+              type="button"
+              className="layout-privacy-toggle"
+              onClick={toggleTheme}
+              title={themeLabel}
+              aria-label={themeLabel}
+            >
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             {usdRate !== null && (
               <span

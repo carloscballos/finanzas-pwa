@@ -1,12 +1,13 @@
-import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { Injectable, ExecutionContext, UnauthorizedException, CanActivate } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { ApiKeysService } from '../../api-keys/api-keys.service';
 
 @Injectable()
-export class JwtAuthGuard extends AuthGuard('jwt') {
-  constructor(private readonly apiKeysService: ApiKeysService) {
-    super();
-  }
+export class JwtAuthGuard implements CanActivate {
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly apiKeysService: ApiKeysService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -22,11 +23,11 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       throw new UnauthorizedException('Esquema de autorización inválido');
     }
 
-    // Primero intenta validar como JWT (el guard padre lo hace)
+    // Primero intenta validar como JWT
     try {
-      const result = await super.canActivate(context);
-      // Convierte Observable a boolean si es necesario
-      return Boolean(result);
+      const payload = this.jwtService.verify(token);
+      request.user = { id: payload.sub };
+      return true;
     } catch {
       // Si JWT falla, intenta como API key
       const userId = await this.apiKeysService.validateToken(token);

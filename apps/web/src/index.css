@@ -1,39 +1,39 @@
+/* Paleta y tipografía de Koy PDF ("retro suave"): crema + tinta, acento
+   terracota, verde salvia y azul polvo, sin gradientes ni sombras. Los
+   nombres de los tokens se conservan del sistema anterior (Modern Ledger)
+   para que ningún componente tenga que cambiar. */
 :root {
-  /* Modern Ledger — paleta clara (ver DESIGN.md). "surface-container-lowest"
-     de M3 se usa para tarjetas (blanco puro) contra un fondo mineral
-     verde-teal muy claro, en vez de blanco sobre blanco. */
-  --text: #3f4946;
-  --text-h: #141d1a;
-  --bg: #f2fcf6;
-  --bg-subtle: #e6f0eb;
-  --border-color: #e1e5e2;
-  --card-bg: #ffffff;
-  --card-bg-raised: #ffffff;
-  --accent: #0f6b5c;
-  --accent-hover: #005145;
-  --accent-contrast: #ffffff;
-  --accent-soft: rgba(15, 106, 92, 0.12);
+  --text: #5b5347;
+  --text-h: #2b2620;
+  --bg: #f2efe3;
+  --bg-subtle: #ede7d4;
+  --border-color: #d9cfb4;
+  --card-bg: #f7f4ea;
+  --card-bg-raised: #f7f4ea;
+  --accent: #a63d1c;
+  --accent-hover: #83301a;
+  --accent-contrast: #f7f4ea;
+  --accent-soft: #f0ddd3;
 
-  --secondary: #7e5700;
-  --secondary-container: #ffe1a3;
-  --tertiary: #104a7a;
-  --tertiary-container: #d7e6f7;
+  --secondary: #8a5a1e;
+  --secondary-container: #f3e6d2;
+  --tertiary: #3e5f7e;
+  --tertiary-container: #dde6ee;
 
-  --badge-neutral-bg: #e6f0eb;
-  --badge-neutral-fg: #3f4946;
-  --badge-ok-bg: #dcf3e8;
-  --badge-ok-fg: #0b6b4f;
-  --badge-warn-bg: #fdecc8;
-  --badge-warn-fg: #7e5700;
-  --badge-error-bg: #f9ded4;
-  --badge-error-fg: #a8461f;
+  --badge-neutral-bg: #ede7d4;
+  --badge-neutral-fg: #5b5347;
+  --badge-ok-bg: #e3ece0;
+  --badge-ok-fg: #3f6b4a;
+  --badge-warn-bg: #f3e6d2;
+  --badge-warn-fg: #8a5a1e;
+  --badge-error-bg: #f5e3de;
+  --badge-error-fg: #a33b2e;
 
-  /* Triple tipografía: Fraunces para momentos editoriales (saldos hero,
-     títulos de página), Inter para UI, JetBrains Mono con tabular-nums
+  /* IBM Plex Sans para títulos y UI, IBM Plex Mono con tabular-nums
      estrictamente para cifras de dinero — ver utilidad .figure abajo. */
-  --sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -43,26 +43,25 @@
   --space-6: 2rem;
   --space-7: 3rem;
 
-  --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.5rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
   --radius-pill: 9999px;
   /* Overrides explícitos del design system para dos familias de componentes
      que NO siguen la escala genérica de arriba. */
-  --radius-card: 1.25rem;
-  --radius-control: 0.875rem;
+  --radius-card: 0.5rem;
+  --radius-control: 0.375rem;
 
   --content-max-width: 1080px;
   --bottom-nav-height: 64px;
 
-  /* El sistema evita sombras duras en tarjetas estándar (se apoya en el
-     borde hairline en su lugar) y las reserva, muy difuminadas, para
-     elementos flotantes: modales, bottom sheets, dropdowns, el FAB. */
+  /* Sin sombras: la jerarquía sale del borde y del tono de superficie. El
+     foco usa un anillo del color de acento. */
   --shadow-sm: none;
-  --shadow-md: 0 2px 8px rgba(20, 29, 26, 0.06);
-  --shadow-lg: 0 16px 32px rgba(20, 29, 26, 0.1), 0 4px 12px rgba(20, 29, 26, 0.05);
-  --shadow-focus: 0 0 0 3px rgba(15, 106, 92, 0.2);
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-focus: 0 0 0 2px rgba(166, 61, 28, 0.35);
 
   font: 16px/1.5 var(--sans);
   color-scheme: light dark;
@@ -74,43 +73,76 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Paleta oscura: DESIGN.md solo define el esquema claro. Se deriva siguiendo
-   la misma convención de Material 3 (superficies "mineral" oscuras, acento
-   con los tonos *-fixed-dim/inverse-primary ya presentes en el token block
-   original, que M3 reserva justo para esto). Ajustar a mano si no convence. */
+/* Paleta oscura de Koy PDF (tinta cálida, no negro puro). Se aplica cuando el
+   sistema es oscuro y el usuario no eligió claro, o cuando eligió oscuro con el
+   botón (data-theme en <html>). El bloque está duplicado a propósito: CSS no
+   permite compartir declaraciones entre un @media y un selector de atributo. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --text: #a9b4b0;
-    --text-h: #eef5f1;
-    --bg: #101714;
-    --bg-subtle: #16201c;
-    --border-color: #26332d;
-    --card-bg: #1a2420;
-    --card-bg-raised: #1f2b26;
-    --accent: #86d5c3;
-    --accent-hover: #a2f2de;
-    --accent-contrast: #00201a;
-    --accent-soft: rgba(134, 213, 195, 0.16);
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --text: #b8ad98;
+    --text-h: #ede7d4;
+    --bg: #211d17;
+    --bg-subtle: #29241d;
+    --border-color: #3b3428;
+    --card-bg: #29241d;
+    --card-bg-raised: #332c22;
+    --accent: #e07a4f;
+    --accent-hover: #e8956f;
+    --accent-contrast: #211d17;
+    --accent-soft: rgba(224, 122, 79, 0.16);
 
-    --secondary: #f3be65;
-    --secondary-container: #4a3400;
-    --tertiary: #9ecaff;
-    --tertiary-container: #16324f;
+    --secondary: #d9a66a;
+    --secondary-container: #3a2e1c;
+    --tertiary: #8faacb;
+    --tertiary-container: #2a3441;
 
-    --badge-neutral-bg: #232f29;
-    --badge-neutral-fg: #c3cec8;
-    --badge-ok-bg: #123829;
-    --badge-ok-fg: #7fe0bb;
-    --badge-warn-bg: #4a3400;
-    --badge-warn-fg: #f3be65;
-    --badge-error-bg: #4a2013;
-    --badge-error-fg: #ef9575;
+    --badge-neutral-bg: #332c22;
+    --badge-neutral-fg: #b8ad98;
+    --badge-ok-bg: #2a3326;
+    --badge-ok-fg: #9cc49a;
+    --badge-warn-bg: #3a2e1c;
+    --badge-warn-fg: #d9a66a;
+    --badge-error-bg: #3a2620;
+    --badge-error-fg: #c97a63;
 
-    --shadow-sm: none;
-    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 16px 32px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.3);
-    --shadow-focus: 0 0 0 3px rgba(134, 213, 195, 0.25);
+    --shadow-focus: 0 0 0 2px rgba(224, 122, 79, 0.4);
   }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --text: #b8ad98;
+  --text-h: #ede7d4;
+  --bg: #211d17;
+  --bg-subtle: #29241d;
+  --border-color: #3b3428;
+  --card-bg: #29241d;
+  --card-bg-raised: #332c22;
+  --accent: #e07a4f;
+  --accent-hover: #e8956f;
+  --accent-contrast: #211d17;
+  --accent-soft: rgba(224, 122, 79, 0.16);
+
+  --secondary: #d9a66a;
+  --secondary-container: #3a2e1c;
+  --tertiary: #8faacb;
+  --tertiary-container: #2a3441;
+
+  --badge-neutral-bg: #332c22;
+  --badge-neutral-fg: #b8ad98;
+  --badge-ok-bg: #2a3326;
+  --badge-ok-fg: #9cc49a;
+  --badge-warn-bg: #3a2e1c;
+  --badge-warn-fg: #d9a66a;
+  --badge-error-bg: #3a2620;
+  --badge-error-fg: #c97a63;
+
+  --shadow-focus: 0 0 0 2px rgba(224, 122, 79, 0.4);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
 * {
@@ -126,7 +158,7 @@ body,
 
 h1 {
   font-family: var(--font-display);
-  font-weight: 600;
+  font-weight: 700;
   font-size: 32px;
   line-height: 40px;
   letter-spacing: -0.02em;

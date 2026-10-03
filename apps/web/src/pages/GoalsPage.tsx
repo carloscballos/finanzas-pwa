@@ -1,11 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Target } from 'lucide-react'
+import { GoalForm } from '../components/GoalForm'
 import { Layout } from '../components/Layout'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { CardGrid } from '../components/ui/CardGrid'
 import { EmptyState } from '../components/ui/EmptyState'
-import { Form, FormField, FormError } from '../components/ui/Form'
+import { Modal } from '../components/ui/Modal'
 import { Money } from '../components/ui/Money'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { SectionHeader } from '../components/ui/SectionHeader'
@@ -13,8 +14,7 @@ import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
 import { ApiError, type Account, type Goal } from '../lib/api'
-import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
-import { dateInputToIso, dateTimeInputToIso, formatDateOnly, nowDateTimeInput } from '../lib/dates'
+import { dateTimeInputToIso, formatDateOnly, nowDateTimeInput } from '../lib/dates'
 import { sanitizeDecimalInput } from '../lib/money'
 import './GoalsPage.css'
 
@@ -142,13 +142,7 @@ export function GoalsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const { open: showForm, toggle: toggleForm, close: closeForm } = useCreateFormToggle()
-  const [name, setName] = useState('')
-  const [targetAmount, setTargetAmount] = useState('')
-  const [targetDate, setTargetDate] = useState('')
-  const [accountId, setAccountId] = useState('')
-  const [currency, setCurrency] = useState(DEFAULT_CURRENCY)
-  const [creating, setCreating] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
+
 
   useEffect(() => {
     if (!token) return
@@ -161,31 +155,9 @@ export function GoalsPage() {
       .finally(() => setLoading(false))
   }, [token])
 
-  async function handleCreate(event: FormEvent) {
-    event.preventDefault()
-    if (!token) return
-    setFormError(null)
-    setCreating(true)
-    try {
-      const goal = await api.createGoal(token, {
-        name,
-        targetAmount: Number(targetAmount),
-        targetDate: targetDate ? dateInputToIso(targetDate) : undefined,
-        accountId: accountId || undefined,
-        currency: accountId ? undefined : currency,
-      })
-      setGoals((prev) => [...prev, goal])
-      setName('')
-      setTargetAmount('')
-      setTargetDate('')
-      setAccountId('')
-      setCurrency(DEFAULT_CURRENCY)
-      closeForm()
-    } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'No se pudo crear la meta')
-    } finally {
-      setCreating(false)
-    }
+  function handleCreated(goal: Goal) {
+    setGoals((prev) => [...prev, goal])
+    closeForm()
   }
 
   function updateOne(updated: Goal) {
@@ -199,67 +171,14 @@ export function GoalsPage() {
   return (
     <Layout fabActions={[{ label: 'Nueva meta', icon: Target, onClick: toggleForm }]}>
       <SectionHeader as="h1" title="Metas de ahorro">
-        <Button className={showForm ? '' : 'toolbar-create-btn'} onClick={toggleForm}>
-          {showForm ? 'Cancelar' : '+ Nueva meta'}
+        <Button className="toolbar-create-btn" onClick={toggleForm}>
+          + Nueva meta
         </Button>
       </SectionHeader>
 
-      {showForm && (
-        <Card className="ui-form-card">
-          <Form onSubmit={handleCreate}>
-            <FormError>{formError}</FormError>
-            <FormField label="Nombre" htmlFor="goal-name" full>
-              <input
-                id="goal-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                placeholder="Enganche del carro"
-              />
-            </FormField>
-            <FormField label="Monto meta" htmlFor="goal-target">
-              <input
-                id="goal-target"
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={targetAmount}
-                onChange={(e) => setTargetAmount(sanitizeDecimalInput(e.target.value))}
-                required
-              />
-            </FormField>
-            <FormField label="Fecha meta (opcional)" htmlFor="goal-date">
-              <input id="goal-date" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
-            </FormField>
-            <FormField label="Cuenta relacionada (opcional)" htmlFor="goal-account">
-              <select id="goal-account" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-                <option value="">Sin cuenta</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} ({a.currency})
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="Moneda" htmlFor="goal-currency">
-              {accountId ? (
-                <input id="goal-currency" value={accounts.find((a) => a.id === accountId)?.currency ?? ''} disabled />
-              ) : (
-                <select id="goal-currency" value={currency} onChange={(e) => setCurrency(e.target.value as typeof currency)}>
-                  {CURRENCIES.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.code} · {c.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </FormField>
-            <Button type="submit" disabled={creating}>
-              {creating ? 'Creando…' : 'Crear meta'}
-            </Button>
-          </Form>
-        </Card>
-      )}
+      <Modal open={showForm} onClose={closeForm} title="Nueva meta">
+        <GoalForm accounts={accounts} onCreated={handleCreated} />
+      </Modal>
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}

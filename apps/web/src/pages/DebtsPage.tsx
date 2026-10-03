@@ -1,21 +1,19 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { HandCoins } from 'lucide-react'
+import { DebtForm } from '../components/DebtForm'
 import { Layout } from '../components/Layout'
-import { UserAutocomplete } from '../components/UserAutocomplete'
 import { Badge, type BadgeTone } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
-import { Form, FormField, FormError } from '../components/ui/Form'
+import { Modal } from '../components/ui/Modal'
 import { Money } from '../components/ui/Money'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { SectionHeader } from '../components/ui/SectionHeader'
-import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { useCreateFormToggle } from '../components/ui/useCreateFormToggle'
 import { useAuth } from '../context/AuthContext'
 import * as api from '../lib/api'
-import { ApiError, type Account, type Debt, type DebtDirection, type DebtPayment } from '../lib/api'
-import { CURRENCIES, DEFAULT_CURRENCY } from '../lib/currencies'
+import { ApiError, type Account, type Debt, type DebtPayment } from '../lib/api'
 import { dateTimeInputToIso, formatDateOnly, nowDateTimeInput } from '../lib/dates'
 import { formatMoneyMaybeHidden, sanitizeDecimalInput } from '../lib/money'
 import { usePrivacy } from '../context/PrivacyContext'
@@ -241,14 +239,7 @@ export function DebtsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const { open: showForm, toggle: toggleForm, close: closeForm } = useCreateFormToggle()
-  const [counterpartyName, setCounterpartyName] = useState('')
-  const [counterpartyEmail, setCounterpartyEmail] = useState('')
-  const [direction, setDirection] = useState<DebtDirection>('THEY_OWE_ME')
-  const [amount, setAmount] = useState('')
-  const [currency, setCurrency] = useState(DEFAULT_CURRENCY)
-  const [description, setDescription] = useState('')
-  const [creating, setCreating] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
+
 
   useEffect(() => {
     if (!token) return
@@ -261,32 +252,9 @@ export function DebtsPage() {
       .finally(() => setLoading(false))
   }, [token])
 
-  async function handleCreate(event: FormEvent) {
-    event.preventDefault()
-    if (!token) return
-    setFormError(null)
-    setCreating(true)
-    try {
-      const debt = await api.createDebt(token, {
-        counterpartyName,
-        counterpartyEmail: counterpartyEmail || undefined,
-        direction,
-        amount: Number(amount),
-        currency,
-        description: description || undefined,
-      })
-      setDebts((prev) => [debt, ...prev])
-      setCounterpartyName('')
-      setCounterpartyEmail('')
-      setAmount('')
-      setCurrency(DEFAULT_CURRENCY)
-      setDescription('')
-      closeForm()
-    } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'No se pudo crear la deuda')
-    } finally {
-      setCreating(false)
-    }
+  function handleCreated(debt: Debt) {
+    setDebts((prev) => [debt, ...prev])
+    closeForm()
   }
 
   function updateOne(updated: Debt) {
@@ -300,82 +268,14 @@ export function DebtsPage() {
   return (
     <Layout fabActions={[{ label: 'Nueva deuda', icon: HandCoins, onClick: toggleForm }]}>
       <SectionHeader as="h1" title="Deudas">
-        <Button className={showForm ? '' : 'toolbar-create-btn'} onClick={toggleForm}>
-          {showForm ? 'Cancelar' : '+ Nueva deuda'}
+        <Button className="toolbar-create-btn" onClick={toggleForm}>
+          + Nueva deuda
         </Button>
       </SectionHeader>
 
-      {showForm && (
-        <Card className="ui-form-card">
-          <Form onSubmit={handleCreate}>
-            <FormError>{formError}</FormError>
-            <div className="ui-field-full">
-              <SegmentedControl<DebtDirection>
-                value={direction}
-                onChange={setDirection}
-                options={[
-                  { value: 'THEY_OWE_ME', label: 'Me deben', tone: 'ok' },
-                  { value: 'I_OWE_THEM', label: 'Yo debo', tone: 'error' },
-                ]}
-              />
-            </div>
-            <FormField label="Nombre de la otra persona" htmlFor="debt-name">
-              <input
-                id="debt-name"
-                value={counterpartyName}
-                onChange={(e) => setCounterpartyName(e.target.value)}
-                placeholder="Beto Ruiz"
-                required
-              />
-            </FormField>
-            <FormField label="Email (opcional)" htmlFor="debt-email">
-              <UserAutocomplete
-                id="debt-email"
-                value={counterpartyEmail}
-                onChange={setCounterpartyEmail}
-                onSelect={(result) => setCounterpartyName(result.name)}
-                placeholder="alguien@example.com"
-                required={false}
-              />
-              <span style={{ fontSize: '0.8rem' }}>
-                Si tiene cuenta en la app, la deuda queda vinculada a ella (sus abonos piden su confirmación). Si no,
-                la deuda igual se crea con el nombre como referencia.
-              </span>
-            </FormField>
-            <FormField label="Monto" htmlFor="debt-amount">
-              <input
-                id="debt-amount"
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={amount}
-                onChange={(e) => setAmount(sanitizeDecimalInput(e.target.value))}
-                required
-              />
-            </FormField>
-            <FormField label="Moneda" htmlFor="debt-currency">
-              <select id="debt-currency" value={currency} onChange={(e) => setCurrency(e.target.value as typeof currency)}>
-                {CURRENCIES.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.code} · {c.label}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="Descripción (opcional)" htmlFor="debt-description" full>
-              <input
-                id="debt-description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Cena del viernes"
-              />
-            </FormField>
-            <Button type="submit" disabled={creating}>
-              {creating ? 'Creando…' : 'Crear deuda'}
-            </Button>
-          </Form>
-        </Card>
-      )}
+      <Modal open={showForm} onClose={closeForm} title="Nueva deuda">
+        <DebtForm onCreated={handleCreated} />
+      </Modal>
 
       {loading && <p>Cargando…</p>}
       {error && <div className="auth-error">{error}</div>}

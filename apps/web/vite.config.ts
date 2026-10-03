@@ -13,8 +13,8 @@ export default defineConfig({
         name: 'Finanzas',
         short_name: 'Finanzas',
         description: 'App de finanzas personales',
-        theme_color: '#4169e1',
-        background_color: '#ffffff',
+        theme_color: '#a63d1c',
+        background_color: '#f2efe3',
         display: 'standalone',
         start_url: '/',
         icons: [
